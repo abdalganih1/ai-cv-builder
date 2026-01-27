@@ -56,8 +56,26 @@ ${JSON.stringify(data, null, 2)}
         ]);
 
         const content = response.choices[0].message.content;
-        const cleanJson = extractJSON(content);
-        return JSON.parse(cleanJson);
+
+        try {
+            const cleanJson = extractJSON(content);
+            return JSON.parse(cleanJson);
+        } catch (parseError) {
+            console.warn("⚠️ JSON extraction failed. Retrying with correction prompt...");
+
+            // Auto-Correction Retry
+            const retryResponse = await chatWithAI([
+                { role: 'system', content: 'أنت مساعد يُعيد JSON فقط.' },
+                { role: 'user', content: systemPrompt },
+                { role: 'assistant', content: content }, // Pass strict wrong response
+                { role: 'user', content: 'عذراً، الرد لم يكن JSON صالحاً. أعد الرد بصيغة JSON فقط، بدون أي نص إضافي.' }
+            ]);
+
+            const retryContent = retryResponse.choices[0].message.content;
+            const cleanRetryJson = extractJSON(retryContent);
+            return JSON.parse(cleanRetryJson);
+        }
+
     } catch (error) {
         console.error("Failed to process edit:", error);
         throw error;
@@ -100,19 +118,45 @@ ${JSON.stringify(data, null, 2)}
         const content = response.choices[0].message.content;
         console.log('🤖 CV Generation - Response received, length:', content?.length || 0);
 
-        const cleanJson = extractJSON(content);
-        const enhancedData = JSON.parse(cleanJson);
+        try {
+            const cleanJson = extractJSON(content);
+            const enhancedData = JSON.parse(cleanJson);
+            // Merge enhanced data with original to preserve metadata and IDs
+            return {
+                ...data,
+                personal: { ...data.personal, ...enhancedData.personal },
+                education: enhancedData.education || data.education,
+                experience: enhancedData.experience || data.experience,
+                skills: enhancedData.skills || data.skills,
+                hobbies: enhancedData.hobbies || data.hobbies,
+                languages: enhancedData.languages || data.languages
+            };
+        } catch (parseError) {
+            console.warn("⚠️ JSON extraction failed. Retrying with correction prompt...");
 
-        // Merge enhanced data with original to preserve metadata and IDs
-        return {
-            ...data,
-            personal: { ...data.personal, ...enhancedData.personal },
-            education: enhancedData.education || data.education,
-            experience: enhancedData.experience || data.experience,
-            skills: enhancedData.skills || data.skills,
-            hobbies: enhancedData.hobbies || data.hobbies,
-            languages: enhancedData.languages || data.languages
-        };
+            // Auto-Correction Retry for Generation
+            const retryResponse = await chatWithAI([
+                { role: 'system', content: 'أنت مساعد يُعيد JSON فقط.' },
+                { role: 'user', content: systemPrompt },
+                { role: 'assistant', content: content },
+                { role: 'user', content: 'عذراً، الرد لم يكن JSON صالحاً. أعد الرد بصيغة JSON فقط.' }
+            ]);
+
+            const retryContent = retryResponse.choices[0].message.content;
+            const cleanRetryJson = extractJSON(retryContent);
+            const enhancedRetryData = JSON.parse(cleanRetryJson);
+
+            return {
+                ...data,
+                personal: { ...data.personal, ...enhancedRetryData.personal },
+                education: enhancedRetryData.education || data.education,
+                experience: enhancedRetryData.experience || data.experience,
+                skills: enhancedRetryData.skills || data.skills,
+                hobbies: enhancedRetryData.hobbies || data.hobbies,
+                languages: enhancedRetryData.languages || data.languages
+            };
+        }
+
     } catch (error) {
         console.error("Failed to generate professional CV:", error);
         // Return original data if AI fails
