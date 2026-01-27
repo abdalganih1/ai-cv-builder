@@ -29,32 +29,42 @@ function extractJSON(content: string): string {
  * Process a user's edit request using the AI Agent
  */
 export async function processEditRequest(data: CVData, request: string): Promise<CVData> {
-    const systemPrompt = `
-أنت مساعد تحرير سير ذاتية. يجب أن تُعيد JSON فقط.
 
-⚠️ قاعدة صارمة: الرد يجب أن يبدأ بـ { وينتهي بـ } - لا كلام قبلها ولا بعدها!
+    // One-Shot Examples to force JSON mode
+    const exampleMessages = [
+        { role: 'system', content: 'أنت مساعد تحرير سير ذاتية. يجب أن تُعيد JSON فقط بناءً على المخطط المطلوب.' },
+        { role: 'user', content: 'السيرة الذاتية: {"personal":{"firstName":"أحمد"}} \n الطلب: "غيّر اسمي إلى عمر"' },
+        { role: 'assistant', content: '{"personal":{"firstName":"عمر"},"metadata":{"updated":true}}' }, // JSON Only response example
+    ];
 
+    const systemPromptMessage = {
+        role: 'system',
+        content: `
 ${CV_EDIT_SYSTEM_PROMPT}
 
-═══════════════════════════════════════════════════════════════════════════════
-📄 السيرة الذاتية الحالية:
-═══════════════════════════════════════════════════════════════════════════════
+⚠️ قاعدة صارمة جداً: الرد يجب أن يكون **JSON فقط**.
+لا تكتب أي مقدمات مثل "إليك التعديل" أو "حسناً".
+فقط كود JSON.
+
+السيرة الذاتية الحالية:
 ${JSON.stringify(data, null, 2)}
+`
+    };
 
-═══════════════════════════════════════════════════════════════════════════════
-✏️ طلب المستخدم:
-═══════════════════════════════════════════════════════════════════════════════
-"${request}"
+    const userMessage = {
+        role: 'user',
+        content: `الطلب: "${request}"\n\nأعِد JSON فقط:`
+    };
 
-🔴 أعِد JSON فقط! ابدأ بـ { مباشرة:
-`;
+    // Combine messages: System -> Examples -> Current Context -> User Request
+    const messages = [
+        systemPromptMessage,
+        ...exampleMessages.slice(1), // Add user/assistant examples, skip the extra system msg
+        userMessage
+    ];
 
     try {
-        const response = await chatWithAI([
-            { role: 'system', content: 'أنت مساعد يُعيد JSON فقط. لا تكتب أي نص آخر.' },
-            { role: 'user', content: systemPrompt }
-        ]);
-
+        const response = await chatWithAI(messages);
         const content = response.choices[0].message.content;
 
         try {
@@ -65,10 +75,9 @@ ${JSON.stringify(data, null, 2)}
 
             // Auto-Correction Retry
             const retryResponse = await chatWithAI([
-                { role: 'system', content: 'أنت مساعد يُعيد JSON فقط.' },
-                { role: 'user', content: systemPrompt },
-                { role: 'assistant', content: content }, // Pass strict wrong response
-                { role: 'user', content: 'عذراً، الرد لم يكن JSON صالحاً. أعد الرد بصيغة JSON فقط، بدون أي نص إضافي.' }
+                ...messages,
+                { role: 'assistant', content: content },
+                { role: 'user', content: 'عذراً، هذا ليس JSON صالحاً. أعد المحاولة وأرسل JSON فقط (بدون markdown).' }
             ]);
 
             const retryContent = retryResponse.choices[0].message.content;
@@ -86,35 +95,40 @@ ${JSON.stringify(data, null, 2)}
  * Auto-generate a complete professional CV from raw user data
  */
 export async function generateProfessionalCV(data: CVData): Promise<CVData> {
-    const systemPrompt = `
-أنت خبير سير ذاتية. يجب أن تُعيد JSON فقط.
 
-⚠️ قاعدة صارمة: الرد يجب أن يبدأ بـ { وينتهي بـ } - لا كلام قبلها ولا بعدها!
+    // One-Shot Examples for Generation
+    const exampleMessages = [
+        { role: 'system', content: 'أنت خبير سير ذاتية. الرد JSON فقط.' },
+        { role: 'user', content: 'أنشئ سيرة ذاتية لهذا المستخدم: {"personal":{"firstName":"تجربة"}}' },
+        { role: 'assistant', content: '{"personal":{"firstName":"تجربة","summary":"خبير..."},"skills":["مهارة 1"]}' }
+    ];
 
+    const systemPromptMessage = {
+        role: 'system',
+        content: `
 ${CV_GENERATOR_SYSTEM_PROMPT}
 
-═══════════════════════════════════════════════════════════════════════════════
-📄 البيانات الخام للمستخدم:
-═══════════════════════════════════════════════════════════════════════════════
+⚠️ قاعدة صارمة جداً: الرد يجب أن يكون **JSON فقط**.
+لا تستخدم Markdown block (\`\`\`json). ابدأ بـ { مباشرة.
+
+البيانات الخام:
 ${JSON.stringify(data, null, 2)}
+`
+    };
 
-═══════════════════════════════════════════════════════════════════════════════
-🎯 المطلوب:
-═══════════════════════════════════════════════════════════════════════════════
-1. اكتب نبذة تعريفية احترافية (summary)
-2. حسّن وصف كل خبرة عملية
-3. رتّب المهارات حسب الأهمية
-4. حسّن المسمى الوظيفي
+    const userMessage = {
+        role: 'user',
+        content: 'أنشئ السيرة الذاتية الاحترافية الآن (JSON فقط):'
+    };
 
-🔴 أعِد JSON فقط! ابدأ بـ { مباشرة:
-`;
+    const messages = [
+        systemPromptMessage,
+        ...exampleMessages.slice(1),
+        userMessage
+    ];
 
     try {
-        const response = await chatWithAI([
-            { role: 'system', content: 'أنت مساعد يُعيد JSON فقط. لا تكتب أي نص آخر. ابدأ ردك بـ { مباشرة.' },
-            { role: 'user', content: systemPrompt }
-        ]);
-
+        const response = await chatWithAI(messages);
         const content = response.choices[0].message.content;
         console.log('🤖 CV Generation - Response received, length:', content?.length || 0);
 
@@ -136,10 +150,9 @@ ${JSON.stringify(data, null, 2)}
 
             // Auto-Correction Retry for Generation
             const retryResponse = await chatWithAI([
-                { role: 'system', content: 'أنت مساعد يُعيد JSON فقط.' },
-                { role: 'user', content: systemPrompt },
+                ...messages,
                 { role: 'assistant', content: content },
-                { role: 'user', content: 'عذراً، الرد لم يكن JSON صالحاً. أعد الرد بصيغة JSON فقط.' }
+                { role: 'user', content: 'عذراً، هذا ليس JSON صالحاً. أعد المحاولة وأرسل JSON فقط (بدون markdown).' }
             ]);
 
             const retryContent = retryResponse.choices[0].message.content;
