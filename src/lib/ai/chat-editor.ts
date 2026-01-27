@@ -36,8 +36,11 @@ ${CV_EDIT_SYSTEM_PROMPT}
 
 IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
 Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
-CRITICAL: All content values (names, descriptions, roles, etc.) MUST be in ARABIC language (اللغة العربية).
-Do NOT output English content unless the term is technical (e.g. Java, SQL).
+
+CRITICAL INSTRUCTION:
+All string values (names, descriptions, roles, degrees, etc.) MUST be in **ARABIC** (اللغة العربية).
+If the input data is in English, you MUST **TRANSLATE** it to professional Arabic.
+Exception: Technical terms (Java, SQL, React) should remain in English.
 
 Schema:
 interface CVData {
@@ -53,13 +56,13 @@ ${JSON.stringify(data, null, 2)}
 
 User Request: "${request}"
 
-Output JSON only:
+Output JSON only (in ARABIC):
 `;
 
     try {
         // Use low temperature for deterministic output
         const response = await chatWithAI([
-            { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+            { role: 'system', content: 'You are a professional Arabic CV Expert. You output JSON only. You TRANSLATE everything to Arabic.' },
             { role: 'user', content: systemPrompt }
         ], { temperature: 0.3 });
 
@@ -73,10 +76,10 @@ Output JSON only:
 
             // Auto-Correction Retry
             const retryResponse = await chatWithAI([
-                { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+                { role: 'system', content: 'You are a professional Arabic CV Expert. Output valid JSON only.' },
                 { role: 'user', content: systemPrompt },
                 { role: 'assistant', content: content },
-                { role: 'user', content: 'ERROR: Your last response was not valid JSON. Please fix it and return ONLY valid JSON.' }
+                { role: 'user', content: 'ERROR: Your last response was not valid JSON. Please fix it and return ONLY valid JSON in ARABIC.' }
             ], { temperature: 0.1 }); // Even lower temp for retry
 
             const retryContent = retryResponse.choices[0].message.content;
@@ -100,20 +103,24 @@ ${CV_GENERATOR_SYSTEM_PROMPT}
 
 IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
 Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
-CRITICAL: All content values (names, descriptions, roles, etc.) MUST be in ARABIC language (اللغة العربية).
-Do NOT output English content unless the term is technical (e.g. Java, SQL).
+
+CRITICAL INSTRUCTION:
+All string values (names, descriptions, roles, degrees, etc.) MUST be in **ARABIC** (اللغة العربية).
+If the input data is in English, you MUST **TRANSLATE** it to professional Arabic.
+Exception: Technical terms (Java, SQL, React) should remain in English.
 
 Current Data:
 ${JSON.stringify(data, null, 2)}
 
 Task: Enhance this CV data professionally. Improve summaries, use action verbs for experience, and structure skills.
+Everything MUST be in Arabic.
 
 Output JSON only:
 `;
 
     try {
         const response = await chatWithAI([
-            { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+            { role: 'system', content: 'You are a professional Arabic CV Expert. You output JSON only. You TRANSLATE everything to Arabic.' },
             { role: 'user', content: systemPrompt }
         ], { temperature: 0.3 });
 
