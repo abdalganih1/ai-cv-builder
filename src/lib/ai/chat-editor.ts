@@ -29,12 +29,16 @@ ${JSON.stringify(data, null, 2)}
         ]);
 
         const content = response.choices[0].message.content;
-        // Clean any markdown code blocks if present
-        const cleanJson = content
-            .replace(/```json\s*/gi, '')
-            .replace(/```\s*/gi, '')
-            .trim();
 
+        // Robust JSON extraction: find the first '{' and the last '}'
+        const firstOpen = content.indexOf('{');
+        const lastClose = content.lastIndexOf('}');
+
+        if (firstOpen === -1 || lastClose === -1) {
+            throw new Error("No JSON found in AI response");
+        }
+
+        const cleanJson = content.substring(firstOpen, lastClose + 1);
         return JSON.parse(cleanJson);
     } catch (error) {
         console.error("Failed to process edit:", error);
@@ -74,10 +78,15 @@ ${JSON.stringify(data, null, 2)}
         ]);
 
         const content = response.choices[0].message.content;
-        const cleanJson = content
-            .replace(/```json\s*/gi, '')
-            .replace(/```\s*/gi, '')
-            .trim();
+        // Robust JSON extraction
+        const firstOpen = content.indexOf('{');
+        const lastClose = content.lastIndexOf('}');
+
+        if (firstOpen === -1 || lastClose === -1) {
+            throw new Error("No JSON found in AI response");
+        }
+
+        const cleanJson = content.substring(firstOpen, lastClose + 1);
 
         const enhancedData = JSON.parse(cleanJson);
 
