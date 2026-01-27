@@ -77,7 +77,7 @@ export default function Home() {
     console.log('📍 Current step BEFORE update:', data.metadata.currentStep);
 
     setData(prev => {
-      const newStep = prev.metadata.currentStep + 1;
+      const newStep = Math.min(prev.metadata.currentStep + 1, steps.length - 1);
       console.log('📍 New step WILL BE:', newStep);
 
       const updatedData = {
@@ -117,8 +117,8 @@ export default function Home() {
     );
   }
 
-  // Ensure step is valid
-  const currentStepIndex = data.metadata.currentStep || 0;
+  // Ensure step is valid and within bounds
+  const currentStepIndex = Math.min(Math.max(0, data.metadata.currentStep || 0), steps.length - 1);
   const CurrentStepComponent = steps[currentStepIndex]?.component || WelcomeStep;
   const isLastStep = currentStepIndex === steps.length - 1;
 
