@@ -1,74 +1,43 @@
-"use server";
+// Client-side AI helper - calls the Edge API route
 
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
-
-// Retry configuration
 const MAX_RETRIES = 3;
-const INITIAL_DELAY = 1000; // 1 second
+const INITIAL_DELAY = 1000;
 
 async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function chatWithAI(messages: { role: string; content: string }[], retryCount = 0): Promise<any> {
-    const ZAI_API_KEY = process.env.ZAI_API_KEY;
-
-    if (!ZAI_API_KEY) {
-        console.error("ZAI_API_KEY not found in environment variables");
-        throw new Error("API Key config missing: ZAI_API_KEY. Please add it to .env.local and restart the server.");
-    }
-
     try {
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
+        const response = await fetch('/api/ai/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-                'Accept-Language': 'ar-SA,ar',
             },
-            body: JSON.stringify({
-                model: 'GLM-4.7',
-                messages,
-                temperature: 0.7
-            }),
-            cache: 'no-store'
+            body: JSON.stringify({ messages }),
         });
 
-        // Handle rate limiting (429)
-        if (response.status === 429) {
-            if (retryCount < MAX_RETRIES) {
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error(`AI API Error (${response.status}):`, errorData);
+
+            // Retry on server errors
+            if (response.status >= 500 && retryCount < MAX_RETRIES) {
                 const delay = INITIAL_DELAY * Math.pow(2, retryCount);
-                console.log(`Rate limited. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+                console.log(`Server error. Retrying in ${delay}ms...`);
                 await sleep(delay);
                 return chatWithAI(messages, retryCount + 1);
-            } else {
-                // After max retries, return a fallback response
-                console.warn("Max retries reached. Returning fallback response.");
-                return {
-                    choices: [{
-                        message: {
-                            content: JSON.stringify({
-                                _fallback: true,
-                                message: "عذراً، الخدمة مشغولة حالياً. يرجى المحاولة بعد قليل."
-                            })
-                        }
-                    }]
-                };
             }
-        }
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`ZAI API Error (${response.status}):`, errorText);
-            throw new Error(`AI Request failed: ${response.status} ${response.statusText}`);
+            throw new Error(`AI Request failed: ${response.status}`);
         }
 
         return await response.json();
     } catch (error) {
-        console.error('Error calling z.ai:', error);
+        console.error('Error calling AI API:', error);
 
-        // If network error and can retry
-        if (retryCount < MAX_RETRIES && !(error instanceof Error && error.message.includes('API Key'))) {
+        // Retry on network errors
+        if (retryCount < MAX_RETRIES) {
             const delay = INITIAL_DELAY * Math.pow(2, retryCount);
             console.log(`Network error. Retrying in ${delay}ms...`);
             await sleep(delay);
