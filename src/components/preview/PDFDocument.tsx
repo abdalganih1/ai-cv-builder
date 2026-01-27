@@ -3,21 +3,32 @@
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { CVData } from '@/lib/types/cv-schema';
 
-// Register Arabic Font from CDN (works on Edge Runtime)
-// Using Google Fonts CDN for IBM Plex Sans Arabic
-Font.register({
-    family: 'IBMPlexSansArabic',
-    fonts: [
-        {
-            src: 'https://fonts.gstatic.com/s/ibmplexsansarabic/v12/Qw3CZRtWPQCuHme67tEYUIx3Kh0PHR9N6YNe3PC5eMk.woff2',
-            fontWeight: 'normal'
-        },
-        {
-            src: 'https://fonts.gstatic.com/s/ibmplexsansarabic/v12/Qw3NZRtWPQCuHme67tEYUIx3Kh0PHR9N6YPy_dCTPzRLxA.woff2',
-            fontWeight: 'bold'
-        }
-    ]
-});
+// Register Arabic Font - use absolute URL on client side
+// This ensures the font loads correctly in browser environment
+const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+        return window.location.origin;
+    }
+    return '';
+};
+
+// Only register fonts on client side
+if (typeof window !== 'undefined') {
+    Font.register({
+        family: 'IBMPlexSansArabic',
+        fonts: [
+            {
+                src: `${getBaseUrl()}/IBMPlexSansArabic-Regular.ttf`,
+                fontWeight: 'normal'
+            },
+            {
+                src: `${getBaseUrl()}/IBMPlexSansArabic-Bold.ttf`,
+                fontWeight: 'bold'
+            }
+        ]
+    });
+}
+
 
 const styles = StyleSheet.create({
     page: {
