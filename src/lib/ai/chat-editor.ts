@@ -64,7 +64,7 @@ Output JSON only (in ARABIC):
         const response = await chatWithAI([
             { role: 'system', content: 'You are a professional Arabic CV Expert. You output JSON only. You TRANSLATE everything to Arabic.' },
             { role: 'user', content: systemPrompt }
-        ], { temperature: 0.3 });
+        ], { temperature: 0.2 });
 
         const content = response.choices[0].message.content;
 
@@ -122,7 +122,7 @@ Output JSON only:
         const response = await chatWithAI([
             { role: 'system', content: 'You are a professional Arabic CV Expert. You output JSON only. You TRANSLATE everything to Arabic.' },
             { role: 'user', content: systemPrompt }
-        ], { temperature: 0.3 });
+        ], { temperature: 0.2 });
 
         const content = response.choices[0].message.content;
         console.log('🤖 CV Generation - Response received, length:', content?.length || 0);
