@@ -42,6 +42,7 @@ export interface CVData {
     paymentStatus: 'pending' | 'completed';
     totalCost: number;
     primaryLanguage: string;
+    paymentProofUrl?: string;
   };
   // Internal flags for questionnaire state
   _completedEducation?: boolean;

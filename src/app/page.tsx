@@ -142,17 +142,22 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Debug Info */}
-      <div className="mt-8 text-center opacity-40 hover:opacity-100 transition-opacity">
-        <p className="text-[10px] text-gray-400 mb-2">
-          SESSION ID: {STORAGE_KEY} | STEP: {currentStepIndex + 1}
-        </p>
+      {/* Reset Button - Always visible */}
+      <div className="mt-6 text-center">
         <button
-          onClick={clearSavedData}
-          className="px-3 py-1 text-[10px] text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded transition-all"
+          onClick={() => {
+            if (confirm('هل أنت متأكد من حذف جميع البيانات والبدء من جديد؟')) {
+              clearSavedData();
+            }
+          }}
+          className="px-6 py-3 text-sm font-bold text-red-500 hover:text-white hover:bg-red-500 border-2 border-red-200 hover:border-red-500 rounded-xl transition-all duration-300 flex items-center gap-2 mx-auto"
         >
-          إعادة تعيين كافة البيانات
+          <span>🔄</span>
+          <span>البدء من جديد</span>
         </button>
+        <p className="text-[10px] text-gray-400 mt-2">
+          الخطوة {currentStepIndex + 1} من {steps.length}
+        </p>
       </div>
     </main>
   );
