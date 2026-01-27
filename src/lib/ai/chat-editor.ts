@@ -30,41 +30,37 @@ function extractJSON(content: string): string {
  */
 export async function processEditRequest(data: CVData, request: string): Promise<CVData> {
 
-    // One-Shot Examples to force JSON mode
-    const exampleMessages = [
-        { role: 'system', content: 'أنت مساعد تحرير سير ذاتية. يجب أن تُعيد JSON فقط بناءً على المخطط المطلوب.' },
-        { role: 'user', content: 'السيرة الذاتية: {"personal":{"firstName":"أحمد"}} \n الطلب: "غيّر اسمي إلى عمر"' },
-        { role: 'assistant', content: '{"personal":{"firstName":"عمر"},"metadata":{"updated":true}}' }, // JSON Only response example
-    ];
-
-    const systemPromptMessage = {
-        role: 'system',
-        content: `
+    // Strict JSON System Prompt with Schema Definition
+    const systemPrompt = `
 ${CV_EDIT_SYSTEM_PROMPT}
 
-⚠️ قاعدة صارمة جداً: الرد يجب أن يكون **JSON فقط**.
-لا تكتب أي مقدمات مثل "إليك التعديل" أو "حسناً".
-فقط كود JSON.
+IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
+Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
 
-السيرة الذاتية الحالية:
+Schema:
+interface CVData {
+  personal: { name: string; title: string; ... };
+  experience: Array<{ company: string; role: string; ... }>;
+  education: Array<{ institution: string; degree: string; ... }>;
+  skills: string[];
+  ...
+}
+
+Current Data:
 ${JSON.stringify(data, null, 2)}
-`
-    };
 
-    const userMessage = {
-        role: 'user',
-        content: `الطلب: "${request}"\n\nأعِد JSON فقط:`
-    };
+User Request: "${request}"
 
-    // Combine messages: System -> Examples -> Current Context -> User Request
-    const messages = [
-        systemPromptMessage,
-        ...exampleMessages.slice(1), // Add user/assistant examples, skip the extra system msg
-        userMessage
-    ];
+Output JSON only:
+`;
 
     try {
-        const response = await chatWithAI(messages);
+        // Use low temperature for deterministic output
+        const response = await chatWithAI([
+            { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+            { role: 'user', content: systemPrompt }
+        ], { temperature: 0.3 });
+
         const content = response.choices[0].message.content;
 
         try {
@@ -75,10 +71,11 @@ ${JSON.stringify(data, null, 2)}
 
             // Auto-Correction Retry
             const retryResponse = await chatWithAI([
-                ...messages,
+                { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+                { role: 'user', content: systemPrompt },
                 { role: 'assistant', content: content },
-                { role: 'user', content: 'عذراً، هذا ليس JSON صالحاً. أعد المحاولة وأرسل JSON فقط (بدون markdown).' }
-            ]);
+                { role: 'user', content: 'ERROR: Your last response was not valid JSON. Please fix it and return ONLY valid JSON.' }
+            ], { temperature: 0.1 }); // Even lower temp for retry
 
             const retryContent = retryResponse.choices[0].message.content;
             const cleanRetryJson = extractJSON(retryContent);
@@ -96,39 +93,26 @@ ${JSON.stringify(data, null, 2)}
  */
 export async function generateProfessionalCV(data: CVData): Promise<CVData> {
 
-    // One-Shot Examples for Generation
-    const exampleMessages = [
-        { role: 'system', content: 'أنت خبير سير ذاتية. الرد JSON فقط.' },
-        { role: 'user', content: 'أنشئ سيرة ذاتية لهذا المستخدم: {"personal":{"firstName":"تجربة"}}' },
-        { role: 'assistant', content: '{"personal":{"firstName":"تجربة","summary":"خبير..."},"skills":["مهارة 1"]}' }
-    ];
-
-    const systemPromptMessage = {
-        role: 'system',
-        content: `
+    const systemPrompt = `
 ${CV_GENERATOR_SYSTEM_PROMPT}
 
-⚠️ قاعدة صارمة جداً: الرد يجب أن يكون **JSON فقط**.
-لا تستخدم Markdown block (\`\`\`json). ابدأ بـ { مباشرة.
+IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
+Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
 
-البيانات الخام:
+Current Data:
 ${JSON.stringify(data, null, 2)}
-`
-    };
 
-    const userMessage = {
-        role: 'user',
-        content: 'أنشئ السيرة الذاتية الاحترافية الآن (JSON فقط):'
-    };
+Task: Enhance this CV data professionally. Improve summaries, use action verbs for experience, and structure skills.
 
-    const messages = [
-        systemPromptMessage,
-        ...exampleMessages.slice(1),
-        userMessage
-    ];
+Output JSON only:
+`;
 
     try {
-        const response = await chatWithAI(messages);
+        const response = await chatWithAI([
+            { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+            { role: 'user', content: systemPrompt }
+        ], { temperature: 0.3 });
+
         const content = response.choices[0].message.content;
         console.log('🤖 CV Generation - Response received, length:', content?.length || 0);
 
@@ -150,10 +134,11 @@ ${JSON.stringify(data, null, 2)}
 
             // Auto-Correction Retry for Generation
             const retryResponse = await chatWithAI([
-                ...messages,
+                { role: 'system', content: 'You are a JSON generator. Output valid JSON only.' },
+                { role: 'user', content: systemPrompt },
                 { role: 'assistant', content: content },
-                { role: 'user', content: 'عذراً، هذا ليس JSON صالحاً. أعد المحاولة وأرسل JSON فقط (بدون markdown).' }
-            ]);
+                { role: 'user', content: 'ERROR: Your last response was not valid JSON. Please fix it and return ONLY valid JSON.' }
+            ], { temperature: 0.1 });
 
             const retryContent = retryResponse.choices[0].message.content;
             const cleanRetryJson = extractJSON(retryContent);

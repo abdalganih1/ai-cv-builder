@@ -6,7 +6,7 @@ const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 export async function POST(request: NextRequest) {
     try {
-        const { messages } = await request.json();
+        const { messages, temperature } = await request.json();
 
         const ZAI_API_KEY = process.env.ZAI_API_KEY;
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({
                 model: 'GLM-4.7',
                 messages,
-                temperature: 0.7
+                temperature: temperature || 0.7
             }),
         });
 

@@ -7,14 +7,19 @@ async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function chatWithAI(messages: { role: string; content: string }[], retryCount = 0): Promise<any> {
+export async function chatWithAI(
+    messages: { role: string; content: string }[],
+    options: { temperature?: number; retryCount?: number } = {}
+): Promise<any> {
+    const { temperature, retryCount = 0 } = options;
+
     try {
         const response = await fetch('/api/ai/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ messages }),
+            body: JSON.stringify({ messages, temperature }),
         });
 
         if (!response.ok) {
@@ -26,7 +31,7 @@ export async function chatWithAI(messages: { role: string; content: string }[], 
                 const delay = INITIAL_DELAY * Math.pow(2, retryCount);
                 console.log(`Server error. Retrying in ${delay}ms...`);
                 await sleep(delay);
-                return chatWithAI(messages, retryCount + 1);
+                return chatWithAI(messages, { ...options, retryCount: retryCount + 1 });
             }
 
             throw new Error(`AI Request failed: ${response.status}`);
@@ -41,7 +46,7 @@ export async function chatWithAI(messages: { role: string; content: string }[], 
             const delay = INITIAL_DELAY * Math.pow(2, retryCount);
             console.log(`Network error. Retrying in ${delay}ms...`);
             await sleep(delay);
-            return chatWithAI(messages, retryCount + 1);
+            return chatWithAI(messages, { ...options, retryCount: retryCount + 1 });
         }
 
         throw error;
