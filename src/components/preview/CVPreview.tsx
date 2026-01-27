@@ -14,10 +14,10 @@ interface StepProps {
     onBack: () => void;
 }
 
-export default function CVPreview({ data, onNext, onBack }: StepProps) {
+export default function CVPreview({ data, onNext, onUpdate, onBack }: StepProps) {
 
     const handleUpdate = (newData: CVData) => {
-        onNext(newData); // Propagate updates back to parent state
+        onUpdate(newData); // Use onUpdate to modify data without changing step
     };
 
     const handleDownloadPDF = async () => {

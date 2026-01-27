@@ -3,32 +3,25 @@
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { CVData } from '@/lib/types/cv-schema';
 
-// Register Arabic Font - use absolute URL on client side
-// This ensures the font loads correctly in browser environment
-const getBaseUrl = () => {
-    if (typeof window !== 'undefined') {
-        return window.location.origin;
-    }
-    return '';
-};
+// Register Arabic Font with absolute URL
+// Using the deployed Cloudflare Pages URL to ensure fonts load correctly
+const FONT_BASE_URL = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://ai-cv-builder.pages.dev';
 
-// Only register fonts on client side
-if (typeof window !== 'undefined') {
-    Font.register({
-        family: 'IBMPlexSansArabic',
-        fonts: [
-            {
-                src: `${getBaseUrl()}/IBMPlexSansArabic-Regular.ttf`,
-                fontWeight: 'normal'
-            },
-            {
-                src: `${getBaseUrl()}/IBMPlexSansArabic-Bold.ttf`,
-                fontWeight: 'bold'
-            }
-        ]
-    });
-}
-
+Font.register({
+    family: 'IBMPlexSansArabic',
+    fonts: [
+        {
+            src: `${FONT_BASE_URL}/IBMPlexSansArabic-Regular.ttf`,
+            fontWeight: 'normal'
+        },
+        {
+            src: `${FONT_BASE_URL}/IBMPlexSansArabic-Bold.ttf`,
+            fontWeight: 'bold'
+        }
+    ]
+});
 
 const styles = StyleSheet.create({
     page: {
