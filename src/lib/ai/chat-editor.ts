@@ -36,6 +36,8 @@ ${CV_EDIT_SYSTEM_PROMPT}
 
 IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
 Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
+CRITICAL: All content values (names, descriptions, roles, etc.) MUST be in ARABIC language (اللغة العربية).
+Do NOT output English content unless the term is technical (e.g. Java, SQL).
 
 Schema:
 interface CVData {
@@ -98,6 +100,8 @@ ${CV_GENERATOR_SYSTEM_PROMPT}
 
 IMPORTANT: You are a JSON-only API. You must output VALID JSON matching the CVData schema.
 Do NOT use Markdown blocks. Do NOT add preamble. Start with '{'.
+CRITICAL: All content values (names, descriptions, roles, etc.) MUST be in ARABIC language (اللغة العربية).
+Do NOT output English content unless the term is technical (e.g. Java, SQL).
 
 Current Data:
 ${JSON.stringify(data, null, 2)}
