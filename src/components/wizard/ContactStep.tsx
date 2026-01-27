@@ -56,12 +56,12 @@ export default function ContactStep({ data, onNext, onBack }: StepProps) {
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
-                            className="w-full p-5 text-xl border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300 tracking-widest font-mono"
+                            className="w-full p-5 pl-14 text-xl border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300 tracking-widest font-mono"
                             placeholder="09xx xxx xxx"
                             required
                             dir="ltr"
                         />
-                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-primary font-bold">
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-primary text-xl pointer-events-none">
                             📞
                         </div>
                     </div>
