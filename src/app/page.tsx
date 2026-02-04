@@ -75,16 +75,26 @@ export default function Home() {
 
   const nextStep = (newData: Partial<CVData>) => {
     console.log('🔄 nextStep called with:', newData);
-    console.log('📍 Current step BEFORE update:', data.metadata.currentStep);
 
     setData(prev => {
-      const newStep = Math.min(prev.metadata.currentStep + 1, steps.length - 1);
+      // Allow jumping to specific step if provided in metadata, otherwise increment
+      let nextStepIndex = prev.metadata.currentStep + 1;
+
+      if (newData.metadata?.currentStep !== undefined) {
+        nextStepIndex = newData.metadata.currentStep;
+      }
+
+      const newStep = Math.min(nextStepIndex, steps.length - 1);
       console.log('📍 New step WILL BE:', newStep);
 
       const updatedData = {
         ...prev,
         ...newData,
-        metadata: { ...prev.metadata, currentStep: newStep }
+        metadata: {
+          ...prev.metadata,
+          ...newData.metadata,
+          currentStep: newStep
+        }
       };
 
       console.log('📦 Updated data:', updatedData);

@@ -127,7 +127,7 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'text' }
+                metadata: { ...data.metadata, importSource: 'text', currentStep: 4 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -233,7 +233,7 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'url', sourceUrl: url }
+                metadata: { ...data.metadata, importSource: 'url', sourceUrl: url, currentStep: 4 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -369,7 +369,7 @@ function PDFUpload({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'pdf', originalPdfName: file.name }
+                metadata: { ...data.metadata, importSource: 'pdf', originalPdfName: file.name, currentStep: 4 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
