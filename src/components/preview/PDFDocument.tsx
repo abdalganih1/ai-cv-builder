@@ -3,26 +3,42 @@
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { CVData } from '@/lib/types/cv-schema';
 
-// Register Arabic Font
-// Using relative paths works best in both local and production environments
-Font.register({
-    family: 'IBMPlexSansArabic',
-    fonts: [
-        {
-            src: '/IBMPlexSansArabic-Regular.ttf',
-            fontWeight: 'normal'
-        },
-        {
-            src: '/IBMPlexSansArabic-Bold.ttf',
-            fontWeight: 'bold'
-        }
-    ]
-});
+// Flag to track if fonts are registered
+let fontsRegistered = false;
+
+// Register Arabic Font with error handling
+function registerFonts() {
+    if (fontsRegistered) return;
+
+    try {
+        Font.register({
+            family: 'IBMPlexSansArabic',
+            fonts: [
+                {
+                    src: '/IBMPlexSansArabic-Regular.ttf',
+                    fontWeight: 'normal'
+                },
+                {
+                    src: '/IBMPlexSansArabic-Bold.ttf',
+                    fontWeight: 'bold'
+                }
+            ]
+        });
+        fontsRegistered = true;
+        console.log('✅ Arabic fonts registered successfully');
+    } catch (error) {
+        console.error('❌ Failed to register Arabic fonts:', error);
+        // Don't set fontsRegistered = true, so we can fallback gracefully
+    }
+}
+
+// Attempt to register fonts immediately
+registerFonts();
 
 const styles = StyleSheet.create({
     page: {
         padding: 40,
-        fontFamily: 'IBMPlexSansArabic',
+        fontFamily: fontsRegistered ? 'IBMPlexSansArabic' : 'Helvetica',
         backgroundColor: '#ffffff'
     },
     header: {
@@ -200,6 +216,34 @@ export default function PDFDocument({ data }: PDFDocumentProps) {
                             {data.skills.map((skill, idx) => (
                                 <View key={idx} style={styles.skillBadge}>
                                     <Text>{skill}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {/* Languages */}
+                {data.languages && data.languages.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>اللغات</Text>
+                        <View style={styles.skillsContainer}>
+                            {data.languages.map((lang, idx) => (
+                                <View key={idx} style={styles.skillBadge}>
+                                    <Text>{lang}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {/* Hobbies */}
+                {data.hobbies && data.hobbies.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>الهوايات</Text>
+                        <View style={styles.skillsContainer}>
+                            {data.hobbies.map((hobby, idx) => (
+                                <View key={idx} style={styles.skillBadge}>
+                                    <Text>{hobby}</Text>
                                 </View>
                             ))}
                         </View>

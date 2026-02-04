@@ -127,7 +127,7 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'text', currentStep: 4 }
+                metadata: { ...data.metadata, importSource: 'text', currentStep: 3 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -209,9 +209,15 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
     const handleAnalyze = async () => {
         if (!url.trim()) return;
 
+        // Normalize URL - add https:// if no protocol
+        let normalizedUrl = url.trim();
+        if (!normalizedUrl.match(/^https?:\/\//i)) {
+            normalizedUrl = 'https://' + normalizedUrl;
+        }
+
         // Basic URL validation
         try {
-            new URL(url);
+            new URL(normalizedUrl);
         } catch {
             setError('يرجى إدخال رابط صحيح');
             return;
@@ -224,7 +230,7 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
             const response = await fetch('/api/analyze/url', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url: normalizedUrl })
             });
 
             if (!response.ok) throw new Error('فشل في تحليل الرابط');
@@ -233,7 +239,7 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'url', sourceUrl: url, currentStep: 4 }
+                metadata: { ...data.metadata, importSource: 'url', sourceUrl: normalizedUrl, currentStep: 3 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -369,7 +375,7 @@ function PDFUpload({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'pdf', originalPdfName: file.name, currentStep: 4 }
+                metadata: { ...data.metadata, importSource: 'pdf', originalPdfName: file.name, currentStep: 3 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
