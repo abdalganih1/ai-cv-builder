@@ -270,12 +270,12 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    className="w-full p-4 pr-12 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400"
+                    className="w-full p-4 pr-24 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400 font-mono"
                     placeholder="https://linkedin.com/in/username"
                     dir="ltr"
                 />
                 {url && (
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
                         {detectPlatform(url)}
                     </span>
                 )}
@@ -399,10 +399,10 @@ function PDFUpload({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${isDragging
-                        ? 'border-primary bg-primary/5'
-                        : file
-                            ? 'border-green-400 bg-green-50'
-                            : 'border-gray-200 hover:border-gray-300 bg-gray-50/50'
+                    ? 'border-primary bg-primary/5'
+                    : file
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-gray-50/50'
                     }`}
                 onClick={() => document.getElementById('pdf-input')?.click()}
             >

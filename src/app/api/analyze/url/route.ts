@@ -35,30 +35,48 @@ const URL_ANALYSIS_PROMPT = `أنت خبير في تحليل صفحات الوي
 
 async function fetchUrlContent(url: string): Promise<string> {
     try {
-        // Use a simple fetch to get the page content
+        // Use more browser-like headers to avoid being blocked
         const response = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; CVBuilder/1.0)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.google.com/',
+                'Cache-Control': 'no-cache',
             },
         });
 
+        // Handle specific error codes
         if (!response.ok) {
-            throw new Error(`Failed to fetch URL: ${response.status}`);
+            if (response.status === 403 || response.status === 401) {
+                console.warn(`Access denied (${response.status}) for ${url}`);
+                throw new Error(`تعذر الوصول للصفحة (${response.status}). قد يكون الموقع محمي ضد الروبوتات.`);
+            }
+            if (response.status === 404) {
+                throw new Error(`الصفحة غير موجودة (404). تأكد من صحة الرابط.`);
+            }
+            throw new Error(`فشل في جلب الرابط: ${response.status} ${response.statusText}`);
         }
 
         const html = await response.text();
 
-        // Basic HTML to text conversion (remove tags, scripts, styles)
+        // Improved HTML to text conversion
         const text = html
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gim, "")
+            .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gim, "")
+            .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gim, "")
+            .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gim, "")
             .replace(/<[^>]+>/g, ' ')
             .replace(/\s+/g, ' ')
-            .trim()
-            .substring(0, 10000); // Limit content length
+            .trim();
 
-        return text;
+        const cleanText = text.substring(0, 15000); // Increased limit for better context
+
+        if (cleanText.length < 50) {
+            throw new Error('محتوى الصفحة قصير جداً أو فارغ. تأكد أن الصفحة عامة.');
+        }
+
+        return cleanText;
     } catch (error) {
         console.error('Error fetching URL:', error);
         throw error;
@@ -113,27 +131,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Detect platform
         const platform = detectPlatform(url);
 
         // Fetch URL content
         let pageContent: string;
         try {
             pageContent = await fetchUrlContent(url);
-        } catch {
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'فشل في جلب محتوى الصفحة';
             return new Response(
-                JSON.stringify({
-                    error: "فشل في جلب محتوى الصفحة. تأكد من أن الصفحة عامة ويمكن الوصول إليها."
-                }),
-                { status: 400, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        if (pageContent.length < 50) {
-            return new Response(
-                JSON.stringify({
-                    error: "لم نتمكن من استخراج محتوى كافٍ من هذه الصفحة. قد تكون محمية أو خاصة."
-                }),
+                JSON.stringify({ error: errorMessage }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
         }
