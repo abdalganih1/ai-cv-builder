@@ -146,9 +146,6 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
         }
     };
 
-    const handleSkipProof = () => {
-        setShowProofRequired(false);
-    };
 
     return (
         <div className="w-full max-w-xl mx-auto space-y-8 py-6">
@@ -223,9 +220,11 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                             exit={{ opacity: 0, scale: 0.9 }}
                             className="relative"
                         >
-                            <img
+                            <Image
                                 src={paymentProofPreview}
                                 alt="Payment Proof"
+                                width={400}
+                                height={300}
                                 className="w-full max-h-60 object-contain rounded-xl border border-gray-200"
                             />
                             <button
@@ -244,8 +243,8 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                             animate={{ opacity: 1 }}
                             htmlFor="proof-upload"
                             className={`flex flex-col items-center justify-center py-8 cursor-pointer rounded-xl transition-all ${showProofRequired
-                                    ? 'bg-red-50 border-2 border-red-300'
-                                    : 'bg-gray-50 hover:bg-gray-100'
+                                ? 'bg-red-50 border-2 border-red-300'
+                                : 'bg-gray-50 hover:bg-gray-100'
                                 }`}
                         >
                             <div className="text-4xl mb-2">📤</div>
@@ -278,8 +277,8 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                         onClick={handlePayment}
                         disabled={isProcessing}
                         className={`flex-[2] py-5 rounded-2xl font-bold text-xl transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 ${paymentProof
-                                ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/20'
-                                : 'bg-primary hover:bg-primary-dark text-white shadow-primary/20'
+                            ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/20'
+                            : 'bg-primary hover:bg-primary-dark text-white shadow-primary/20'
                             }`}
                     >
                         {isProcessing ? (

@@ -3,21 +3,17 @@
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { CVData } from '@/lib/types/cv-schema';
 
-// Register Arabic Font with absolute URL
-// Using the deployed Cloudflare Pages URL to ensure fonts load correctly
-const FONT_BASE_URL = typeof window !== 'undefined'
-    ? window.location.origin
-    : 'https://ai-cv-builder.pages.dev';
-
+// Register Arabic Font
+// Using relative paths works best in both local and production environments
 Font.register({
     family: 'IBMPlexSansArabic',
     fonts: [
         {
-            src: `${FONT_BASE_URL}/IBMPlexSansArabic-Regular.ttf`,
+            src: '/IBMPlexSansArabic-Regular.ttf',
             fontWeight: 'normal'
         },
         {
-            src: `${FONT_BASE_URL}/IBMPlexSansArabic-Bold.ttf`,
+            src: '/IBMPlexSansArabic-Bold.ttf',
             fontWeight: 'bold'
         }
     ]
@@ -148,6 +144,7 @@ export default function PDFDocument({ data }: PDFDocumentProps) {
                            For robustness, we might try to render it simply if it's a valid URL.
                            If it's a base64 string, it usually works fine. 
                         */
+                        // eslint-disable-next-line jsx-a11y/alt-text
                         <Image src={data.personal.photoUrl} style={styles.photo} />
                     )}
                 </View>

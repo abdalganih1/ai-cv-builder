@@ -1,5 +1,4 @@
 import { CVData, Question, ResponseDepth } from '../types/cv-schema';
-import { generateAdaptiveQuestion } from './zai-client';
 
 class QuestionnaireAgent {
     // Analyze how detailed the user's response is
@@ -11,11 +10,13 @@ class QuestionnaireAgent {
     }
 
     // Helper: Check if last education entry is complete
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private isEducationEntryComplete(edu: any): boolean {
         return !!(edu.institution && edu.degree && edu.major && edu.startYear && edu.endYear);
     }
 
     // Helper: Check if last experience entry is complete
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private isExperienceEntryComplete(exp: any): boolean {
         return !!(exp.company && exp.position && exp.startDate && exp.endDate && exp.description);
     }
@@ -25,6 +26,7 @@ class QuestionnaireAgent {
         const { education, experience, hobbies, personal, skills } = data;
 
         // Helper to check if field was skipped
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isSkipped = (val: any) => val === '__skipped__';
 
         // ═══════════════════════════════════════════════════════════════
@@ -258,7 +260,7 @@ class QuestionnaireAgent {
     }
 
     // Suggest skills based on target job and country
-    suggestSkills(targetJob: string, country: string): string[] {
+    suggestSkills(targetJob: string, _country: string): string[] {
         const commonSkills = ['التواصل الفعال', 'العمل الجماعي', 'حل المشكلات', 'إدارة الوقت'];
 
         if (targetJob.includes('مطور') || targetJob.includes('Developer')) {
@@ -271,7 +273,7 @@ class QuestionnaireAgent {
         return commonSkills;
     }
 
-    async generateFollowUp(context: CVData, lastResponse: string): Promise<Question | null> {
+    async generateFollowUp(_context: CVData, _lastResponse: string): Promise<Question | null> {
         // Disabled AI follow-up for now to ensure deterministic flow
         return null;
     }

@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from 'react';
 import { CVData } from '@/lib/types/cv-schema';
-import { motion } from 'framer-motion';
 import EditChat from '@/components/chat/EditChat';
 
 import { pdf } from '@react-pdf/renderer';
@@ -14,25 +14,44 @@ interface StepProps {
     onBack: () => void;
 }
 
-export default function CVPreview({ data, onNext, onUpdate, onBack }: StepProps) {
+export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const handleUpdate = (newData: CVData) => {
         onUpdate(newData); // Use onUpdate to modify data without changing step
     };
 
     const handleDownloadPDF = async () => {
+        if (isGenerating) return;
+
+        setIsGenerating(true);
+        let url = '';
+
         try {
             const blob = await pdf(<PDFDocument data={data} />).toBlob();
-            const url = URL.createObjectURL(blob);
+            url = URL.createObjectURL(blob);
+
             const link = document.createElement('a');
             link.href = url;
-            link.download = `CV_${data.personal.firstName}_${data.personal.lastName}.pdf`;
+
+            // Sanitize filename
+            const fileName = `CV_${data.personal.firstName}_${data.personal.lastName}`.replace(/[^a-z0-9_\u0600-\u06FF]/gi, '_');
+            link.download = `${fileName}.pdf`;
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+
+            // Wait a bit before revoking to ensure download starts
+            setTimeout(() => {
+                if (url) URL.revokeObjectURL(url);
+            }, 100);
+
         } catch (error) {
             console.error('Failed to generate PDF:', error);
-            alert('عذراً، حدث خطأ أثناء إنشاء ملف PDF');
+            alert('عذراً، حدث خطأ أثناء إنشاء ملف PDF. يرجى المحاولة مرة أخرى أو التحقق من اتصالك.');
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -52,9 +71,21 @@ export default function CVPreview({ data, onNext, onUpdate, onBack }: StepProps)
                     </button>
                     <button
                         onClick={handleDownloadPDF}
-                        className="flex-1 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors shadow-lg active:scale-95"
+                        disabled={isGenerating}
+                        className={`flex-1 bg-primary text-white py-3 rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${isGenerating ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-dark'
+                            }`}
                     >
-                        تصدير PDF
+                        {isGenerating ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>جاري التجهيز...</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>📄</span>
+                                <span>تصدير PDF</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
@@ -69,6 +100,7 @@ export default function CVPreview({ data, onNext, onUpdate, onBack }: StepProps)
                             <div className="flex gap-6 items-end">
                                 {data.personal.photoUrl && data.personal.photoUrl !== '__skipped__' && (
                                     <div className="w-32 h-32 rounded-full border-4 border-primary overflow-hidden shadow-lg mb-2">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img src={data.personal.photoUrl} alt="Profile" className="w-full h-full object-cover" />
                                     </div>
                                 )}

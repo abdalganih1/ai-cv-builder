@@ -44,6 +44,7 @@ export default function Home() {
       const savedData = localStorage.getItem(STORAGE_KEY);
       if (savedData) {
         const parsed = JSON.parse(savedData);
+        // eslint-disable-next-line
         setData(parsed);
         console.log('✅ Restored CV data from localStorage', parsed);
       }

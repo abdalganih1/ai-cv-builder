@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
+// Maximum file size: 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+// Allowed file types
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
@@ -9,17 +15,38 @@ export async function POST(request: NextRequest) {
         const customerName = formData.get('customerName') as string;
         const phone = formData.get('phone') as string;
 
+        // Validate file exists
         if (!file) {
             return NextResponse.json(
-                { error: 'No file provided' },
+                { error: 'لم يتم اختيار ملف' },
                 { status: 400 }
             );
         }
 
-        // Convert file to base64 for storage
+        // Validate file type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            return NextResponse.json(
+                { error: 'نوع الملف غير مدعوم. يسمح فقط بـ: JPG, PNG, WebP' },
+                { status: 400 }
+            );
+        }
+
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json(
+                { error: 'حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت' },
+                { status: 400 }
+            );
+        }
+
+        // Convert file to base64 for storage using Uint8Array for Edge compatibility
         const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        const base64 = buffer.toString('base64');
+        const uint8Array = new Uint8Array(bytes);
+        let binaryString = '';
+        for (let i = 0; i < uint8Array.byteLength; i++) {
+            binaryString += String.fromCharCode(uint8Array[i]);
+        }
+        const base64 = btoa(binaryString);
 
         // Generate unique filename
         const timestamp = Date.now();
@@ -35,7 +62,7 @@ export async function POST(request: NextRequest) {
         console.log(`👤 Customer: ${customerName}`);
         console.log(`📞 Phone: ${phone}`);
         console.log(`📁 Filename: ${filename}`);
-        console.log(`📦 File Size: ${(buffer.length / 1024).toFixed(2)} KB`);
+        console.log(`📦 File Size: ${(uint8Array.length / 1024).toFixed(2)} KB`);
         console.log('='.repeat(50));
 
         // For now, we'll return a data URL as a temporary storage solution
@@ -50,8 +77,9 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'حدث خطأ أثناء رفع الملف';
         return NextResponse.json(
-            { error: 'Failed to upload file' },
+            { error: errorMessage },
             { status: 500 }
         );
     }

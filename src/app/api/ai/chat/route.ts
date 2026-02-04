@@ -4,17 +4,75 @@ export const runtime = 'edge';
 
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
+// Simple in-memory rate limiting (per Edge function instance)
+const requestCounts = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10; // requests per minute
+const RATE_WINDOW = 60 * 1000; // 1 minute in milliseconds
+
+function checkRateLimit(clientId: string): boolean {
+    const now = Date.now();
+    const clientData = requestCounts.get(clientId);
+
+    if (!clientData || now > clientData.resetTime) {
+        // Reset or initialize
+        requestCounts.set(clientId, { count: 1, resetTime: now + RATE_WINDOW });
+        return true;
+    }
+
+    if (clientData.count >= RATE_LIMIT) {
+        return false;
+    }
+
+    clientData.count++;
+    return true;
+}
+
+function getClientId(request: NextRequest): string {
+    // Use IP address or a combination of headers as client identifier
+    return request.headers.get('x-forwarded-for') ||
+        request.headers.get('x-real-ip') ||
+        'anonymous';
+}
+
 export async function POST(request: NextRequest) {
     try {
-        const { messages, temperature, stream = true } = await request.json();
+        // Rate limiting check
+        const clientId = getClientId(request);
+        if (!checkRateLimit(clientId)) {
+            return new Response(
+                JSON.stringify({ error: "تم تجاوز الحد المسموح من الطلبات. يرجى المحاولة لاحقاً." }),
+                { status: 429, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // Validate request body
+        let body;
+        try {
+            body = await request.json();
+        } catch {
+            return new Response(
+                JSON.stringify({ error: "Invalid JSON in request body" }),
+                { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        const { messages, temperature, stream = true } = body;
+
+        // Validate messages
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return new Response(
+                JSON.stringify({ error: "Messages array is required" }),
+                { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
 
         const ZAI_API_KEY = process.env.ZAI_API_KEY;
 
         if (!ZAI_API_KEY) {
             console.error("ZAI_API_KEY not found in environment variables");
             return new Response(
-                JSON.stringify({ error: "API Key not configured" }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
+                JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة حالياً" }),
+                { status: 503, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
@@ -80,8 +138,9 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Error in AI chat route:', error);
+        const errorMessage = error instanceof Error ? error.message : 'حدث خطأ داخلي في الخادم';
         return new Response(
-            JSON.stringify({ error: 'Internal server error' }),
+            JSON.stringify({ error: errorMessage }),
             { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
     }

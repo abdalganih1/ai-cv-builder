@@ -71,7 +71,7 @@ Output JSON only (in ARABIC):
         try {
             const cleanJson = extractJSON(content);
             return JSON.parse(cleanJson);
-        } catch (parseError) {
+        } catch (_parseError) {
             console.warn("⚠️ JSON extraction failed. Retrying with correction prompt...");
 
             // Auto-Correction Retry
@@ -140,8 +140,8 @@ Output JSON only:
                 hobbies: enhancedData.hobbies || data.hobbies,
                 languages: enhancedData.languages || data.languages
             };
-        } catch (parseError) {
-            console.warn("⚠️ JSON extraction failed. Retrying with correction prompt...");
+        } catch (_parseError) {
+            console.warn("⚠️ JSON extraction failed. Retrying with correction prompt...", _parseError);
 
             // Auto-Correction Retry for Generation
             const retryResponse = await chatWithAI([

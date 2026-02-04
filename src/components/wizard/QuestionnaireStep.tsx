@@ -4,6 +4,7 @@ import { CVData, Question } from '@/lib/types/cv-schema';
 import { useState, useEffect } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import { motion } from 'framer-motion';
+import NextImage from 'next/image';
 
 interface StepProps {
     data: CVData;
@@ -345,8 +346,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             />
                             {response ? (
                                 <div className="text-center">
-                                    <div className="w-32 h-32 rounded-full overflow-hidden mx-auto mb-4 border-4 border-primary">
-                                        <img src={response} alt="Preview" className="w-full h-full object-cover" />
+                                    <div className="w-32 h-32 rounded-full overflow-hidden mx-auto mb-4 border-4 border-primary relative">
+                                        <NextImage
+                                            src={response}
+                                            alt="Preview"
+                                            fill
+                                            className="object-cover"
+                                        />
                                     </div>
                                     <p className="text-green-600 font-bold">تم اختيار الصورة بنجاح</p>
                                     <p className="text-xs text-gray-500 mt-2">اضغط للتغيير</p>

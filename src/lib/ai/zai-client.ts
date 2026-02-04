@@ -53,6 +53,7 @@ async function parseSSEStream(response: Response): Promise<string> {
 export async function chatWithAI(
     messages: { role: string; content: string }[],
     options: { temperature?: number; retryCount?: number; stream?: boolean } = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
     const { temperature, retryCount = 0, stream = true } = options;
 
@@ -123,10 +124,12 @@ export async function chatWithAI(
 export async function chatWithAISimple(
     messages: { role: string; content: string }[],
     options: { temperature?: number } = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
     return chatWithAI(messages, { ...options, stream: false });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateAdaptiveQuestion(context: any) {
     const prompt = `Based on the following CV data profile, generate a single, relevant follow-up question in Arabic (RTL) or English to help complete the CV more professionally. 
   If the user's previous answers were detailed, ask a deep, specific question. If they were brief, ask a basic core question.
