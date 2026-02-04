@@ -43,6 +43,9 @@ export interface CVData {
     totalCost: number;
     primaryLanguage: string;
     paymentProofUrl?: string;
+    importSource?: 'manual' | 'pdf' | 'text' | 'url';
+    sourceUrl?: string;
+    originalPdfName?: string;
   };
   // Internal flags for questionnaire state
   _completedEducation?: boolean;

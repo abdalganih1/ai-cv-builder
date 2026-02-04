@@ -9,7 +9,39 @@ interface StepProps {
     onUpdate: (data: Partial<CVData>) => void;
 }
 
-export default function WelcomeStep({ data, onNext }: StepProps) {
+type QuickStartMode = 'select' | 'manual' | 'pdf' | 'text' | 'url';
+
+// Card component for quick start options
+function OptionCard({
+    icon,
+    title,
+    description,
+    onClick,
+    gradient
+}: {
+    icon: string;
+    title: string;
+    description: string;
+    onClick: () => void;
+    gradient: string;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`group relative p-6 rounded-2xl border-2 border-gray-100 hover:border-transparent transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] bg-white overflow-hidden text-right w-full`}
+        >
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${gradient}`} />
+            <div className="relative z-10">
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform duration-300">{icon}</div>
+                <h3 className="text-lg font-bold text-gray-800 group-hover:text-white transition-colors mb-1">{title}</h3>
+                <p className="text-sm text-gray-500 group-hover:text-white/80 transition-colors">{description}</p>
+            </div>
+        </button>
+    );
+}
+
+// Manual entry component (original WelcomeStep)
+function ManualEntry({ data, onNext, onBack }: { data: CVData; onNext: (data: Partial<CVData>) => void; onBack: () => void }) {
     const [firstName, setFirstName] = useState(data.personal.firstName);
     const [lastName, setLastName] = useState(data.personal.lastName);
 
@@ -17,54 +49,484 @@ export default function WelcomeStep({ data, onNext }: StepProps) {
         e.preventDefault();
         if (firstName && lastName) {
             onNext({
-                personal: { ...data.personal, firstName, lastName }
+                personal: { ...data.personal, firstName, lastName },
+                metadata: { ...data.metadata, importSource: 'manual' }
             });
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto space-y-10 py-6">
-            <div className="text-center space-y-3">
-                <h1 className="text-4xl font-black text-gray-900 tracking-tight">
-                    أهلاً بك في <span className="text-primary italic">ذكاء السيرة</span>
-                </h1>
-                <p className="text-lg text-gray-500 font-medium">لنبدأ ببناء مستقبلك المهني بجودة عالمية.</p>
-                <div className="flex justify-center">
-                    <div className="h-1.5 w-16 bg-accent rounded-full"></div>
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+            <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
+            >
+                <span>→</span>
+                <span>العودة للخيارات</span>
+            </button>
+
+            <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-800">✏️ البدء من الصفر</h2>
+                <p className="text-gray-500">أدخل اسمك لنبدأ ببناء سيرتك الذاتية</p>
             </div>
 
-            <div className="space-y-6">
-                <div className="space-y-2">
-                    <label className="text-lg font-bold text-gray-700 mr-2">الاسم بالكامل</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input
-                            type="text"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                            placeholder="الاسم الأول (مثلاً: محمد)"
-                            required
-                        />
-                        <input
-                            type="text"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                            placeholder="الكنية (مثلاً: علي)"
-                            required
-                        />
-                    </div>
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                        placeholder="الاسم الأول (مثلاً: محمد)"
+                        required
+                    />
+                    <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                        placeholder="الكنية (مثلاً: علي)"
+                        required
+                    />
                 </div>
             </div>
 
             <button
                 type="submit"
-                className="w-full bg-primary text-white py-5 rounded-2xl font-bold text-xl hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 active:scale-[0.98] flex items-center justify-center gap-3"
+                className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-dark transition-all shadow-lg shadow-primary/20 active:scale-[0.98]"
             >
-                <span>ابدأ رحلتك المهنية</span>
-                <span className="text-2xl">⚡</span>
+                متابعة ⚡
             </button>
         </form>
     );
+}
+
+// Text paste component
+function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Partial<CVData>) => void; onBack: () => void }) {
+    const [text, setText] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleAnalyze = async () => {
+        if (!text.trim()) return;
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            const response = await fetch('/api/analyze/text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) throw new Error('فشل في تحليل النص');
+
+            const result = await response.json();
+
+            onNext({
+                ...result.cvData,
+                metadata: { ...data.metadata, importSource: 'text' }
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
+            >
+                <span>→</span>
+                <span>العودة للخيارات</span>
+            </button>
+
+            <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-800">📝 لصق النص</h2>
+                <p className="text-gray-500">الصق معلوماتك وسنستخرج البيانات تلقائياً</p>
+            </div>
+
+            <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="w-full h-64 p-4 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400 resize-none"
+                placeholder={`مثال:
+اسمي محمد أحمد، مهندس برمجيات بخبرة 5 سنوات.
+عملت في شركة XYZ كمطور Full Stack من 2019 إلى 2024.
+حاصل على بكالوريوس هندسة حاسوب من جامعة دمشق.
+أتقن JavaScript, Python, React, Node.js
+أتحدث العربية والإنجليزية بطلاقة.`}
+                dir="rtl"
+            />
+
+            {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
+                </div>
+            )}
+
+            <button
+                onClick={handleAnalyze}
+                disabled={!text.trim() || isLoading}
+                className="w-full bg-gradient-to-l from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+                {isLoading ? (
+                    <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>جاري التحليل...</span>
+                    </>
+                ) : (
+                    <>
+                        <span>تحليل النص</span>
+                        <span>🔍</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+}
+
+// URL input component
+function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Partial<CVData>) => void; onBack: () => void }) {
+    const [url, setUrl] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const detectPlatform = (url: string): string => {
+        if (url.includes('linkedin.com')) return 'LinkedIn';
+        if (url.includes('facebook.com') || url.includes('fb.com')) return 'Facebook';
+        if (url.includes('instagram.com')) return 'Instagram';
+        if (url.includes('twitter.com') || url.includes('x.com')) return 'X/Twitter';
+        return 'رابط';
+    };
+
+    const handleAnalyze = async () => {
+        if (!url.trim()) return;
+
+        // Basic URL validation
+        try {
+            new URL(url);
+        } catch {
+            setError('يرجى إدخال رابط صحيح');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            const response = await fetch('/api/analyze/url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+
+            if (!response.ok) throw new Error('فشل في تحليل الرابط');
+
+            const result = await response.json();
+
+            onNext({
+                ...result.cvData,
+                metadata: { ...data.metadata, importSource: 'url', sourceUrl: url }
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
+            >
+                <span>→</span>
+                <span>العودة للخيارات</span>
+            </button>
+
+            <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-800">🔗 تحليل رابط</h2>
+                <p className="text-gray-500">أدخل رابط حسابك على السوشال ميديا</p>
+            </div>
+
+            <div className="flex gap-4 justify-center text-3xl opacity-60">
+                <span title="LinkedIn">💼</span>
+                <span title="Facebook">📘</span>
+                <span title="Instagram">📸</span>
+                <span title="X/Twitter">🐦</span>
+            </div>
+
+            <div className="relative">
+                <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="w-full p-4 pr-12 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400"
+                    placeholder="https://linkedin.com/in/username"
+                    dir="ltr"
+                />
+                {url && (
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                        {detectPlatform(url)}
+                    </span>
+                )}
+            </div>
+
+            {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
+                </div>
+            )}
+
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
+                <strong>ملاحظة:</strong> بعض الشبكات الاجتماعية قد لا تسمح بالوصول للبيانات. الصفحات العامة فقط مدعومة.
+            </div>
+
+            <button
+                onClick={handleAnalyze}
+                disabled={!url.trim() || isLoading}
+                className="w-full bg-gradient-to-l from-blue-500 to-indigo-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+                {isLoading ? (
+                    <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>جاري التحليل...</span>
+                    </>
+                ) : (
+                    <>
+                        <span>تحليل الرابط</span>
+                        <span>🌐</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+}
+
+// PDF upload component
+function PDFUpload({ data, onNext, onBack }: { data: CVData; onNext: (data: Partial<CVData>) => void; onBack: () => void }) {
+    const [file, setFile] = useState<File | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile?.type === 'application/pdf') {
+            setFile(droppedFile);
+            setError('');
+        } else {
+            setError('يرجى رفع ملف PDF فقط');
+        }
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile?.type === 'application/pdf') {
+            setFile(selectedFile);
+            setError('');
+        } else if (selectedFile) {
+            setError('يرجى رفع ملف PDF فقط');
+        }
+    };
+
+    const handleAnalyze = async () => {
+        if (!file) return;
+
+        // Check file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            setError('حجم الملف يجب أن يكون أقل من 5 ميغابايت');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('/api/analyze/pdf', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('فشل في تحليل الملف');
+
+            const result = await response.json();
+
+            onNext({
+                ...result.cvData,
+                metadata: { ...data.metadata, importSource: 'pdf', originalPdfName: file.name }
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
+            >
+                <span>→</span>
+                <span>العودة للخيارات</span>
+            </button>
+
+            <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-800">📄 رفع سيرة ذاتية</h2>
+                <p className="text-gray-500">ارفع ملف PDF وسنحلل بياناتك تلقائياً</p>
+            </div>
+
+            <div
+                onDrop={handleDrop}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${isDragging
+                        ? 'border-primary bg-primary/5'
+                        : file
+                            ? 'border-green-400 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300 bg-gray-50/50'
+                    }`}
+                onClick={() => document.getElementById('pdf-input')?.click()}
+            >
+                <input
+                    id="pdf-input"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                />
+
+                {file ? (
+                    <div className="space-y-2">
+                        <div className="text-4xl">✅</div>
+                        <p className="font-bold text-green-600">{file.name}</p>
+                        <p className="text-sm text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                            className="text-red-500 text-sm hover:underline"
+                        >
+                            إزالة الملف
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <div className="text-5xl opacity-50">📁</div>
+                        <p className="font-medium text-gray-600">اسحب الملف هنا أو انقر للاختيار</p>
+                        <p className="text-sm text-gray-400">PDF فقط، الحد الأقصى 5 ميغابايت</p>
+                    </div>
+                )}
+            </div>
+
+            {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
+                </div>
+            )}
+
+            <button
+                onClick={handleAnalyze}
+                disabled={!file || isLoading}
+                className="w-full bg-gradient-to-l from-purple-500 to-violet-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all shadow-lg shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+                {isLoading ? (
+                    <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>جاري التحليل...</span>
+                    </>
+                ) : (
+                    <>
+                        <span>تحليل الملف</span>
+                        <span>🔍</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+}
+
+// Main component
+export default function WelcomeStep({ data, onNext }: StepProps) {
+    const [mode, setMode] = useState<QuickStartMode>('select');
+
+    const handleBack = () => setMode('select');
+
+    // Selection screen
+    if (mode === 'select') {
+        return (
+            <div className="w-full max-w-2xl mx-auto space-y-8 py-4">
+                <div className="text-center space-y-3">
+                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+                        أهلاً بك في <span className="text-primary italic">ذكاء السيرة</span>
+                    </h1>
+                    <p className="text-lg text-gray-500 font-medium">اختر الطريقة الأنسب لك للبدء</p>
+                    <div className="flex justify-center">
+                        <div className="h-1.5 w-16 bg-accent rounded-full"></div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <OptionCard
+                        icon="✏️"
+                        title="ابدأ من الصفر"
+                        description="أدخل بياناتك خطوة بخطوة بمساعدة الذكاء"
+                        onClick={() => setMode('manual')}
+                        gradient="bg-gradient-to-br from-primary to-primary-dark"
+                    />
+                    <OptionCard
+                        icon="📄"
+                        title="لديّ سيرة ذاتية"
+                        description="ارفع ملف PDF وسنحسّنها لك"
+                        onClick={() => setMode('pdf')}
+                        gradient="bg-gradient-to-br from-purple-500 to-violet-600"
+                    />
+                    <OptionCard
+                        icon="📝"
+                        title="لديّ نص جاهز"
+                        description="الصق معلوماتك وسنستخرج البيانات"
+                        onClick={() => setMode('text')}
+                        gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+                    />
+                    <OptionCard
+                        icon="🔗"
+                        title="لديّ رابط"
+                        description="أدخل رابط حسابك على السوشال ميديا"
+                        onClick={() => setMode('url')}
+                        gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // Render selected mode
+    switch (mode) {
+        case 'manual':
+            return <ManualEntry data={data} onNext={onNext} onBack={handleBack} />;
+        case 'pdf':
+            return <PDFUpload data={data} onNext={onNext} onBack={handleBack} />;
+        case 'text':
+            return <TextPaste data={data} onNext={onNext} onBack={handleBack} />;
+        case 'url':
+            return <URLInput data={data} onNext={onNext} onBack={handleBack} />;
+        default:
+            return null;
+    }
 }
