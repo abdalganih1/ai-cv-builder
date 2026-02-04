@@ -192,8 +192,13 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
     );
 }
 
+interface QuickStartProps {
+    onNext: (data: Partial<CVData>) => void;
+    setMode: (mode: QuickStartMode) => void;
+}
+
 // URL input component
-function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Partial<CVData>) => void; onBack: () => void }) {
+function URLInput({ onNext, setMode }: QuickStartProps) {
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -239,7 +244,7 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
 
             onNext({
                 ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'url', sourceUrl: normalizedUrl, currentStep: 3 }
+                metadata: { importSource: 'url', sourceUrl: normalizedUrl, currentStep: 3 }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -252,7 +257,7 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
         <div className="space-y-6">
             <button
                 type="button"
-                onClick={onBack}
+                onClick={() => setMode('select')}
                 className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
             >
                 <span>→</span>
@@ -288,8 +293,18 @@ function URLInput({ data, onNext, onBack }: { data: CVData; onNext: (data: Parti
             </div>
 
             {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                    {error}
+                <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 font-bold mb-1">
+                        <span>⚠️</span>
+                        <span>فشل في تحليل الرابط</span>
+                    </div>
+                    <p className="mb-3">{error}</p>
+                    <button
+                        onClick={() => setMode('text')}
+                        className="text-primary hover:text-primary-dark underline font-bold text-xs"
+                    >
+                        🔄 تجربة طريقة "لصق النص" بدلاً من ذلك
+                    </button>
                 </div>
             )}
 
@@ -531,7 +546,7 @@ export default function WelcomeStep({ data, onNext }: StepProps) {
         case 'text':
             return <TextPaste data={data} onNext={onNext} onBack={handleBack} />;
         case 'url':
-            return <URLInput data={data} onNext={onNext} onBack={handleBack} />;
+            return <URLInput onNext={onNext} setMode={setMode} />;
         default:
             return null;
     }

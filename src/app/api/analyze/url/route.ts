@@ -58,7 +58,18 @@ async function fetchUrlContent(url: string): Promise<string> {
             throw new Error(`فشل في جلب الرابط: ${response.status} ${response.statusText}`);
         }
 
+        if (response.redirected && (response.url.includes('login') || response.url.includes('auth') || response.url.includes('signin'))) {
+            throw new Error('هذه الصفحة تتطلب تسجيل دخول. يرجى استخدام صفحة عامة أو نسخ النص ولصقه في خيار "لدي نص جاهز".');
+        }
+
         const html = await response.text();
+
+        // Detect Facebook/LinkedIn login pages that might return 200 OK
+        if (html.includes('id="facebook" class="') || html.includes('Log In') || html.includes('تسجيل الدخول')) {
+            if (url.includes('facebook.com') || url.includes('linkedin.com')) {
+                throw new Error('لا يمكن الوصول إلى هذا الملف الشخصي لأنه خاص أو يتطلب تسجيل دخول. يرجى استخدام خيار "لصق النص" بدلاً من ذلك.');
+            }
+        }
 
         // Improved HTML to text conversion
         const text = html
