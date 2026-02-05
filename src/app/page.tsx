@@ -77,11 +77,15 @@ export default function Home() {
     console.log('🔄 nextStep called with:', newData);
 
     setData(prev => {
-      // Allow jumping to specific step if provided in metadata, otherwise increment
-      let nextStepIndex = prev.metadata.currentStep + 1;
+      // Allow jumping to specific step ONLY from step 0 (Welcome), otherwise increment normally
+      let nextStepIndex;
 
-      if (newData.metadata?.currentStep !== undefined) {
+      if (prev.metadata.currentStep === 0 && newData.metadata?.currentStep !== undefined) {
+        // From Welcome step, allow jump to specified step
         nextStepIndex = newData.metadata.currentStep;
+      } else {
+        // From other steps, always increment by 1
+        nextStepIndex = prev.metadata.currentStep + 1;
       }
 
       const newStep = Math.min(nextStepIndex, steps.length - 1);
