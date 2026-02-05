@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test files and debug artifacts
+test_*.js
+extract_pdf_text.py
+extracted_text.txt
+pdf_server.py
+pdf_debug/
+
+# personal/sensitive PDF files
+*.pdf
