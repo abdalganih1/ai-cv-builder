@@ -30,11 +30,18 @@ function extractJSON(content: string): string {
  * Optimized for faster response with compact prompts
  */
 export async function processEditRequest(data: CVData, request: string): Promise<CVData> {
-    // Create a compact version of data (no pretty print, minimal structure)
-    const compactData = JSON.stringify(data);
+    // Create a compact version of data WITHOUT the photoUrl (base64 images are huge!)
+    const dataWithoutPhoto = {
+        ...data,
+        personal: {
+            ...data.personal,
+            photoUrl: data.personal.photoUrl ? '[PHOTO]' : undefined
+        }
+    };
+    const compactData = JSON.stringify(dataWithoutPhoto);
 
-    // Check data size and truncate if too large
-    const maxDataSize = 8000; // chars
+    // Check data size and truncate if too large (increased since we removed photo)
+    const maxDataSize = 12000; // chars - increased since photo is removed
     const dataToSend = compactData.length > maxDataSize
         ? compactData.substring(0, maxDataSize) + '..."}'
         : compactData;
@@ -45,6 +52,7 @@ export async function processEditRequest(data: CVData, request: string): Promise
 1. أرجع JSON صالح فقط (بدون markdown)
 2. احتفظ بالهيكل نفسه
 3. عدّل فقط ما يطلبه المستخدم
+4. احتفظ بـ photoUrl كما هو إذا كان "[PHOTO]" أو فارغ
 
 البيانات الحالية:
 ${dataToSend}
@@ -87,6 +95,14 @@ ${dataToSend}
  * Auto-generate a complete professional CV from raw user data
  */
 export async function generateProfessionalCV(data: CVData): Promise<CVData> {
+    // Remove photoUrl from data sent to AI (base64 images are huge and slow down the request)
+    const dataForAI = {
+        ...data,
+        personal: {
+            ...data.personal,
+            photoUrl: data.personal.photoUrl ? '[PHOTO]' : undefined
+        }
+    };
 
     const systemPrompt = `
 ${CV_GENERATOR_SYSTEM_PROMPT}
@@ -100,7 +116,7 @@ If the input data is in English, you MUST **TRANSLATE** it to professional Arabi
 Exception: Technical terms (Java, SQL, React) should remain in English.
 
 Current Data:
-${JSON.stringify(data, null, 2)}
+${JSON.stringify(dataForAI, null, 2)}
 
 Task: Enhance this CV data professionally. Improve summaries, use action verbs for experience, and structure skills.
 Everything MUST be in Arabic.
@@ -120,10 +136,14 @@ Output JSON only:
         try {
             const cleanJson = extractJSON(content);
             const enhancedData = JSON.parse(cleanJson);
-            // Merge enhanced data with original to preserve metadata and IDs
+            // Merge enhanced data with original to preserve metadata, IDs, AND photoUrl
             return {
                 ...data,
-                personal: { ...data.personal, ...enhancedData.personal },
+                personal: {
+                    ...data.personal,
+                    ...enhancedData.personal,
+                    photoUrl: data.personal.photoUrl // Preserve original photoUrl
+                },
                 education: enhancedData.education || data.education,
                 experience: enhancedData.experience || data.experience,
                 skills: enhancedData.skills || data.skills,
@@ -147,7 +167,11 @@ Output JSON only:
 
             return {
                 ...data,
-                personal: { ...data.personal, ...enhancedRetryData.personal },
+                personal: {
+                    ...data.personal,
+                    ...enhancedRetryData.personal,
+                    photoUrl: data.personal.photoUrl // Preserve original photoUrl
+                },
                 education: enhancedRetryData.education || data.education,
                 experience: enhancedRetryData.experience || data.experience,
                 skills: enhancedRetryData.skills || data.skills,
@@ -168,10 +192,19 @@ Output JSON only:
  * Optimized for fast translation with professional language
  */
 export async function translateCVToEnglish(data: CVData): Promise<CVData> {
-    const compactData = JSON.stringify(data);
+    // Remove photoUrl from data sent to AI (base64 images are huge!)
+    const dataForAI = {
+        ...data,
+        personal: {
+            ...data.personal,
+            photoUrl: data.personal.photoUrl ? '[PHOTO]' : undefined
+        }
+    };
 
-    // Truncate if too large
-    const maxDataSize = 10000;
+    const compactData = JSON.stringify(dataForAI);
+
+    // Truncate if too large (increased since we removed photo)
+    const maxDataSize = 15000;
     const dataToSend = compactData.length > maxDataSize
         ? compactData.substring(0, maxDataSize) + '..."}'
         : compactData;
@@ -184,6 +217,7 @@ Rules:
 3. Keep technical terms (React, Python, etc.) as-is
 4. Use professional CV language (action verbs, concise)
 5. Preserve dates, emails, phones exactly as-is
+6. Keep photoUrl as "[PHOTO]" if present
 
 Arabic CV Data:
 ${dataToSend}
@@ -218,7 +252,11 @@ English CV JSON:`;
 
             return {
                 ...data,
-                personal: { ...data.personal, ...translatedData.personal },
+                personal: {
+                    ...data.personal,
+                    ...translatedData.personal,
+                    photoUrl: data.personal.photoUrl // Preserve original photoUrl
+                },
                 education: mergeWithIds(data.education, translatedData.education),
                 experience: mergeWithIds(data.experience, translatedData.experience),
                 skills: translatedData.skills || data.skills || [],

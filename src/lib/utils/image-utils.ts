@@ -24,8 +24,24 @@ export function base64ToBlobUrl(base64DataUrl: string): string {
         const mimeMatch = header.match(/data:([^;]+)/);
         const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
+        // Clean the base64 string - remove any whitespace or invalid characters
+        const cleanBase64 = base64Data.replace(/\s/g, '');
+
+        // Validate base64 string length
+        if (cleanBase64.length === 0) {
+            console.warn('Empty base64 data');
+            return base64DataUrl;
+        }
+
+        // Check if base64 is valid (length should be multiple of 4, or padded)
+        // Pad with = if needed for atob to work
+        let paddedBase64 = cleanBase64;
+        while (paddedBase64.length % 4 !== 0) {
+            paddedBase64 += '=';
+        }
+
         // Convert base64 to binary
-        const binaryString = atob(base64Data);
+        const binaryString = atob(paddedBase64);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
@@ -35,7 +51,7 @@ export function base64ToBlobUrl(base64DataUrl: string): string {
         const blob = new Blob([bytes], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
-        console.log(`✅ Converted base64 (${base64Data.length} chars) to Blob URL`);
+        console.log(`✅ Converted base64 (${cleanBase64.length} chars) to Blob URL`);
         return blobUrl;
     } catch (error) {
         console.error('Failed to convert base64 to Blob URL:', error);
