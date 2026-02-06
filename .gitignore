@@ -49,3 +49,6 @@ pdf_debug/
 
 # personal/sensitive PDF files
 *.pdf
+
+# Cloudflare
+.wrangler/
