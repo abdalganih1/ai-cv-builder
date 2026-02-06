@@ -4,7 +4,8 @@
  * PUT /api/admin/settings - تحديث الإعدادات
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export interface PaymentSettings {
     qrImageUrl: string;
@@ -27,35 +28,53 @@ const DEFAULT_SETTINGS: PaymentSettings = {
 
 export const runtime = 'edge';
 
-// جلب الإعدادات
-export async function GET(request: Request) {
+// Helper function to get D1 database
+function getDB(): any {
     try {
-        const env = (request as unknown as { env?: { ANALYTICS_DB?: unknown } }).env;
+        const { env } = getRequestContext();
+        return env.ANALYTICS_DB || undefined;
+    } catch {
+        console.log('[Admin Settings] No Cloudflare context available');
+        return undefined;
+    }
+}
 
-        if (env?.ANALYTICS_DB) {
-            const db = env.ANALYTICS_DB as {
-                prepare: (sql: string) => {
-                    first: <T>() => Promise<T | null>;
-                };
-            };
+// جلب الإعدادات
+export async function GET(request: NextRequest) {
+    try {
+        // التحقق من المصادقة
+        const isLocalDev = process.env.NODE_ENV === 'development';
+        const cfAccessJWT = request.headers.get('cf-access-jwt-assertion');
+        const cookies = request.headers.get('cookie') || '';
 
-            const row = await db.prepare(
-                'SELECT * FROM payment_settings WHERE id = 1'
-            ).first<Record<string, unknown>>();
+        if (!isLocalDev && !cfAccessJWT && !cookies.includes('CF_Authorization')) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-            if (row) {
-                return NextResponse.json({
-                    success: true,
-                    data: {
-                        qrImageUrl: row.qr_image_url as string,
-                        recipientName: row.recipient_name as string,
-                        recipientCode: row.recipient_code as string,
-                        amount: row.amount as number,
-                        currency: row.currency as string,
-                        paymentType: row.payment_type as PaymentSettings['paymentType'],
-                        updatedAt: row.updated_at as string,
-                    },
-                });
+        const db = getDB();
+
+        if (db) {
+            try {
+                const row = await db.prepare(
+                    'SELECT * FROM payment_settings WHERE id = 1'
+                ).first<Record<string, unknown>>();
+
+                if (row) {
+                    return NextResponse.json({
+                        success: true,
+                        data: {
+                            qrImageUrl: row.qr_image_url as string,
+                            recipientName: row.recipient_name as string,
+                            recipientCode: row.recipient_code as string,
+                            amount: row.amount as number,
+                            currency: row.currency as string,
+                            paymentType: row.payment_type as PaymentSettings['paymentType'],
+                            updatedAt: row.updated_at as string,
+                        },
+                    });
+                }
+            } catch (dbError) {
+                console.error('[Admin Settings] DB Error:', dbError);
             }
         }
 
@@ -73,12 +92,21 @@ export async function GET(request: Request) {
 }
 
 // تحديث الإعدادات
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
     try {
-        const env = (request as unknown as { env?: { ANALYTICS_DB?: unknown } }).env;
-        const body = await request.json() as Partial<PaymentSettings>;
+        // التحقق من المصادقة
+        const isLocalDev = process.env.NODE_ENV === 'development';
+        const cfAccessJWT = request.headers.get('cf-access-jwt-assertion');
+        const cookies = request.headers.get('cookie') || '';
 
-        if (!env?.ANALYTICS_DB) {
+        if (!isLocalDev && !cfAccessJWT && !cookies.includes('CF_Authorization')) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const body = await request.json() as Partial<PaymentSettings>;
+        const db = getDB();
+
+        if (!db) {
             // في بيئة التطوير، نرجع القيم المحدثة مباشرة
             console.log('[Admin Settings] Updated (dev mode):', body);
             return NextResponse.json({
@@ -88,55 +116,64 @@ export async function PUT(request: Request) {
             });
         }
 
-        const db = env.ANALYTICS_DB as {
-            prepare: (sql: string) => {
-                bind: (...values: unknown[]) => {
-                    run: () => Promise<unknown>;
-                    first: <T>() => Promise<T | null>;
-                };
-                first: <T>() => Promise<T | null>;
-            };
-        };
+        // التحقق من وجود سجل أول
+        let row = await db.prepare(
+            'SELECT id FROM payment_settings WHERE id = 1'
+        ).first<{ id: number }>();
 
-        // تحديث الإعدادات
-        const updates: string[] = [];
-        const values: unknown[] = [];
+        if (!row) {
+            // إنشاء سجل جديد
+            await db.prepare(`
+                INSERT INTO payment_settings (id, qr_image_url, recipient_name, recipient_code, amount, currency, payment_type)
+                VALUES (1, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                body.qrImageUrl || DEFAULT_SETTINGS.qrImageUrl,
+                body.recipientName || DEFAULT_SETTINGS.recipientName,
+                body.recipientCode || DEFAULT_SETTINGS.recipientCode,
+                body.amount || DEFAULT_SETTINGS.amount,
+                body.currency || DEFAULT_SETTINGS.currency,
+                body.paymentType || DEFAULT_SETTINGS.paymentType
+            ).run();
+        } else {
+            // تحديث الإعدادات الموجودة
+            const updates: string[] = [];
+            const values: unknown[] = [];
 
-        if (body.qrImageUrl !== undefined) {
-            updates.push('qr_image_url = ?');
-            values.push(body.qrImageUrl);
-        }
-        if (body.recipientName !== undefined) {
-            updates.push('recipient_name = ?');
-            values.push(body.recipientName);
-        }
-        if (body.recipientCode !== undefined) {
-            updates.push('recipient_code = ?');
-            values.push(body.recipientCode);
-        }
-        if (body.amount !== undefined) {
-            updates.push('amount = ?');
-            values.push(body.amount);
-        }
-        if (body.currency !== undefined) {
-            updates.push('currency = ?');
-            values.push(body.currency);
-        }
-        if (body.paymentType !== undefined) {
-            updates.push('payment_type = ?');
-            values.push(body.paymentType);
-        }
+            if (body.qrImageUrl !== undefined) {
+                updates.push('qr_image_url = ?');
+                values.push(body.qrImageUrl);
+            }
+            if (body.recipientName !== undefined) {
+                updates.push('recipient_name = ?');
+                values.push(body.recipientName);
+            }
+            if (body.recipientCode !== undefined) {
+                updates.push('recipient_code = ?');
+                values.push(body.recipientCode);
+            }
+            if (body.amount !== undefined) {
+                updates.push('amount = ?');
+                values.push(body.amount);
+            }
+            if (body.currency !== undefined) {
+                updates.push('currency = ?');
+                values.push(body.currency);
+            }
+            if (body.paymentType !== undefined) {
+                updates.push('payment_type = ?');
+                values.push(body.paymentType);
+            }
 
-        if (updates.length > 0) {
-            updates.push('updated_at = CURRENT_TIMESTAMP');
-
-            await db.prepare(
-                `UPDATE payment_settings SET ${updates.join(', ')} WHERE id = 1`
-            ).bind(...values).run();
+            if (updates.length > 0) {
+                updates.push('updated_at = CURRENT_TIMESTAMP');
+                await db.prepare(
+                    `UPDATE payment_settings SET ${updates.join(', ')} WHERE id = 1`
+                ).bind(...values).run();
+            }
         }
 
         // جلب الإعدادات المحدثة
-        const row = await db.prepare(
+        row = await db.prepare(
             'SELECT * FROM payment_settings WHERE id = 1'
         ).first<Record<string, unknown>>();
 
@@ -156,7 +193,7 @@ export async function PUT(request: Request) {
     } catch (error) {
         console.error('[Admin Settings] PUT Error:', error);
         return NextResponse.json(
-            { success: false, error: 'فشل تحديث الإعدادات' },
+            { success: false, error: 'فشل تحديث الإعدادات: ' + (error as Error).message },
             { status: 500 }
         );
     }
