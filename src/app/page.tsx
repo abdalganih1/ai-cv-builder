@@ -8,6 +8,7 @@ import QuestionnaireStep from '@/components/wizard/QuestionnaireStep';
 import ShamCashPayment from '@/components/payment/ShamCashPayment';
 import CVPreview from '@/components/preview/CVPreview';
 import { CVData } from '@/lib/types/cv-schema';
+import { useAnalytics } from '@/lib/analytics/provider';
 
 const STORAGE_KEY = 'cv_builder_data';
 
@@ -37,6 +38,7 @@ const steps = [
 export default function Home() {
   const [data, setData] = useState<CVData>(getInitialData());
   const [isLoaded, setIsLoaded] = useState(false);
+  const { trackStep, trackStepComplete, isReady: analyticsReady } = useAnalytics();
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -65,6 +67,15 @@ export default function Home() {
       }
     }
   }, [data, isLoaded]);
+
+  // Track step changes for analytics
+  useEffect(() => {
+    if (isLoaded && analyticsReady) {
+      const currentStep = data.metadata.currentStep;
+      const stepTitle = steps[currentStep]?.title || `Step ${currentStep}`;
+      trackStep(currentStep, stepTitle);
+    }
+  }, [data.metadata.currentStep, isLoaded, analyticsReady, trackStep]);
 
   // Clear saved data
   const clearSavedData = () => {

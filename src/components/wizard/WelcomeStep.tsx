@@ -1,7 +1,9 @@
 "use client";
 
-import { CVData } from '@/lib/types/cv-schema';
+import { CVData, MissingFieldInfo } from '@/lib/types/cv-schema';
 import { useState } from 'react';
+import MissingFieldsForm from './MissingFieldsForm';
+import AnalysisProgress from './AnalysisProgress';
 
 interface StepProps {
     data: CVData;
@@ -74,19 +76,25 @@ function ManualEntry({ data, onNext, onBack }: { data: CVData; onNext: (data: Pa
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input
+                        id="firstName"
+                        name="firstName"
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                         placeholder="الاسم الأول (مثلاً: محمد)"
+                        autoComplete="given-name"
                         required
                     />
                     <input
+                        id="lastName"
+                        name="lastName"
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                         placeholder="الكنية (مثلاً: علي)"
+                        autoComplete="family-name"
                         required
                     />
                 </div>
@@ -107,6 +115,9 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
     const [text, setText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showMissingFields, setShowMissingFields] = useState(false);
+    const [partialData, setPartialData] = useState<Partial<CVData> | null>(null);
+    const [missingFieldsInfo, setMissingFieldsInfo] = useState<MissingFieldInfo[]>([]);
 
     const handleAnalyze = async () => {
         if (!text.trim()) return;
@@ -125,16 +136,51 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
             const result = await response.json();
 
-            onNext({
-                ...result.cvData,
-                metadata: { ...data.metadata, importSource: 'text', currentStep: 3 }
-            });
+            // Check if there are missing required fields
+            if (!result.isComplete && result.missingFields && result.missingFields.length > 0) {
+                // Show missing fields form
+                setPartialData(result.cvData);
+                setMissingFieldsInfo(result.missingFields);
+                setShowMissingFields(true);
+            } else {
+                // Data is complete - proceed to next step
+                onNext({
+                    ...result.cvData,
+                    metadata: { ...data.metadata, importSource: 'text', currentStep: 3 }
+                });
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
         } finally {
             setIsLoading(false);
         }
     };
+
+    // Show missing fields form if needed
+    if (showMissingFields && partialData) {
+        return (
+            <MissingFieldsForm
+                missingFields={missingFieldsInfo}
+                existingData={partialData}
+                onComplete={(completeData) => {
+                    onNext({
+                        ...completeData,
+                        metadata: { ...data.metadata, importSource: 'text', currentStep: 3 }
+                    });
+                }}
+                onBack={() => {
+                    setShowMissingFields(false);
+                    setPartialData(null);
+                    setMissingFieldsInfo([]);
+                }}
+            />
+        );
+    };
+
+    // Show progress indicator while loading
+    if (isLoading) {
+        return <AnalysisProgress estimatedDuration={100} />;
+    }
 
     return (
         <div className="space-y-6">
@@ -153,6 +199,8 @@ function TextPaste({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
             </div>
 
             <textarea
+                id="cvText"
+                name="cvText"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 className="w-full h-64 p-4 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400 resize-none"
@@ -278,11 +326,14 @@ function URLInput({ onNext, setMode }: QuickStartProps) {
 
             <div className="relative">
                 <input
+                    id="profileUrl"
+                    name="profileUrl"
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     className="w-full p-4 pr-24 text-base border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400 font-mono"
                     placeholder="https://linkedin.com/in/username"
+                    autoComplete="url"
                     dir="ltr"
                 />
                 {url && (

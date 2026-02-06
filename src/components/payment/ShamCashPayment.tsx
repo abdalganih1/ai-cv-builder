@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateProfessionalCV } from '@/lib/ai/chat-editor';
 import Image from 'next/image';
+import AnalysisProgress from '../wizard/AnalysisProgress';
 
 interface StepProps {
     data: CVData;
@@ -18,6 +19,7 @@ const SHAM_CASH_NAME = "عبد الغني أحمد الحمدي";
 
 export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showProgress, setShowProgress] = useState(false);
     const [status, setStatus] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
@@ -110,11 +112,12 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
         setStatus('✅ تم رفع إثبات الدفع بنجاح!');
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Now trigger AI to generate professional CV
-        setStatus('🧠 الذكاء الاصطناعي يعمل على تحسين سيرتك الذاتية...');
+        // Now trigger AI to generate professional CV - Show progress indicator
+        setShowProgress(true);
 
         try {
             const enhancedData = await generateProfessionalCV(data);
+            setShowProgress(false);
             setStatus('✨ تم إنشاء السيرة الذاتية الاحترافية بنجاح!');
 
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -130,6 +133,7 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
             });
         } catch (error) {
             console.error("AI Enhancement failed:", error);
+            setShowProgress(false);
             setStatus('⚠️ تعذّر تحسين السيرة الذاتية، سننتقل للنسخة الأساسية...');
             await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -146,6 +150,11 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
         }
     };
 
+
+    // Show progress indicator during AI processing
+    if (showProgress) {
+        return <AnalysisProgress estimatedDuration={50} />;
+    }
 
     return (
         <div className="w-full max-w-xl mx-auto space-y-8 py-6">

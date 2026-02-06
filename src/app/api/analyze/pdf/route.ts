@@ -1,22 +1,23 @@
 import { NextRequest } from 'next/server';
 
-export const runtime = 'edge';
-
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
-const PDF_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية. تم استخراج النص التالي من ملف PDF لسيرة ذاتية.
-مهمتك هي تحليل هذا النص واستخراج البيانات المهيكلة.
+const PDF_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية. سأعطيك نصاً مستخرجاً من ملف PDF لسيرة ذاتية.
+مهمتك هي تحليل هذا النص بعناية واستخراج **جميع** البيانات المهيكلة بدون اختصار.
 
-استخرج البيانات التالية:
-- الاسم الأول والكنية
-- البريد الإلكتروني ورقم الهاتف
+**تحذير حاسم:** النص المستخرج من PDF قد يكون غير مرتب. استخدم ذكاءك لإعادة ترتيب المعلومات منطقياً.
+**ممنوع منعاً باتاً اختصار أو حذف أي معلومات موجودة في النص!**
+
+استخرج **كل** البيانات التالية:
+- الاسم الكامل (firstName + lastName)
+- البريد الإلكتروني ورقم الهاتف والعنوان/البلد
 - المسمى الوظيفي
-- الملخص الشخصي
-- الخبرات العملية (شركة، منصب، تاريخ، وصف)
-- التعليم (مؤسسة، شهادة، تخصص، سنوات)
-- المهارات
-- اللغات
-- الهوايات
+- الملخص الشخصي (كامل بكل تفاصيله)
+- **الخبرات العملية**: استخرج **كل** الخبرات بتواريخها ووصفها الكامل
+- **التعليم**: استخرج **كل** الشهادات والدرجات العلمية
+- **المهارات**: اذكر **كل** المهارات المذكورة في النص
+- **اللغات**: كل اللغات المذكورة
+- الهوايات إن وجدت
 
 أرجع النتيجة بصيغة JSON فقط:
 {
@@ -50,66 +51,229 @@ const PDF_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذا
   ],
   "skills": [],
   "languages": [],
-  "hobbies": []
+  "hobbies": [],
+  "missingRequiredFields": []
 }
 
-لا تختلق معلومات غير موجودة.`;
+**تعليمات التنسيق:**
+1. استخرج البيانات بدقة من النص.
+2. إذا كان النص يحتوي على تواريخ، استخدمها. إذا لم يوجد، اتركها فارغة.
+3. **لا تستخدم نصوص افتراضية** مثل "[اسم الشركة]"
+4. في حقل summary، لخص الخبرة والمهارات في فقرة احترافية.
+5. في حقل experience، حاول دمج المعلومات المتناثرة لتكوين سجل وظيفي متكامل.
 
-// Simple PDF text extraction for Edge runtime
-// This extracts visible text from PDF binary data
-function extractTextFromPDF(buffer: ArrayBuffer): string {
+ملاحظة للذكاء الاصطناعي: النص المستخرج قد يكون غير مرتب (بسبب طبيعة ملفات PDF العربية). ابذل قصارى جهدك لفهم السياق وترتيب المعلومات بشكل صحيح.`;
+
+// =============================================
+// PDF TEXT EXTRACTION - DUAL MODE SUPPORT
+// =============================================
+// Mode 1: Self-hosted API (PDF_API_URL set) → VPS deployment
+// Mode 2: OCR.space API (OCR_SPACE_API_KEY set) → Cloudflare deployment  
+// Mode 3: Python child_process (fallback) → Local development
+// =============================================
+
+interface ExtractionResult {
+    text: string;
+    profileImage?: string;
+}
+
+// Main extraction function - auto-selects best method
+async function extractTextFromPDF(buffer: ArrayBuffer): Promise<ExtractionResult> {
+    const PDF_API_URL = process.env.PDF_API_URL;
+    const PDF_API_KEY = process.env.PDF_API_KEY;
+    const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY;
+
+    // Mode 1: Self-hosted API (VPS with Docker)
+    if (PDF_API_URL) {
+        console.log('🔧 Using Self-hosted PDF API');
+        return extractViaSelfHostedAPI(buffer, PDF_API_URL, PDF_API_KEY || '');
+    }
+
+    // Mode 2: OCR.space API (Cloudflare deployment)
+    if (OCR_SPACE_API_KEY) {
+        console.log('☁️ Using OCR.space API');
+        return extractViaOCRSpace(buffer, OCR_SPACE_API_KEY);
+    }
+
+    // Mode 3: Python child_process (local development)
+    console.log('🐍 Using Python PyMuPDF (local)');
+    return extractViaPython(buffer);
+}
+
+// Method 1: Self-hosted FastAPI server
+async function extractViaSelfHostedAPI(
+    buffer: ArrayBuffer,
+    apiUrl: string,
+    apiKey: string
+): Promise<ExtractionResult> {
+    try {
+        const formData = new FormData();
+        formData.append('file', new Blob([buffer], { type: 'application/pdf' }), 'document.pdf');
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'X-API-Key': apiKey,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Self-hosted API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log(`✅ Self-hosted extracted ${data.text_length} chars, ${data.images_count} images`);
+            return {
+                text: data.text,
+                profileImage: data.profile_image_base64
+            };
+        }
+
+        throw new Error(data.error || 'Extraction failed');
+    } catch (error) {
+        console.error('Self-hosted API error:', error);
+        // Fallback to OCR.space if configured
+        const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY;
+        if (OCR_SPACE_API_KEY) {
+            return extractViaOCRSpace(buffer, OCR_SPACE_API_KEY);
+        }
+        return { text: fallbackExtractText(buffer) };
+    }
+}
+
+// Method 2: OCR.space API (Cloudflare compatible)
+async function extractViaOCRSpace(
+    buffer: ArrayBuffer,
+    apiKey: string
+): Promise<ExtractionResult> {
+    try {
+        // Convert to base64 safely (avoid stack overflow on large files)
+        const uint8Array = new Uint8Array(buffer);
+        let base64 = '';
+
+        // Use Buffer if available (Node.js), otherwise chunk manually
+        if (typeof Buffer !== 'undefined') {
+            base64 = Buffer.from(uint8Array).toString('base64');
+        } else {
+            // Fallback: chunk-based conversion for Edge runtime
+            const CHUNK_SIZE = 32768; // 32KB chunks
+            const chunks: string[] = [];
+            for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+                const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
+                chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
+            }
+            base64 = btoa(chunks.join(''));
+        }
+
+        const formData = new FormData();
+        formData.append('base64Image', `data:application/pdf;base64,${base64}`);
+        formData.append('language', 'ara');  // Arabic
+        formData.append('isOverlayRequired', 'false');
+        formData.append('detectOrientation', 'true');
+        formData.append('scale', 'true');
+        formData.append('OCREngine', '1');  // Engine 1 supports Arabic
+
+        const response = await fetch('https://api.ocr.space/parse/image', {
+            method: 'POST',
+            headers: {
+                'apikey': apiKey,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`OCR.space API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.ParsedResults && data.ParsedResults.length > 0) {
+            const text = data.ParsedResults
+                .map((result: { ParsedText: string }) => result.ParsedText)
+                .join('\n\n');
+
+            console.log(`✅ OCR.space extracted ${text.length} chars`);
+            return { text };
+        }
+
+        if (data.ErrorMessage) {
+            throw new Error(data.ErrorMessage);
+        }
+
+        throw new Error('No text extracted');
+    } catch (error) {
+        console.error('OCR.space API error:', error);
+        return { text: fallbackExtractText(buffer) };
+    }
+}
+
+// Method 3: Python PyMuPDF (local development)
+async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> {
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const { execSync } = await import('child_process');
+        const os = await import('os');
+
+        const tempDir = os.tmpdir();
+        const tempPdfPath = path.join(tempDir, `cv_upload_${Date.now()}.pdf`);
+
+        try {
+            fs.writeFileSync(tempPdfPath, Buffer.from(buffer));
+            const scriptPath = path.join(process.cwd(), 'scripts', 'pdf_text_extractor.py');
+
+            const result = execSync(`python "${scriptPath}" "${tempPdfPath}"`, {
+                encoding: 'utf-8',
+                maxBuffer: 50 * 1024 * 1024,
+                timeout: 60000
+            });
+
+            const parsed = JSON.parse(result);
+
+            if (parsed.success && parsed.text) {
+                console.log(`✅ PyMuPDF extracted ${parsed.text_length} chars, ${parsed.images_count} images`);
+                return {
+                    text: parsed.text,
+                    profileImage: parsed.profile_image_base64
+                };
+            }
+            throw new Error(parsed.error || 'Unknown extraction error');
+        } finally {
+            try { fs.unlinkSync(tempPdfPath); } catch { /* ignore */ }
+        }
+    } catch (error) {
+        console.error('Python extraction error:', error);
+        return { text: fallbackExtractText(buffer) };
+    }
+}
+
+// Fallback regex-based extraction (for extreme edge cases)
+function fallbackExtractText(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     const pdfString = new TextDecoder('latin1').decode(bytes);
-
-    // Extract text between stream and endstream markers
     const textChunks: string[] = [];
+    const seen = new Set<string>();
 
-    // Method 1: Look for BT...ET text blocks
-    const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
+    const textRegex = /\(([^\(\)]+)\)/g;
     let match;
-    while ((match = btEtRegex.exec(pdfString)) !== null) {
-        const block = match[1];
-        // Extract text from Tj and TJ operators
-        const tjRegex = /\((.*?)\)\s*Tj/g;
-        let tjMatch;
-        while ((tjMatch = tjRegex.exec(block)) !== null) {
-            textChunks.push(tjMatch[1]);
-        }
-    }
-
-    // Method 2: Look for plain text strings
-    const stringRegex = /\(([^()]{3,})\)/g;
-    while ((match = stringRegex.exec(pdfString)) !== null) {
-        const text = match[1]
+    while ((match = textRegex.exec(pdfString)) !== null) {
+        let text = match[1]
             .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
+            .replace(/\\r/g, ' ')
             .replace(/\\\(/g, '(')
             .replace(/\\\)/g, ')')
-            .replace(/\\\\/g, '\\');
+            .trim();
 
-        // Only add if it looks like readable text
-        if (/[\u0600-\u06FFa-zA-Z]{2,}/.test(text)) {
+        if (text.length > 1 && /[\u0600-\u06FFa-zA-Z0-9@.\-+]/.test(text) && !seen.has(text)) {
             textChunks.push(text);
+            seen.add(text);
         }
     }
 
-    // Method 3: Look for stream content with readable text
-    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
-    while ((match = streamRegex.exec(pdfString)) !== null) {
-        const streamContent = match[1];
-        // Look for readable strings
-        const readableMatch = streamContent.match(/[\u0600-\u06FFa-zA-Z0-9@.\s\-+()]{10,}/g);
-        if (readableMatch) {
-            textChunks.push(...readableMatch);
-        }
-    }
-
-    const extractedText = textChunks.join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    return extractedText;
+    return textChunks.join('\n').replace(/\n+/g, '\n').trim();
 }
 
 export async function POST(request: NextRequest) {
@@ -150,11 +314,18 @@ export async function POST(request: NextRequest) {
 
         // Read file as ArrayBuffer and extract text
         const arrayBuffer = await file.arrayBuffer();
-        let extractedText = extractTextFromPDF(arrayBuffer);
+        const extractedData = await extractTextFromPDF(arrayBuffer);
+        const extractedText = extractedData.text;
+        const profileImage = extractedData.profileImage;
+
+        console.log('--- DEBUG: Extracted Text Start ---');
+        console.log(extractedText.substring(0, 500)); // Log first 500 chars
+        console.log(`--- DEBUG: Total Length: ${extractedText.length} chars ---`);
+        if (profileImage) console.log('✅ Profile image detected!');
 
         // If extraction failed or got too little text, try base64 approach
         if (extractedText.length < 100) {
-            // Convert to base64 for AI to analyze (Vision fallback)
+            // Convert to base64 for AI to analyze (Vision)
             const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer).slice(0, 50000)));
 
             // Ask AI to try to understand the PDF structure
@@ -170,9 +341,12 @@ export async function POST(request: NextRequest) {
                         { role: 'system', content: PDF_ANALYSIS_PROMPT },
                         {
                             role: 'user',
-                            content: `لم أتمكن من استخراج نص كافٍ من ملف PDF. المحتوى المستخرج: "${extractedText}". 
-                            
-يرجى إنشاء هيكل JSON فارغ للسيرة الذاتية مع ملء الحقول التي يمكنك استنتاجها من هذا المحتوى المحدود.`
+                            content: `لم أتمكن من استخراج نص كافٍ من ملف PDF (النص المستخرج: "${extractedText}"). 
+                            يرجى تحليل الملف المرفق (Base64) واستخراج البيانات.`
+                        },
+                        {
+                            role: 'user',
+                            content: base64 // Sending base64 as content logic (simplified for prompt)
                         }
                     ],
                     temperature: 0.3,
@@ -183,7 +357,7 @@ export async function POST(request: NextRequest) {
             if (!response.ok) {
                 return new Response(
                     JSON.stringify({
-                        error: "لم نتمكن من قراءة محتوى الملف. جرب لصق محتوى السيرة كنص بدلاً من ذلك.",
+                        error: "لم نتمكن من قراءة محتوى الملف. جرب لصق محتوى السيرة كنص.",
                         fallback: true
                     }),
                     { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -192,7 +366,7 @@ export async function POST(request: NextRequest) {
 
             const data = await response.json();
             const content = data.choices?.[0]?.message?.content || '';
-
+            // Try to parse JSON from content
             try {
                 const jsonMatch = content.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
@@ -200,23 +374,20 @@ export async function POST(request: NextRequest) {
                     return new Response(
                         JSON.stringify({
                             cvData,
-                            rawText: extractedText,
                             warning: "تم استخراج محتوى محدود من الملف. يُنصح بمراجعة البيانات.",
-                            message: "تم تحليل الملف (محتوى محدود)"
+                            debug_text_preview: "Fallback Base64 Vision Used"
                         }),
                         { status: 200, headers: { 'Content-Type': 'application/json' } }
                     );
                 }
-            } catch {
-                // Continue to fallback
+            } catch (e) {
+                console.error("Failed to parse fallback JSON", e);
             }
 
+            // If parsing failed
             return new Response(
-                JSON.stringify({
-                    error: "لم نتمكن من قراءة محتوى الملف. جرب لصق محتوى السيرة كنص.",
-                    fallback: true
-                }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
+                JSON.stringify({ error: "فشل في تحليل هيكل الملف." }),
+                { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
@@ -231,7 +402,7 @@ export async function POST(request: NextRequest) {
                 model: 'GLM-4.7',
                 messages: [
                     { role: 'system', content: PDF_ANALYSIS_PROMPT },
-                    { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 8000)}` }
+                    { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 15000)}` }
                 ],
                 temperature: 0.3,
                 stream: false,
@@ -266,7 +437,8 @@ export async function POST(request: NextRequest) {
         return new Response(
             JSON.stringify({
                 cvData,
-                rawText: extractedText.substring(0, 1000),
+                profileImage: profileImage || undefined,
+                debug_text_preview: extractedText.substring(0, 1000),
                 message: "تم تحليل ملف PDF بنجاح"
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }

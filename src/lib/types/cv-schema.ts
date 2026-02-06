@@ -66,3 +66,22 @@ export interface Question {
   skippable?: boolean; // Whether this question can be skipped
   placeholder?: string; // Placeholder text for input
 }
+
+// Missing fields detection for text analysis
+export interface MissingFieldInfo {
+  field: keyof PersonalInfo;
+  label: string;
+  labelAr: string;
+  type: 'text' | 'email' | 'tel' | 'date' | 'file';
+  required: boolean;
+  placeholder?: string;
+  placeholderAr?: string;
+}
+
+// Text analysis API response
+export interface TextAnalysisResponse {
+  cvData: Partial<CVData>;
+  missingFields: MissingFieldInfo[];
+  isComplete: boolean;
+  message: string;
+}

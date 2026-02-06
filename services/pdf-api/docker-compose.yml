@@ -1,0 +1,29 @@
+services:
+  pdf-api:
+    build: .
+    container_name: pdf-extractor-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PDF_API_KEY=${PDF_API_KEY:-change-me-in-production}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Nginx reverse proxy with SSL
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: pdf-api-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "443:443"
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #     - /etc/letsencrypt:/etc/letsencrypt
+  #   depends_on:
+  #     - pdf-api

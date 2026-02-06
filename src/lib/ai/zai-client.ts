@@ -9,6 +9,7 @@ async function sleep(ms: number) {
 
 /**
  * Parse SSE stream from AI and collect full response
+ * With timeout protection to prevent infinite hangs
  */
 async function parseSSEStream(response: Response): Promise<string> {
     const reader = response.body?.getReader();
@@ -17,31 +18,61 @@ async function parseSSEStream(response: Response): Promise<string> {
     const decoder = new TextDecoder();
     let fullContent = '';
     let buffer = '';
+    let lastDataTime = Date.now();
+    const STREAM_TIMEOUT = 60000; // 60 seconds max silence
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    // Helper to read with timeout
+    const readWithTimeout = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Stream timeout')), STREAM_TIMEOUT);
+        });
+        return Promise.race([reader.read(), timeoutPromise]);
+    };
 
-        buffer += decoder.decode(value, { stream: true });
+    try {
+        while (true) {
+            // Check if too much time passed since last data
+            if (Date.now() - lastDataTime > STREAM_TIMEOUT) {
+                console.warn('⏰ Stream timeout - no data received for 60s');
+                break;
+            }
 
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+            const { done, value } = await readWithTimeout();
+            if (done) break;
 
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') continue;
+            lastDataTime = Date.now(); // Reset timer on data received
+            buffer += decoder.decode(value, { stream: true });
 
-                try {
-                    const parsed = JSON.parse(data);
-                    const delta = parsed.choices?.[0]?.delta?.content || '';
-                    fullContent += delta;
-                } catch {
-                    // Skip invalid JSON chunks
+            // Process complete lines
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6).trim();
+                    if (data === '[DONE]') {
+                        return fullContent; // Early return on [DONE]
+                    }
+
+                    try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta?.content || '';
+                        fullContent += delta;
+                    } catch {
+                        // Skip invalid JSON chunks
+                    }
                 }
             }
         }
+    } catch (error) {
+        if (error instanceof Error && error.message === 'Stream timeout') {
+            console.warn('⏰ Stream timed out, returning partial content');
+            // Return whatever we have so far
+        } else {
+            throw error;
+        }
+    } finally {
+        reader.releaseLock();
     }
 
     return fullContent;
@@ -57,6 +88,10 @@ export async function chatWithAI(
 ): Promise<any> {
     const { temperature, retryCount = 0, stream = true } = options;
 
+    // Create AbortController for timeout (90 seconds max)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+
     try {
         const response = await fetch('/api/ai/chat', {
             method: 'POST',
@@ -64,6 +99,7 @@ export async function chatWithAI(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ messages, temperature, stream }),
+            signal: controller.signal, // Add abort signal
         });
 
         if (!response.ok) {
@@ -104,10 +140,16 @@ export async function chatWithAI(
         return await response.json();
 
     } catch (error) {
+        // Check if it was a timeout abort
+        if (error instanceof Error && error.name === 'AbortError') {
+            console.error('⏰ AI request timed out after 90 seconds');
+            throw new Error('انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.');
+        }
+
         console.error('Error calling AI API:', error);
 
-        // Retry on network errors
-        if (retryCount < MAX_RETRIES) {
+        // Retry on network errors (but not on timeout)
+        if (retryCount < MAX_RETRIES && !(error instanceof Error && error.name === 'AbortError')) {
             const delay = INITIAL_DELAY * Math.pow(2, retryCount);
             console.log(`Network error. Retrying in ${delay}ms...`);
             await sleep(delay);
@@ -115,6 +157,8 @@ export async function chatWithAI(
         }
 
         throw error;
+    } finally {
+        clearTimeout(timeoutId); // Always clear timeout
     }
 }
 

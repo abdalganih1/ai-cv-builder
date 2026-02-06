@@ -6,9 +6,15 @@ const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const TEXT_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية والمعلومات الشخصية. مهمتك هي استخراج البيانات المهيكلة من النص المُعطى.
 
-استخرج البيانات التالية إذا وُجدت:
-- الاسم الأول والكنية
-- البريد الإلكتروني ورقم الهاتف
+**الحقول الإلزامية التي يجب البحث عنها:**
+- firstName (الاسم الأول) - إلزامي
+- lastName (الكنية) - إلزامي  
+- phone (رقم الهاتف) - إلزامي
+- email (البريد الإلكتروني) - إلزامي
+- country (الدولة) - إلزامي
+- birthDate (تاريخ الميلاد) - اختياري
+
+**الحقول الإضافية:**
 - المسمى الوظيفي الحالي أو المطلوب
 - ملخص شخصي/مهني
 - الخبرات العملية (اسم الشركة، المنصب، تاريخ البداية والنهاية، الوصف)
@@ -17,6 +23,11 @@ const TEXT_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذ�
 - اللغات (قائمة نصية)
 - الهوايات (قائمة نصية)
 
+**مهمتك:**
+1. استخرج جميع البيانات الموجودة في النص
+2. لا تختلق أي معلومات غير موجودة
+3. حدد الحقول الإلزامية الناقصة
+
 أرجع النتيجة بصيغة JSON فقط، بدون أي نص إضافي، بالهيكل التالي:
 {
   "personal": {
@@ -24,6 +35,8 @@ const TEXT_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذ�
     "lastName": "",
     "email": "",
     "phone": "",
+    "country": "",
+    "birthDate": "",
     "jobTitle": "",
     "summary": ""
   },
@@ -49,10 +62,15 @@ const TEXT_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذ�
   ],
   "skills": [],
   "languages": [],
-  "hobbies": []
+  "hobbies": [],
+  "missingRequiredFields": []
 }
 
-إذا لم تجد معلومة معينة، اتركها فارغة. لا تختلق معلومات غير موجودة في النص.`;
+**تعليمات مهمة:**
+- إذا لم تجد معلومة معينة، اتركها فارغة ""
+- لا تختلق معلومات غير موجودة في النص
+- في missingRequiredFields، ضع أسماء الحقول الإلزامية الناقصة فقط من: ["firstName", "lastName", "email", "phone", "country"]
+- مثال: إذا لم تجد الاسم والإيميل، أرجع "missingRequiredFields": ["firstName", "lastName", "email"]`;
 
 export async function POST(request: NextRequest) {
     try {
@@ -131,10 +149,92 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Extract missingRequiredFields from AI response
+        const aiMissingFields: string[] = cvData.missingRequiredFields || [];
+        delete cvData.missingRequiredFields; // Remove from cvData since it's metadata
+
+        // Field metadata for missing fields form
+        const fieldMetadata: Record<string, any> = {
+            firstName: {
+                field: 'firstName',
+                label: 'First Name',
+                labelAr: 'الاسم الأول',
+                type: 'text',
+                required: true,
+                placeholder: 'e.g., Mohammed',
+                placeholderAr: 'مثلاً: محمد'
+            },
+            lastName: {
+                field: 'lastName',
+                label: 'Last Name',
+                labelAr: 'الكنية',
+                type: 'text',
+                required: true,
+                placeholder: 'e.g., Ali',
+                placeholderAr: 'مثلاً: علي'
+            },
+            email: {
+                field: 'email',
+                label: 'Email',
+                labelAr: 'البريد الإلكتروني',
+                type: 'email',
+                required: true,
+                placeholder: 'example@email.com',
+                placeholderAr: 'example@email.com'
+            },
+            phone: {
+                field: 'phone',
+                label: 'Phone',
+                labelAr: 'رقم الهاتف',
+                type: 'tel',
+                required: true,
+                placeholder: '+963 XXX XXX XXX',
+                placeholderAr: '+963 XXX XXX XXX'
+            },
+            country: {
+                field: 'country',
+                label: 'Country',
+                labelAr: 'الدولة',
+                type: 'text',
+                required: true,
+                placeholder: 'e.g., Syria',
+                placeholderAr: 'مثلاً: سوريا'
+            },
+            birthDate: {
+                field: 'birthDate',
+                label: 'Birth Date',
+                labelAr: 'تاريخ الميلاد',
+                type: 'date',
+                required: false,
+                placeholder: 'YYYY-MM-DD',
+                placeholderAr: 'YYYY-MM-DD'
+            },
+            photoUrl: {
+                field: 'photoUrl',
+                label: 'Profile Photo',
+                labelAr: 'الصورة الشخصية',
+                type: 'file',
+                required: false,
+                placeholder: 'Upload your photo',
+                placeholderAr: 'ارفع صورتك الشخصية'
+            }
+        };
+
+        // Map missing fields to detailed info
+        const missingFields = aiMissingFields
+            .filter(field => fieldMetadata[field])
+            .map(field => fieldMetadata[field]);
+
+        const isComplete = missingFields.length === 0;
+
         return new Response(
             JSON.stringify({
                 cvData,
-                message: "تم تحليل النص بنجاح"
+                missingFields,
+                isComplete,
+                message: isComplete
+                    ? "تم تحليل النص بنجاح - البيانات كاملة"
+                    : "تم تحليل النص - يوجد بيانات أساسية ناقصة"
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
