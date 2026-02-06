@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { AnalyticsStorage } from '@/lib/analytics/storage';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import type { TrackRequest, CFRequestInfo, AnalyticsEvent, EventType } from '@/lib/analytics/types';
 
 // استخراج معلومات Cloudflare من الـ headers
@@ -40,9 +41,14 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const cfInfo = getCFInfo(request);
 
-        // الحصول على D1 من بيئة Cloudflare (إذا متوفر)
-        // @ts-expect-error - Cloudflare D1 binding
-        const db = request.cf?.env?.ANALYTICS_DB || null;
+        // الوصول للـ D1 عبر getRequestContext
+        let db: any = undefined;
+        try {
+            const { env } = getRequestContext();
+            db = env.ANALYTICS_DB || undefined;
+        } catch {
+            console.log('[Analytics] No Cloudflare context available');
+        }
         const storage = new AnalyticsStorage(db);
 
         // التعامل مع أحداث متعددة (batch)

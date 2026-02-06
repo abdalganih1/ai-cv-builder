@@ -5,20 +5,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { AnalyticsStorage } from '@/lib/analytics/storage';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import type { SessionFilter } from '@/lib/analytics/types';
 
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
     try {
-        // التحقق من المصادقة (Cloudflare Access)
+        // التحقق من المصادقة
         const cfAccessJWT = request.headers.get('cf-access-jwt-assertion');
         const cfAccessEmail = request.headers.get('cf-access-authenticated-user-email');
-
-        // في بيئة الإنتاج، نتحقق من Cloudflare Access
-        // في التطوير المحلي، نسمح بالوصول
+        const cookies = request.headers.get('cookie') || '';
         const isLocalDev = process.env.NODE_ENV === 'development';
-        if (!isLocalDev && !cfAccessJWT) {
+
+        if (!isLocalDev && !cfAccessJWT && !cookies.includes('CF_Authorization')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -39,8 +39,14 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
 
-        // @ts-expect-error - Cloudflare D1 binding
-        const db = request.cf?.env?.ANALYTICS_DB || null;
+        // الوصول للـ D1 عبر getRequestContext
+        let db: any = undefined;
+        try {
+            const { env } = getRequestContext();
+            db = env.ANALYTICS_DB || undefined;
+        } catch {
+            console.log('[Analytics] No Cloudflare context available');
+        }
         const storage = new AnalyticsStorage(db);
 
         const sessions = await storage.getSessions(filter, limit, offset);
