@@ -136,10 +136,10 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, x: -20 }}
                                     className={`group p-3 rounded-lg text-sm ${msg.type === 'user'
-                                            ? 'bg-white border border-gray-200'
-                                            : msg.type === 'error'
-                                                ? 'bg-red-50 border border-red-200 text-red-600'
-                                                : 'bg-green-50 border border-green-200 text-green-700'
+                                        ? 'bg-white border border-gray-200'
+                                        : msg.type === 'error'
+                                            ? 'bg-red-50 border border-red-200 text-red-600'
+                                            : 'bg-green-50 border border-green-200 text-green-700'
                                         }`}
                                 >
                                     <div className="flex items-start justify-between gap-2">
@@ -184,6 +184,16 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
 
             {/* مربع الإدخال */}
             <div className="space-y-3">
+                {/* العنوان والمؤشرات فوق مربع النص */}
+                <div className="flex items-center justify-between px-1">
+                    <span className="text-gray-500 text-sm font-medium">✨ AI Editor</span>
+                    {input.length > 0 && (
+                        <span className="text-xs text-green-500 animate-pulse">
+                            💾 سيتم حفظ الطلب
+                        </span>
+                    )}
+                </div>
+
                 <div className="relative">
                     <textarea
                         value={input}
@@ -192,20 +202,11 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
                         placeholder='مثال: "اجعل الخبرات العملية تظهر أولاً" أو "أضف مهارة الذكاء الاصطناعي"'
                         disabled={isProcessing}
                     />
-                    <div className="absolute bottom-3 left-3 flex items-center gap-2">
-                        {isProcessing ? (
+                    {isProcessing && (
+                        <div className="absolute bottom-3 left-3">
                             <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin block" />
-                        ) : (
-                            <span className="text-gray-300 text-xs">AI Editor</span>
-                        )}
-                    </div>
-
-                    {/* مؤشر الحفظ */}
-                    <div className="absolute bottom-3 right-3">
-                        <span className="text-xs text-gray-300">
-                            {input.length > 0 && '💾 سيتم حفظ الطلب'}
-                        </span>
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 <button
