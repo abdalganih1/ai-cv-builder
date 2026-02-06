@@ -43,7 +43,7 @@ export async function GET() {
             try {
                 const row = await db.prepare(
                     'SELECT * FROM payment_settings WHERE id = 1'
-                ).first<Record<string, unknown>>();
+                ).first();
 
                 if (row) {
                     return NextResponse.json({

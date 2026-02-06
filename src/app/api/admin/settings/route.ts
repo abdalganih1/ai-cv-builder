@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
             try {
                 const row = await db.prepare(
                     'SELECT * FROM payment_settings WHERE id = 1'
-                ).first<Record<string, unknown>>();
+                ).first();
 
                 if (row) {
                     return NextResponse.json({
@@ -119,7 +119,7 @@ export async function PUT(request: NextRequest) {
         // التحقق من وجود سجل أول
         let row = await db.prepare(
             'SELECT id FROM payment_settings WHERE id = 1'
-        ).first<{ id: number }>();
+        ).first();
 
         if (!row) {
             // إنشاء سجل جديد
@@ -175,7 +175,7 @@ export async function PUT(request: NextRequest) {
         // جلب الإعدادات المحدثة
         row = await db.prepare(
             'SELECT * FROM payment_settings WHERE id = 1'
-        ).first<Record<string, unknown>>();
+        ).first();
 
         return NextResponse.json({
             success: true,
