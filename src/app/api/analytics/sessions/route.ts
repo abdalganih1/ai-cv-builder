@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AnalyticsStorage } from '@/lib/analytics/storage';
 import type { SessionFilter } from '@/lib/analytics/types';
 
+export const runtime = 'edge';
+
 export async function GET(request: NextRequest) {
     try {
         // التحقق من المصادقة (Cloudflare Access)

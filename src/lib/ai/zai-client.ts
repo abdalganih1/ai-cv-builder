@@ -19,7 +19,7 @@ async function parseSSEStream(response: Response): Promise<string> {
     let fullContent = '';
     let buffer = '';
     let lastDataTime = Date.now();
-    const STREAM_TIMEOUT = 60000; // 60 seconds max silence
+    const STREAM_TIMEOUT = 120000; // 120 seconds max silence
 
     // Helper to read with timeout
     const readWithTimeout = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
@@ -90,7 +90,7 @@ export async function chatWithAI(
 
     // Create AbortController for timeout (120 seconds for non-streaming, 90 for streaming)
     const controller = new AbortController();
-    const timeout = stream ? 90000 : 120000;
+    const timeout = stream ? 180000 : 240000;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
@@ -143,8 +143,8 @@ export async function chatWithAI(
     } catch (error) {
         // Check if it was a timeout abort
         if (error instanceof Error && error.name === 'AbortError') {
-            console.error('⏰ AI request timed out after 90 seconds');
-            throw new Error('انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.');
+            console.error('⏰ AI request timed out after 180 seconds');
+            throw new Error('انتهت مهلة الطلب (3 دقائق). يرجى تقصير الطلب والمحاولة مرة أخرى.');
         }
 
         console.error('Error calling AI API:', error);

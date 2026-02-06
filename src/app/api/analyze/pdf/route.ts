@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 
+export const runtime = 'edge';
+
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const PDF_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية. سأعطيك نصاً مستخرجاً من ملف PDF لسيرة ذاتية.

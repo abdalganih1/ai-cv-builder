@@ -1,130 +1,123 @@
 /**
  * Smart Analysis API - تحليل ذكي لمصادر متعددة
- * يدعم: روابط، ملفات PDF، نص إضافي
- * مع اكتشاف تلقائي للنوع (بيانات شخصية vs وظيفة شاغرة)
+ * يجمع كل المصادر (روابط، PDF، نص) ويرسلها للـ AI لتحليلها
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// Helper to fetch and analyze URL content
-async function analyzeUrl(url: string, type: 'personal' | 'job' | 'unknown') {
-    try {
-        // Try to fetch the URL content
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; CVBuilder/1.0)',
-            },
-            signal: AbortSignal.timeout(10000),
-        });
+export const runtime = 'edge';
 
-        if (!response.ok) {
-            console.warn(`Failed to fetch ${url}: ${response.status}`);
-            return null;
-        }
+const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
-        const contentType = response.headers.get('content-type') || '';
+const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية.
 
-        // Handle PDF from URL (like Google Drive)
-        if (contentType.includes('application/pdf')) {
-            const buffer = await response.arrayBuffer();
-            // Process PDF content
-            return {
-                type: type !== 'unknown' ? type : 'personal',
-                content: 'PDF content from URL',
-                url,
-            };
-        }
+سأعطيك معلومات من مصادر متعددة (نص، روابط مُضافة من المستخدم، ملفات PDF محللة).
+مهمتك: استخراج **كل** البيانات المُمكنة وتحويلها لسيرة ذاتية منظمة.
 
-        // Handle HTML/text content
-        const text = await response.text();
+**ملاحظات مهمة:**
+1. الروابط التي يضيفها المستخدم هي مصادر قيمة - استخدم عناوينها لفهم السياق
+2. إذا كان هناك رابط LinkedIn أو GitHub - استخدم ذلك لفهم الخبرة
+3. إذا كان هناك رابط وظيفة - ركز السيرة على متطلبات تلك الوظيفة
+4. **لا تترك أي حقل فارغاً إذا كانت المعلومات متوفرة**
+5. **خمّن الحقول الناقصة بشكل منطقي** من السياق
 
-        return {
-            type: type !== 'unknown' ? type : detectContentType(text),
-            content: text.slice(0, 10000), // Limit content size
-            url,
-        };
-
-    } catch (error) {
-        console.error(`Error analyzing URL ${url}:`, error);
-        return null;
+**النتيجة المطلوبة:** أرجع JSON فقط بالشكل التالي:
+{
+  "personal": {
+    "firstName": "الاسم الأول",
+    "lastName": "الاسم الأخير",
+    "email": "البريد الإلكتروني",
+    "phone": "رقم الهاتف",
+    "location": "الموقع/البلد",
+    "jobTitle": "المسمى الوظيفي"
+  },
+  "summary": "ملخص احترافي عن الشخص",
+  "experience": [
+    {
+      "id": "exp-1",
+      "company": "اسم الشركة",
+      "position": "المنصب",
+      "startDate": "تاريخ البدء",
+      "endDate": "تاريخ الانتهاء أو 'حتى الآن'",
+      "description": "وصف المهام"
     }
-}
-
-// Detect if content is about a job or personal info
-function detectContentType(content: string): 'personal' | 'job' {
-    const jobKeywords = [
-        'vacancy', 'وظيفة', 'شاغر', 'مطلوب', 'hiring', 'job description',
-        'requirements', 'متطلبات', 'qualifications', 'مؤهلات', 'apply now',
-        'تقدم الآن', 'salary', 'راتب', 'experience required', 'خبرة مطلوبة'
-    ];
-
-    const lowerContent = content.toLowerCase();
-    let jobScore = 0;
-
-    for (const keyword of jobKeywords) {
-        if (lowerContent.includes(keyword.toLowerCase())) {
-            jobScore++;
-        }
+  ],
+  "education": [
+    {
+      "id": "edu-1",
+      "institution": "الجامعة/المعهد",
+      "degree": "الدرجة",
+      "major": "التخصص",
+      "startYear": "سنة البدء",
+      "endYear": "سنة التخرج"
     }
-
-    return jobScore >= 3 ? 'job' : 'personal';
-}
-
-// Merge extracted data from multiple sources
-function mergePersonalData(sources: Array<{ data: Record<string, unknown>; type: string }>) {
-    const merged: Record<string, unknown> = {};
-
-    for (const source of sources) {
-        if (source.type === 'personal' && source.data) {
-            // Deep merge personal data
-            Object.assign(merged, source.data);
-        }
-    }
-
-    return merged;
-}
-
-// Extract job profile from job sources
-function extractJobProfile(sources: Array<{ data: Record<string, unknown>; type: string }>) {
-    const jobSources = sources.filter(s => s.type === 'job');
-
-    if (jobSources.length === 0) return null;
-
-    // Combine job information
-    return {
-        title: 'الوظيفة المستهدفة',
-        requirements: [],
-        description: '',
-        ...jobSources[0].data,
-    };
-}
+  ],
+  "skills": ["مهارة 1", "مهارة 2"],
+  "languages": [{"name": "العربية", "level": "اللغة الأم"}, {"name": "الإنجليزية", "level": "جيد جداً"}],
+  "hobbies": []
+}`;
 
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
 
-        // Parse URLs
+        // جمع كل المعلومات
+        const allInfo: string[] = [];
+        let pdfData: Record<string, unknown> | null = null;
+
+        // 1. معالجة الروابط
         const urlsJson = formData.get('urls');
-        const urls = urlsJson ? JSON.parse(urlsJson as string) : [];
+        if (urlsJson) {
+            try {
+                const urls = JSON.parse(urlsJson as string);
+                if (urls.length > 0) {
+                    allInfo.push('📌 **روابط المستخدم:**');
+                    for (const urlItem of urls) {
+                        const typeLabel = urlItem.type === 'personal' ? '👤 بيانات شخصية' :
+                            urlItem.type === 'job' ? '💼 وظيفة شاغرة' :
+                                '❓ غير محدد';
+                        allInfo.push(`- ${typeLabel}: ${urlItem.url}`);
 
-        // Get additional text
-        const additionalText = formData.get('additionalText') as string || '';
+                        // محاولة جلب محتوى الرابط (قد تفشل لكن نحاول)
+                        try {
+                            const response = await fetch(urlItem.url, {
+                                headers: {
+                                    'User-Agent': 'Mozilla/5.0 (compatible; CVBuilder/1.0)',
+                                },
+                                signal: AbortSignal.timeout(8000),
+                            });
 
-        // Collect all sources
-        const analyzedSources: Array<{ data: Record<string, unknown>; type: string }> = [];
+                            if (response.ok) {
+                                const contentType = response.headers.get('content-type') || '';
+                                if (contentType.includes('text/html')) {
+                                    const html = await response.text();
+                                    // استخراج النص المفيد فقط
+                                    const textContent = html
+                                        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                                        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                                        .replace(/<[^>]+>/g, ' ')
+                                        .replace(/\s+/g, ' ')
+                                        .trim()
+                                        .substring(0, 3000);
 
-        // Analyze URLs
-        for (const urlItem of urls) {
-            const result = await analyzeUrl(urlItem.url, urlItem.type || 'unknown');
-            if (result) {
-                analyzedSources.push({
-                    data: { content: result.content, url: result.url },
-                    type: result.type,
-                });
+                                    if (textContent.length > 50) {
+                                        allInfo.push(`  محتوى الصفحة: ${textContent}`);
+                                    }
+                                }
+                            }
+                        } catch {
+                            // تجاهل أخطاء الجلب
+                            console.log(`Could not fetch ${urlItem.url}`);
+                        }
+                    }
+                    allInfo.push('');
+                }
+            } catch (e) {
+                console.error('Error parsing URLs:', e);
             }
         }
 
-        // Analyze PDF files
+        // 2. معالجة ملفات PDF
         const fileKeys = Array.from(formData.keys()).filter(k => k.startsWith('file_') && !k.endsWith('_type'));
 
         for (const key of fileKeys) {
@@ -133,8 +126,13 @@ export async function POST(request: NextRequest) {
             const fileType = formData.get(typeKey) as string || 'unknown';
 
             if (file) {
+                const typeLabel = fileType === 'personal' ? '👤 سيرة ذاتية' :
+                    fileType === 'job' ? '💼 وصف وظيفة' :
+                        '📄 ملف PDF';
+                allInfo.push(`📎 **${typeLabel}:** ${file.name}`);
+
                 try {
-                    // Use existing PDF analyzer
+                    // استخدام الـ PDF analyzer الموجود
                     const pdfFormData = new FormData();
                     pdfFormData.append('file', file);
 
@@ -145,33 +143,99 @@ export async function POST(request: NextRequest) {
 
                     if (pdfResponse.ok) {
                         const pdfResult = await pdfResponse.json();
-                        analyzedSources.push({
-                            data: pdfResult.cvData || {},
-                            type: fileType !== 'unknown' ? fileType : 'personal',
-                        });
+                        if (pdfResult.cvData) {
+                            pdfData = pdfResult.cvData;
+                            allInfo.push(`  محتوى الملف (محلل): ${JSON.stringify(pdfResult.cvData).substring(0, 2000)}`);
+                        }
                     }
                 } catch (error) {
                     console.error(`Error analyzing PDF ${file.name}:`, error);
                 }
+                allInfo.push('');
             }
         }
 
-        // Analyze additional text
+        // 3. معالجة النص الإضافي (الأهم!)
+        const additionalText = formData.get('additionalText') as string || '';
         if (additionalText.trim()) {
-            const textType = detectContentType(additionalText);
-            analyzedSources.push({
-                data: { rawText: additionalText },
-                type: textType,
-            });
+            allInfo.push('📝 **نص المستخدم:**');
+            allInfo.push(additionalText);
+            allInfo.push('');
         }
 
-        // Merge all personal data
-        const cvData = mergePersonalData(analyzedSources);
+        // التحقق من وجود معلومات
+        if (allInfo.length === 0) {
+            return NextResponse.json({
+                success: false,
+                error: 'لم يتم إضافة أي مصادر'
+            }, { status: 400 });
+        }
 
-        // Extract job profile if any job sources
-        const jobProfile = extractJobProfile(analyzedSources);
+        // إرسال كل المعلومات للـ AI
+        const ZAI_API_KEY = process.env.ZAI_API_KEY;
+        if (!ZAI_API_KEY) {
+            return NextResponse.json({
+                success: false,
+                error: 'خدمة الذكاء الاصطناعي غير مفعلة'
+            }, { status: 503 });
+        }
 
-        // Create default structure if empty
+        const fullContext = allInfo.join('\n');
+        console.log('--- Smart Analysis Context ---');
+        console.log(fullContext.substring(0, 500));
+        console.log(`--- Total length: ${fullContext.length} chars ---`);
+
+        const response = await fetch(`${BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${ZAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'GLM-4.7',
+                messages: [
+                    { role: 'system', content: SMART_ANALYSIS_PROMPT },
+                    { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
+                ],
+                temperature: 0.3,
+                stream: false,
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('AI API error:', response.status);
+            return NextResponse.json({
+                success: false,
+                error: 'فشل في تحليل المصادر'
+            }, { status: 500 });
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || '';
+
+        // استخراج JSON من الرد
+        let cvData;
+        try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cvData = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON found');
+            }
+        } catch {
+            console.error('Failed to parse AI response');
+            // إذا فشل التحليل وعندنا بيانات PDF، نستخدمها
+            if (pdfData) {
+                cvData = pdfData;
+            } else {
+                return NextResponse.json({
+                    success: false,
+                    error: 'فشل في تحليل استجابة الذكاء الاصطناعي'
+                }, { status: 500 });
+            }
+        }
+
+        // تأكد من وجود البنية الأساسية
         const finalCvData = {
             personal: {
                 firstName: '',
@@ -179,6 +243,7 @@ export async function POST(request: NextRequest) {
                 email: '',
                 phone: '',
                 location: '',
+                jobTitle: '',
                 ...(cvData.personal || {}),
             },
             summary: cvData.summary || '',
@@ -186,15 +251,14 @@ export async function POST(request: NextRequest) {
             education: cvData.education || [],
             skills: cvData.skills || [],
             languages: cvData.languages || [],
-            ...cvData,
+            hobbies: cvData.hobbies || [],
         };
 
         return NextResponse.json({
             success: true,
             cvData: finalCvData,
-            jobProfile,
-            sourcesAnalyzed: analyzedSources.length,
-            message: `تم تحليل ${analyzedSources.length} مصدر بنجاح`,
+            sourcesAnalyzed: allInfo.filter(l => l.startsWith('📌') || l.startsWith('📎') || l.startsWith('📝')).length,
+            message: 'تم تحليل المصادر بنجاح',
         });
 
     } catch (error) {

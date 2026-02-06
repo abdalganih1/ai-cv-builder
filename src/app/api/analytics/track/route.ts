@@ -33,6 +33,8 @@ function isValidEventType(type: string): type is EventType {
     return validTypes.includes(type as EventType);
 }
 
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
