@@ -11,4 +11,4 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "ANALYTICS_DB"
 database_name = "analytics-db"
-database_id = "78d88ad6-3263-4e8a-a9f3-e48ef3951eb5"
+database_id = "3c45f104-3101-45a5-9bbd-6bdc5bed31de"
