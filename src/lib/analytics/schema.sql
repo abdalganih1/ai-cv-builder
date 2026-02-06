@@ -58,3 +58,18 @@ CREATE INDEX IF NOT EXISTS idx_sessions_country ON sessions(country);
 CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);
+
+-- جدول إعدادات الدفع
+CREATE TABLE IF NOT EXISTS payment_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  qr_image_url TEXT DEFAULT '/sham-cash-qr.png',
+  recipient_name TEXT DEFAULT 'عبد الغني أحمد الحمدي',
+  recipient_code TEXT DEFAULT '0d4f56f704ded4f3148727e0edc03778',
+  amount INTEGER DEFAULT 500,
+  currency TEXT DEFAULT 'ل.س',
+  payment_type TEXT DEFAULT 'mandatory' CHECK (payment_type IN ('mandatory', 'donation', 'disabled')),
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- إدخال القيم الافتراضية
+INSERT OR IGNORE INTO payment_settings (id) VALUES (1);

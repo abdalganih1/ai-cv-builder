@@ -1,7 +1,7 @@
 "use client";
 
 import { CVData } from '@/lib/types/cv-schema';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateProfessionalCV } from '@/lib/ai/chat-editor';
 import Image from 'next/image';
@@ -14,10 +14,27 @@ interface StepProps {
     onBack: () => void;
 }
 
-const SHAM_CASH_CODE = "0d4f56f704ded4f3148727e0edc03778";
-const SHAM_CASH_NAME = "عبد الغني أحمد الحمدي";
+interface PaymentSettings {
+    qrImageUrl: string;
+    recipientName: string;
+    recipientCode: string;
+    amount: number;
+    currency: string;
+    paymentType: 'mandatory' | 'donation' | 'disabled';
+}
+
+const DEFAULT_SETTINGS: PaymentSettings = {
+    qrImageUrl: '/sham-cash-qr.png',
+    recipientName: 'عبد الغني أحمد الحمدي',
+    recipientCode: '0d4f56f704ded4f3148727e0edc03778',
+    amount: 500,
+    currency: 'ل.س',
+    paymentType: 'mandatory',
+};
 
 export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
+    const [settings, setSettings] = useState<PaymentSettings>(DEFAULT_SETTINGS);
+    const [settingsLoading, setSettingsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showProgress, setShowProgress] = useState(false);
     const [status, setStatus] = useState<string>('');
@@ -27,11 +44,76 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     const [showProofRequired, setShowProofRequired] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const cost = 500;
+
+    // Fetch payment settings from API (with localStorage fallback for local dev)
+    useEffect(() => {
+        async function fetchSettings() {
+            try {
+                // أولاً: جلب من localStorage للتطوير المحلي
+                const localSettings = localStorage.getItem('cv_payment_settings');
+                if (localSettings) {
+                    try {
+                        const parsed = JSON.parse(localSettings);
+                        setSettings(prev => ({ ...prev, ...parsed }));
+                        console.log('[Payment] Loaded from localStorage:', parsed.paymentType);
+
+                        if (parsed.paymentType === 'disabled') {
+                            handleSkipPayment();
+                            setSettingsLoading(false);
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse local settings:', e);
+                    }
+                }
+
+                // ثانياً: محاولة جلب من API (للإنتاج)
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                if (data.success && data.data) {
+                    setSettings(data.data);
+                    if (data.data.paymentType === 'disabled') {
+                        handleSkipPayment();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch payment settings:', error);
+            } finally {
+                setSettingsLoading(false);
+            }
+        }
+        fetchSettings();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Skip payment and go to next step (for disabled mode)
+    const handleSkipPayment = async () => {
+        setShowProgress(true);
+        try {
+            const enhancedData = await generateProfessionalCV(data);
+            setShowProgress(false);
+            onNext({
+                ...enhancedData,
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                }
+            });
+        } catch (error) {
+            console.error("AI Enhancement failed:", error);
+            setShowProgress(false);
+            onNext({
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                }
+            });
+        }
+    };
 
     const copyCode = async () => {
         try {
-            await navigator.clipboard.writeText(SHAM_CASH_CODE);
+            await navigator.clipboard.writeText(settings.recipientCode);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -91,8 +173,8 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     };
 
     const handlePayment = async () => {
-        // Check if proof is required
-        if (!paymentProof) {
+        // Check if proof is required (only for mandatory payment type)
+        if (settings.paymentType === 'mandatory' && !paymentProof) {
             setShowProofRequired(true);
             return;
         }
@@ -173,7 +255,7 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                     {/* QR Image */}
                     <div className="bg-white p-3 rounded-2xl shadow-lg">
                         <Image
-                            src="/sham-cash-qr.png"
+                            src={settings.qrImageUrl}
                             alt="Sham Cash QR Code"
                             width={200}
                             height={200}
@@ -183,10 +265,10 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
 
                     {/* Account Info */}
                     <div className="text-center text-white space-y-2">
-                        <p className="text-lg font-bold">{SHAM_CASH_NAME}</p>
+                        <p className="text-lg font-bold">{settings.recipientName}</p>
                         <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/20">
                             <code className="text-sm font-mono text-cyan-300 select-all flex-1" dir="ltr">
-                                {SHAM_CASH_CODE}
+                                {settings.recipientCode}
                             </code>
                             <button
                                 onClick={copyCode}
@@ -199,9 +281,16 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
 
                     {/* Cost Badge */}
                     <div className="flex items-baseline gap-2 text-white mt-2">
-                        <span className="text-4xl font-black">{cost}</span>
-                        <span className="text-xl font-bold opacity-80">ل.س</span>
+                        <span className="text-4xl font-black">{settings.amount}</span>
+                        <span className="text-xl font-bold opacity-80">{settings.currency}</span>
                     </div>
+
+                    {/* Payment Type Badge */}
+                    {settings.paymentType === 'donation' && (
+                        <div className="mt-2 px-4 py-2 bg-yellow-500/20 rounded-full">
+                            <span className="text-yellow-300 text-sm font-bold">🎁 تبرع اختياري</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

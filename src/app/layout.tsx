@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AnalyticsProvider } from "@/lib/analytics/provider";
 
 export const metadata: Metadata = {
   title: "ذكاء السيرة - منشئ السير الذاتية الذكي",
@@ -15,10 +14,9 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body className="antialiased font-arabic">
-        <AnalyticsProvider>
-          {children}
-        </AnalyticsProvider>
+        {children}
       </body>
     </html>
   );
 }
+

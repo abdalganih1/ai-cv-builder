@@ -11,7 +11,9 @@ interface StepProps {
     onUpdate: (data: Partial<CVData>) => void;
 }
 
-type QuickStartMode = 'select' | 'manual' | 'pdf' | 'text' | 'url';
+type QuickStartMode = 'select' | 'manual' | 'pdf' | 'text' | 'url' | 'advanced';
+
+import AdvancedInput from './AdvancedInput';
 
 // Card component for quick start options
 function OptionCard({
@@ -540,7 +542,7 @@ export default function WelcomeStep({ data, onNext }: StepProps) {
 
     const handleBack = () => setMode('select');
 
-    // Selection screen
+    // Selection screen - Two main modes
     if (mode === 'select') {
         return (
             <div className="w-full max-w-2xl mx-auto space-y-8 py-4">
@@ -554,35 +556,58 @@ export default function WelcomeStep({ data, onNext }: StepProps) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <OptionCard
-                        icon="✏️"
-                        title="ابدأ من الصفر"
-                        description="أدخل بياناتك خطوة بخطوة بمساعدة الذكاء"
+                {/* Main Two Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Simple Mode */}
+                    <button
                         onClick={() => setMode('manual')}
-                        gradient="bg-gradient-to-br from-primary to-primary-dark"
-                    />
-                    <OptionCard
-                        icon="📄"
-                        title="لديّ سيرة ذاتية"
-                        description="ارفع ملف PDF وسنحسّنها لك"
-                        onClick={() => setMode('pdf')}
-                        gradient="bg-gradient-to-br from-purple-500 to-violet-600"
-                    />
-                    <OptionCard
-                        icon="📝"
-                        title="لديّ نص جاهز"
-                        description="الصق معلوماتك وسنستخرج البيانات"
-                        onClick={() => setMode('text')}
-                        gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-                    />
-                    <OptionCard
-                        icon="🔗"
-                        title="لديّ رابط"
-                        description="أدخل رابط حسابك على السوشال ميديا"
-                        onClick={() => setMode('url')}
-                        gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
-                    />
+                        className="group relative p-8 rounded-3xl border-2 border-gray-100 hover:border-transparent transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] bg-white overflow-hidden text-center"
+                    >
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary to-primary-dark" />
+                        <div className="relative z-10 space-y-4">
+                            <div className="text-6xl group-hover:scale-110 transition-transform duration-300">🚀</div>
+                            <h3 className="text-2xl font-black text-gray-800 group-hover:text-white transition-colors">البدء البسيط</h3>
+                            <p className="text-gray-500 group-hover:text-white/80 transition-colors">أنشئ سيرتك من الصفر خطوة بخطوة</p>
+                        </div>
+                    </button>
+
+                    {/* Advanced Mode */}
+                    <button
+                        onClick={() => setMode('advanced')}
+                        className="group relative p-8 rounded-3xl border-2 border-gray-100 hover:border-transparent transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] bg-white overflow-hidden text-center"
+                    >
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-blue-500 to-indigo-600" />
+                        <div className="relative z-10 space-y-4">
+                            <div className="text-6xl group-hover:scale-110 transition-transform duration-300">⚡</div>
+                            <h3 className="text-2xl font-black text-gray-800 group-hover:text-white transition-colors">البدء المتقدم</h3>
+                            <p className="text-gray-500 group-hover:text-white/80 transition-colors">لديّ معلومات جاهزة (روابط، ملفات، نص)</p>
+                        </div>
+                    </button>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="pt-4">
+                    <p className="text-center text-gray-400 text-sm mb-3">أو اختر طريقة محددة:</p>
+                    <div className="flex justify-center gap-3 flex-wrap">
+                        <button
+                            onClick={() => setMode('pdf')}
+                            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-full transition flex items-center gap-2"
+                        >
+                            <span>📄</span> رفع PDF
+                        </button>
+                        <button
+                            onClick={() => setMode('text')}
+                            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-full transition flex items-center gap-2"
+                        >
+                            <span>📝</span> لصق نص
+                        </button>
+                        <button
+                            onClick={() => setMode('url')}
+                            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-full transition flex items-center gap-2"
+                        >
+                            <span>🔗</span> إدخال رابط
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -592,6 +617,8 @@ export default function WelcomeStep({ data, onNext }: StepProps) {
     switch (mode) {
         case 'manual':
             return <ManualEntry data={data} onNext={onNext} onBack={handleBack} />;
+        case 'advanced':
+            return <AdvancedInput data={data} onNext={onNext} onBack={handleBack} />;
         case 'pdf':
             return <PDFUpload data={data} onNext={onNext} onBack={handleBack} />;
         case 'text':

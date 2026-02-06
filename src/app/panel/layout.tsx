@@ -96,6 +96,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             >
                                 الجلسات
                             </Link>
+                            <Link
+                                href="/panel/settings"
+                                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
+                            >
+                                ⚙️ الإعدادات
+                            </Link>
                         </nav>
                     </div>
 
