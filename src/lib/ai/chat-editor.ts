@@ -191,9 +191,10 @@ ${dataToSend}
 English CV JSON:`;
 
     try {
+        // Use non-streaming for translation - more reliable
         const response = await chatWithAI([
             { role: 'user', content: prompt }
-        ], { temperature: 0.2, stream: true });
+        ], { temperature: 0.2, stream: false });
 
         const content = response.choices[0].message.content;
 

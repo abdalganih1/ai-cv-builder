@@ -88,9 +88,10 @@ export async function chatWithAI(
 ): Promise<any> {
     const { temperature, retryCount = 0, stream = true } = options;
 
-    // Create AbortController for timeout (90 seconds max)
+    // Create AbortController for timeout (120 seconds for non-streaming, 90 for streaming)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    const timeout = stream ? 90000 : 120000;
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
         const response = await fetch('/api/ai/chat', {
