@@ -5,6 +5,8 @@
  * صفحة تفاصيل جلسة معينة مع Timeline
  */
 
+export const runtime = 'edge';
+
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -201,8 +203,8 @@ export default function SessionDetailPage() {
                     </div>
                     <div className="mt-4 flex items-center justify-between">
                         <span className={`px-3 py-1 rounded-full text-sm ${session.paymentStatus === 'verified' ? 'bg-green-500/20 text-green-400' :
-                                session.paymentStatus === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                                    'bg-yellow-500/20 text-yellow-400'
+                            session.paymentStatus === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                'bg-yellow-500/20 text-yellow-400'
                             }`}>
                             {session.paymentStatus === 'verified' ? '✅ مُتحقق' :
                                 session.paymentStatus === 'rejected' ? '❌ مرفوض' :

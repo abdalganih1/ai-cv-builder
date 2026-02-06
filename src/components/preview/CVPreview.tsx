@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CVData } from '@/lib/types/cv-schema';
 import EditChat from '@/components/chat/EditChat';
 import { translateCVToEnglish } from '@/lib/ai/chat-editor';
+import { base64ToBlobUrl, isBase64DataUrl, revokeBlobUrl } from '@/lib/utils/image-utils';
 
 import { pdf } from '@react-pdf/renderer';
 import PDFDocument, { CombinedPDFDocument } from './PDFDocument';
@@ -102,6 +103,28 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const previewData = activeLanguage === 'en' && englishCV ? englishCV : data;
     const labels = LABELS[activeLanguage];
     const isRTL = activeLanguage === 'ar';
+
+    // Convert base64 photoUrl to Blob URL for better performance
+    const displayPhotoUrl = useMemo(() => {
+        const photoUrl = previewData.personal.photoUrl;
+        if (!photoUrl || photoUrl === '__skipped__') {
+            return null;
+        }
+        // Convert base64 to Blob URL for better browser performance
+        if (isBase64DataUrl(photoUrl)) {
+            return base64ToBlobUrl(photoUrl);
+        }
+        return photoUrl;
+    }, [previewData.personal.photoUrl]);
+
+    // Clean up Blob URL on unmount or when photoUrl changes
+    useEffect(() => {
+        return () => {
+            if (displayPhotoUrl && displayPhotoUrl.startsWith('blob:')) {
+                revokeBlobUrl(displayPhotoUrl);
+            }
+        };
+    }, [displayPhotoUrl]);
 
     // Handle updates - reset English when Arabic changes significantly
     const handleUpdate = (newData: CVData) => {
@@ -290,11 +313,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         <div className="border-b-2 border-primary pb-6 mb-6 flex justify-between items-end">
                             <div className="flex gap-6 items-end">
                                 {/* Photo or Upload Button */}
-                                {previewData.personal.photoUrl && previewData.personal.photoUrl !== '__skipped__' ? (
+                                {displayPhotoUrl ? (
                                     <div className="relative group">
                                         <div className="w-32 h-32 rounded-full border-4 border-primary overflow-hidden shadow-lg mb-2">
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={previewData.personal.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                                            <img src={displayPhotoUrl} alt="Profile" className="w-full h-full object-cover" />
                                         </div>
                                         {/* Change photo overlay */}
                                         <label className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
