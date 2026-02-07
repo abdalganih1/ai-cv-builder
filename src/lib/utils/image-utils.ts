@@ -25,7 +25,7 @@ export function base64ToBlobUrl(base64DataUrl: string): string {
         const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
         // Clean the base64 string - remove any whitespace or invalid characters
-        const cleanBase64 = base64Data.replace(/\s/g, '');
+        const cleanBase64 = base64Data.replace(/[^A-Za-z0-9+/=]/g, '');
 
         // Validate base64 string length
         if (cleanBase64.length === 0) {
@@ -33,7 +33,13 @@ export function base64ToBlobUrl(base64DataUrl: string): string {
             return base64DataUrl;
         }
 
-        // Check if base64 is valid (length should be multiple of 4, or padded)
+        // Validate base64 characters
+        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Regex.test(cleanBase64)) {
+            console.warn('Invalid base64 characters detected');
+            return base64DataUrl;
+        }
+
         // Pad with = if needed for atob to work
         let paddedBase64 = cleanBase64;
         while (paddedBase64.length % 4 !== 0) {

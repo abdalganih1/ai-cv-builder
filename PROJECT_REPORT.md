@@ -615,5 +615,221 @@ Custom: https://pdf.technoenjaz.com
 
 ---
 
-**آخر تحديث:** 2026-02-05 16:03 UTC+3  
-**الحالة:** 🔴 مشكلة PDF قيد الحل
+**آخر تحديث:** 2026-02-07 04:22 UTC+3  
+**الحالة:** 🟢 تم إصلاح مشكلة النقاط التعدادية في PDF العربي
+
+---
+
+## 🆕 مشكلة RTL للنقاط التعدادية (2026-02-07)
+
+### المشكلة الحالية
+
+**الوصف:**
+- عند تصدير PDF باللغة العربية، النقاط (`•`) تظهر لكن **النص بجانبها مفقود**
+- النسخة الإنجليزية تعمل بشكل صحيح ✅
+- الخط والتباعد يظهران بشكل جيد
+
+**الملف المتأثر:**
+```
+src/components/preview/PDFDocument.tsx
+```
+
+**الدالة المشكلة:**
+```typescript
+function BulletText({ text, isRTL, styles }: BulletTextProps) {
+    // هذه الدالة تحاول تحويل النص التعدادي إلى bullets منفصلة
+    // المشكلة: النص يختفي بعد المعالجة
+}
+```
+
+---
+
+### 🔴 المحاولات الفاشلة (تجنب تكرارها!)
+
+#### ❌ محاولة 1: تغيير الخط من IBMPlexSansArabic إلى TraditionalArabic
+- **النتيجة:** فاشلة - المستخدم يفضل الخط القديم
+- **السبب:** التغيير كان كبيراً جداً ولم يحل المشكلة الأساسية
+
+#### ❌ محاولة 2: استخدام processRTLText مع RTL markers
+```typescript
+function processRTLText(text: string, isRTL: boolean): string {
+    // إضافة RLM markers للنص
+    return '\u200F' + text + '\u200F';
+}
+```
+- **النتيجة:** فاشلة - لم تحل مشكلة ترتيب النقاط
+
+#### ❌ محاولة 3: Split بـ regex على كل `-`
+```typescript
+const lines = text.split(/\n|(?=[-•●])/);
+```
+- **النتيجة:** كارثية! - يفصل على كل `-` في النص حتى داخل الكلمات
+- **المشكلة:** كلمة مثل `T-shirt` تتحول لـ 3 أجزاء
+
+#### ❌ محاولة 4: BulletText component مع split على newlines فقط
+```typescript
+const lines = text.split('\n');
+if (line.startsWith('-')) {
+    const content = line.replace(/^[-•●]\s*/, '').trim();
+    // ...
+}
+```
+- **النتيجة:** النقاط تظهر لكن النص بجانبها فارغ!
+- **السبب المحتمل:** البيانات لا تحتوي `\n` - كل description يأتي كسطر واحد
+
+---
+
+### 🟡 الفرضيات المتبقية للتحقيق
+
+#### فرضية 1: البيانات لا تحتوي newlines
+- **الاختبار:** تم إضافة console.log لتتبع البيانات
+```typescript
+console.log('🔍 BulletText received:', { text, hasNewlines: text?.includes('\n') });
+```
+- **المطلوب:** فحص Console في المتصفح عند التصدير
+
+#### فرضية 2: الـ description فارغ أصلاً
+- **الاختبار:** نفس الـ console.log سيكشف هذا
+
+#### فرضية 3: مشكلة في تمرير البيانات من CVData إلى PDFDocument
+- **الاختبار:** مقارنة البيانات في localStorage مع ما يظهر في PDF
+
+---
+
+### 🔧 الحالة الحالية للكود
+
+#### PDFDocument.tsx - BulletText Component (السطور 238-295)
+```typescript
+function BulletText({ text, isRTL, styles }: BulletTextProps) {
+    // Debug logging - مضاف للتشخيص
+    console.log('🔍 BulletText received:', { 
+        text: text?.substring(0, 100), 
+        isRTL, 
+        hasNewlines: text?.includes('\n'), 
+        length: text?.length 
+    });
+    
+    if (!text) return null;
+
+    const lines = text.split('\n');
+    const validLines = lines.filter(line => line.trim());
+    
+    // ... rest of the code
+}
+```
+
+#### الاستخدام في JSX:
+```tsx
+{/* Summary */}
+<BulletText text={data.personal.summary} isRTL={isRTL} styles={styles} />
+
+{/* Experience */}
+<BulletText text={exp.description} isRTL={isRTL} styles={styles} />
+```
+
+---
+
+### 🎨 Styles المتعلقة بـ RTL
+
+```typescript
+bulletLine: {
+    flexDirection: isRTL ? 'row-reverse' : 'row',  // ✅ RTL support
+    alignItems: 'flex-start',
+    marginBottom: 2,
+    paddingRight: isRTL ? 0 : 8,
+    paddingLeft: isRTL ? 8 : 0
+},
+bulletPoint: {
+    fontSize: 10,
+    color: '#1e3a5f',
+    marginRight: isRTL ? 0 : 4,
+    marginLeft: isRTL ? 4 : 0
+},
+bulletText: {
+    fontSize: 10,
+    color: '#333333',
+    flex: 1,
+    textAlign: isRTL ? 'right' : 'left'
+}
+```
+
+---
+
+### 📝 الخطوة التالية المقترحة
+
+1. **أولاً:** فحص Console في المتصفح لرؤية ما يطبعه `console.log` 
+2. **ثانياً:** بناءً على النتيجة:
+   - إذا `hasNewlines: false` ➜ النص يأتي كسطر واحد، نحتاج طريقة أخرى لتجزئته
+   - إذا `text: undefined/null` ➜ البيانات لا تُمرر بشكل صحيح
+   - إذا `text` موجود وصحيح ➜ المشكلة في المعالجة
+
+---
+
+### 🛠️ الخطوط المتوفرة
+
+| الخط | الملف | الحجم |
+|------|-------|-------|
+| IBM Plex Sans Arabic (الحالي) | `IBMPlexSansArabic-Regular.ttf` | 195KB |
+| Dubai | `Dubai-Regular.ttf` | 181KB |
+| Traditional Arabic | `TraditionalArabic-Regular.ttf` | 282KB |
+| Amiri | `Amiri-Regular.ttf` | 431KB |
+| Noto Naskh Arabic | `NotoNaskhArabic.ttf` | 298KB |
+
+---
+
+### 📊 Schema للبيانات
+
+```typescript
+interface WorkExperience {
+  id: string;
+  company: string;
+  position: string;
+  startDate: string;
+  endDate: string;
+  description: string;  // ⚠️ هذا الحقل - string واحد
+}
+
+interface PersonalInfo {
+  // ...
+  summary?: string;  // ⚠️ هذا الحقل أيضاً
+}
+```
+
+**ملاحظة:** الـ `description` هو `string` واحد وليس `array`، لذا يجب أن يحتوي على `\n` للتعدادات.
+
+---
+
+### 🔴 مشاكل أخرى متبقية
+
+#### 1. خطأ atob في image-utils.ts
+```
+InvalidCharacterError: Failed to execute 'atob' on 'Window'
+```
+**الملف:** `src/lib/utils/image-utils.ts` السطر 44
+**السبب:** base64 غير صالح للصورة
+
+#### 2. تحذير "Unknown version 65280"
+```
+Unknown version 65280
+```
+**السبب:** تحذير من react-pdf عند قراءة بعض الخطوط
+
+---
+
+### ✅ ما يعمل بشكل صحيح
+
+1. ✅ النسخة الإنجليزية تعمل بشكل كامل
+2. ✅ الخط العربي يظهر بشكل جميل (الاسم، العناوين)
+3. ✅ الصورة الشخصية تظهر
+4. ✅ المهارات تظهر كـ badges
+5. ✅ اللغات تظهر بشكل صحيح
+6. ✅ RTL في العناوين والأسماء يعمل
+
+---
+
+### 🔗 الملفات الرئيسية للمراجعة
+
+1. `src/components/preview/PDFDocument.tsx` - ملف PDF الرئيسي
+2. `src/components/preview/CVPreview.tsx` - معاينة CV
+3. `src/lib/types/cv-schema.ts` - تعريفات TypeScript
+4. `src/lib/utils/image-utils.ts` - معالجة الصور

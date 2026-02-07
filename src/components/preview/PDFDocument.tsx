@@ -11,6 +11,7 @@ function registerFonts() {
     if (fontsRegistered) return;
 
     try {
+        // IBM Plex Sans Arabic - for headers and titles
         Font.register({
             family: 'IBMPlexSansArabic',
             fonts: [
@@ -24,8 +25,24 @@ function registerFonts() {
                 }
             ]
         });
+
+        // Dubai - for body text (better diacritics/tashkeel support)
+        Font.register({
+            family: 'Dubai',
+            fonts: [
+                {
+                    src: '/Dubai-Regular.ttf',
+                    fontWeight: 'normal'
+                },
+                {
+                    src: '/Dubai-Bold.ttf',
+                    fontWeight: 'bold'
+                }
+            ]
+        });
+
         fontsRegistered = true;
-        console.log('✅ Arabic fonts registered successfully');
+        console.log('✅ Arabic fonts registered successfully (IBM Plex + Dubai)');
     } catch (error) {
         console.error('❌ Failed to register Arabic fonts:', error);
     }
@@ -33,6 +50,27 @@ function registerFonts() {
 
 // Attempt to register fonts immediately
 registerFonts();
+
+// Process RTL text to fix bullet points positioning
+function processRTLText(text: string, isRTL: boolean): string {
+    if (!text || !isRTL) return text;
+
+    // Split text into lines and process each line
+    const lines = text.split('\n');
+    const processedLines = lines.map(line => {
+        // Check if line starts with a bullet point
+        const bulletMatch = line.match(/^([\s]*[•●○◦‣⁃\-\*][\s]*)/);
+        if (bulletMatch) {
+            const bullet = bulletMatch[1].trim();
+            const content = line.replace(/^[\s]*[•●○◦‣⁃\-\*][\s]*/, '').trim();
+            // Move bullet to end for RTL display
+            return content + ' ' + bullet;
+        }
+        return line;
+    });
+
+    return processedLines.join('\n');
+}
 
 // Section labels in both languages
 const LABELS = {
@@ -111,6 +149,24 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
         textAlign: isRTL ? 'right' : 'left',
         color: '#374151'
     },
+    // RTL bullet list styles
+    bulletLine: {
+        flexDirection: isRTL ? 'row-reverse' : 'row',
+        marginBottom: 2,
+        width: '100%'
+    },
+    bulletPoint: {
+        fontSize: 10,
+        color: '#374151',
+        marginLeft: isRTL ? 6 : 0,
+        marginRight: isRTL ? 0 : 6
+    },
+    bulletText: {
+        fontSize: 10,
+        color: '#374151',
+        flex: 1,
+        textAlign: isRTL ? 'right' : 'left'
+    },
     experienceItem: {
         marginBottom: 10,
         alignItems: isRTL ? 'flex-end' : 'flex-start',
@@ -144,7 +200,9 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
         backgroundColor: '#f3f4f6',
         paddingVertical: 4,
         paddingHorizontal: 8,
-        borderRadius: 4,
+        borderRadius: 4
+    },
+    skillBadgeText: {
         fontSize: 9,
         color: '#374151'
     },
@@ -162,11 +220,126 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
         backgroundColor: '#1e3a5f',
         paddingVertical: 3,
         paddingHorizontal: 8,
-        borderRadius: 4,
+        borderRadius: 4
+    },
+    languageBadgeText: {
         fontSize: 8,
         color: '#ffffff'
     }
 });
+
+// ============ Bullet Text Component for RTL support ============
+interface BulletTextProps {
+    text: string;
+    isRTL: boolean;
+    styles: ReturnType<typeof createStyles>;
+}
+
+/**
+ * Smart bullet text parser that handles multiple formats:
+ * 1. Lines separated by \n with bullets (- or •)
+ * 2. Single string with inline bullets "- item1 - item2"
+ * 3. Mixed content with regular text and bullet points
+ */
+function BulletText({ text, isRTL, styles }: BulletTextProps) {
+    if (!text || typeof text !== 'string') return null;
+
+    // Normalize the text - trim and handle various line endings
+    const normalizedText = text.trim().replace(/\r\n/g, '\n');
+
+    // Check if text has newlines
+    const hasNewlines = normalizedText.includes('\n');
+
+    let items: { type: 'bullet' | 'text'; content: string }[] = [];
+
+    if (hasNewlines) {
+        // Split by newlines and process each line
+        const lines = normalizedText.split('\n').map(l => l.trim()).filter(l => l);
+
+        for (const line of lines) {
+            // Check if line starts with bullet character
+            const bulletMatch = line.match(/^[\-•●○◦]\s*(.+)/);
+            if (bulletMatch && bulletMatch[1]) {
+                items.push({ type: 'bullet', content: bulletMatch[1].trim() });
+            } else if (line) {
+                // Check if line contains inline bullets (like "- item1 - item2")
+                const inlineBullets = extractInlineBullets(line);
+                if (inlineBullets.length > 0) {
+                    items.push(...inlineBullets);
+                } else {
+                    items.push({ type: 'text', content: line });
+                }
+            }
+        }
+    } else {
+        // Single line - check for inline bullets
+        const inlineBullets = extractInlineBullets(normalizedText);
+        if (inlineBullets.length > 0) {
+            items = inlineBullets;
+        } else {
+            // Just regular text
+            items.push({ type: 'text', content: normalizedText });
+        }
+    }
+
+    // Render the items
+    if (items.length === 0) {
+        return <Text style={styles.text}>{text}</Text>;
+    }
+
+    // If only one text item, render simply
+    if (items.length === 1 && items[0].type === 'text') {
+        return <Text style={styles.text}>{items[0].content}</Text>;
+    }
+
+    return (
+        <View style={{ width: '100%' }}>
+            {items.map((item, idx) => {
+                if (item.type === 'bullet') {
+                    return (
+                        <View key={idx} style={styles.bulletLine}>
+                            <Text style={styles.bulletPoint}>•</Text>
+                            <Text style={styles.bulletText}>{item.content}</Text>
+                        </View>
+                    );
+                }
+                return <Text key={idx} style={styles.text}>{item.content}</Text>;
+            })}
+        </View>
+    );
+}
+
+/**
+ * Extract inline bullets from text like "- item1 - item2 - item3"
+ * Only splits on " - " (with spaces) to avoid splitting words like "e-mail"
+ */
+function extractInlineBullets(text: string): { type: 'bullet' | 'text'; content: string }[] {
+    const items: { type: 'bullet' | 'text'; content: string }[] = [];
+
+    // Check if text starts with a bullet
+    const startsWithBullet = /^[\-•●]/.test(text.trim());
+
+    // Split by " - " (dash with spaces on both sides) to avoid breaking words
+    // Also handle Arabic dash patterns
+    const parts = text.split(/\s+[\-•●]\s+/);
+
+    if (parts.length > 1 || startsWithBullet) {
+        for (let i = 0; i < parts.length; i++) {
+            let content = parts[i].trim();
+
+            // Remove leading bullet from first part if exists
+            if (i === 0) {
+                content = content.replace(/^[\-•●]\s*/, '').trim();
+            }
+
+            if (content) {
+                items.push({ type: 'bullet', content });
+            }
+        }
+    }
+
+    return items;
+}
 
 // ============ CV Page Component (reusable) ============
 interface CVPageProps {
@@ -185,7 +358,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
             {/* Language Badge for combined PDF */}
             {showLanguageBadge && (
                 <View style={styles.languageBadge}>
-                    <Text>{language === 'ar' ? '🇸🇦 العربية' : '🇬🇧 English'}</Text>
+                    <Text style={styles.languageBadgeText}>{language === 'ar' ? '🇸🇦 العربية' : '🇬🇧 English'}</Text>
                 </View>
             )}
 
@@ -209,7 +382,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
             {data.personal.summary && (
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{labels.summary}</Text>
-                    <Text style={styles.text}>{data.personal.summary}</Text>
+                    <BulletText text={data.personal.summary} isRTL={isRTL} styles={styles} />
                 </View>
             )}
 
@@ -226,7 +399,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                                 <Text style={styles.itemSubtitle}>{exp.company}</Text>
                                 <Text style={styles.itemDate}>{exp.startDate} - {exp.endDate}</Text>
                             </View>
-                            <Text style={styles.text}>{exp.description}</Text>
+                            <BulletText text={exp.description} isRTL={isRTL} styles={styles} />
                         </View>
                     ))}
                 </View>
@@ -255,7 +428,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                     <View style={styles.skillsContainer}>
                         {data.skills.map((skill, idx) => (
                             <View key={idx} style={styles.skillBadge}>
-                                <Text>{skill}</Text>
+                                <Text style={styles.skillBadgeText}>{skill}</Text>
                             </View>
                         ))}
                     </View>
@@ -269,7 +442,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                     <View style={styles.skillsContainer}>
                         {data.languages.map((lang, idx) => (
                             <View key={idx} style={styles.skillBadge}>
-                                <Text>{lang}</Text>
+                                <Text style={styles.skillBadgeText}>{lang}</Text>
                             </View>
                         ))}
                     </View>
@@ -283,7 +456,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                     <View style={styles.skillsContainer}>
                         {data.hobbies.map((hobby, idx) => (
                             <View key={idx} style={styles.skillBadge}>
-                                <Text>{hobby}</Text>
+                                <Text style={styles.skillBadgeText}>{hobby}</Text>
                             </View>
                         ))}
                     </View>
