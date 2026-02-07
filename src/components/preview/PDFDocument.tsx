@@ -51,25 +51,21 @@ function registerFonts() {
 // Attempt to register fonts immediately
 registerFonts();
 
-// Process RTL text to fix bullet points positioning
-function processRTLText(text: string, isRTL: boolean): string {
+// Unicode RTL control characters
+const RLM = '\u200F';  // Right-to-Left Mark
+const RLE = '\u202B';  // Right-to-Left Embedding
+const PDF = '\u202C';  // Pop Directional Formatting
+const RLO = '\u202E';  // Right-to-Left Override
+
+/**
+ * Wrap text with RTL markers to ensure proper direction
+ * This fixes mixed Arabic/English text and punctuation positioning
+ */
+function wrapRTL(text: string, isRTL: boolean): string {
     if (!text || !isRTL) return text;
-
-    // Split text into lines and process each line
-    const lines = text.split('\n');
-    const processedLines = lines.map(line => {
-        // Check if line starts with a bullet point
-        const bulletMatch = line.match(/^([\s]*[•●○◦‣⁃\-\*][\s]*)/);
-        if (bulletMatch) {
-            const bullet = bulletMatch[1].trim();
-            const content = line.replace(/^[\s]*[•●○◦‣⁃\-\*][\s]*/, '').trim();
-            // Move bullet to end for RTL display
-            return content + ' ' + bullet;
-        }
-        return line;
-    });
-
-    return processedLines.join('\n');
+    // Use RLE + text + PDF to embed RTL direction
+    // Add RLM at start and end to anchor the direction
+    return RLM + RLE + text + PDF + RLM;
 }
 
 // Section labels in both languages
@@ -296,14 +292,18 @@ function BulletText({ text, isRTL, styles }: BulletTextProps) {
         <View style={{ width: '100%' }}>
             {items.map((item, idx) => {
                 if (item.type === 'bullet') {
+                    // Wrap content with RTL markers for proper direction
+                    const wrappedContent = isRTL ? wrapRTL(item.content, true) : item.content;
                     return (
                         <View key={idx} style={styles.bulletLine}>
                             <Text style={styles.bulletPoint}>•</Text>
-                            <Text style={styles.bulletText}>{item.content}</Text>
+                            <Text style={styles.bulletText}>{wrappedContent}</Text>
                         </View>
                     );
                 }
-                return <Text key={idx} style={styles.text}>{item.content}</Text>;
+                // Wrap regular text with RTL markers too
+                const wrappedText = isRTL ? wrapRTL(item.content, true) : item.content;
+                return <Text key={idx} style={styles.text}>{wrappedText}</Text>;
             })}
         </View>
     );
