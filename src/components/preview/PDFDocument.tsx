@@ -51,22 +51,12 @@ function registerFonts() {
 // Attempt to register fonts immediately
 registerFonts();
 
-// Unicode RTL control characters
-const RLM = '\u200F';  // Right-to-Left Mark
-const RLE = '\u202B';  // Right-to-Left Embedding
-const PDF = '\u202C';  // Pop Directional Formatting
-const RLO = '\u202E';  // Right-to-Left Override
-
 /**
- * Wrap text with RTL markers to ensure proper direction
- * This fixes mixed Arabic/English text and punctuation positioning
+ * Note: We do NOT use Unicode RTL control characters (RLM, RLE, PDF, RLO)
+ * because @react-pdf/renderer does not support them and renders them as
+ * visible glyphs (e.g. "+" after bullet points). Instead, RTL layout is
+ * handled entirely via flexDirection: 'row-reverse' and textAlign: 'right'.
  */
-function wrapRTL(text: string, isRTL: boolean): string {
-    if (!text || !isRTL) return text;
-    // Use RLE + text + PDF to embed RTL direction
-    // Add RLM at start and end to anchor the direction
-    return RLM + RLE + text + PDF + RLM;
-}
 
 // Section labels in both languages
 const LABELS = {
@@ -143,6 +133,7 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
         fontSize: 10,
         lineHeight: 1.5,
         textAlign: isRTL ? 'right' : 'left',
+        direction: isRTL ? 'rtl' : 'ltr',
         color: '#374151'
     },
     // RTL bullet list styles
@@ -161,7 +152,8 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
         fontSize: 10,
         color: '#374151',
         flex: 1,
-        textAlign: isRTL ? 'right' : 'left'
+        textAlign: isRTL ? 'right' : 'left',
+        direction: isRTL ? 'rtl' : 'ltr'
     },
     experienceItem: {
         marginBottom: 10,
@@ -292,18 +284,14 @@ function BulletText({ text, isRTL, styles }: BulletTextProps) {
         <View style={{ width: '100%' }}>
             {items.map((item, idx) => {
                 if (item.type === 'bullet') {
-                    // Wrap content with RTL markers for proper direction
-                    const wrappedContent = isRTL ? wrapRTL(item.content, true) : item.content;
                     return (
                         <View key={idx} style={styles.bulletLine}>
                             <Text style={styles.bulletPoint}>•</Text>
-                            <Text style={styles.bulletText}>{wrappedContent}</Text>
+                            <Text style={styles.bulletText}>{item.content}</Text>
                         </View>
                     );
                 }
-                // Wrap regular text with RTL markers too
-                const wrappedText = isRTL ? wrapRTL(item.content, true) : item.content;
-                return <Text key={idx} style={styles.text}>{wrappedText}</Text>;
+                return <Text key={idx} style={styles.text}>{item.content}</Text>;
             })}
         </View>
     );
@@ -333,7 +321,11 @@ function extractInlineBullets(text: string): { type: 'bullet' | 'text'; content:
             }
 
             if (content) {
-                items.push({ type: 'bullet', content });
+                // Remove any remaining bullet characters or + signs from content
+                content = content.replace(/^[\-•●○◦+\s]+/, '').trim();
+                if (content) {
+                    items.push({ type: 'bullet', content });
+                }
             }
         }
     }
