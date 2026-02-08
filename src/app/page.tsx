@@ -77,14 +77,18 @@ export default function Home() {
     console.log('🔄 nextStep called with:', newData);
 
     setData(prev => {
-      // Allow jumping to specific step ONLY from step 0 (Welcome), otherwise increment normally
+      // Allow jumping to specific step ONLY from step 0 (Welcome) when explicitly jumping ahead
+      // Otherwise, always increment by 1
       let nextStepIndex;
 
-      if (prev.metadata.currentStep === 0 && newData.metadata?.currentStep !== undefined) {
-        // From Welcome step, allow jump to specified step
+      // Check if we should jump to a specific step (only when the passed step is GREATER than current)
+      if (prev.metadata.currentStep === 0 &&
+        newData.metadata?.currentStep !== undefined &&
+        newData.metadata.currentStep > prev.metadata.currentStep) {
+        // From Welcome step, allow jump to specified step (for PDF/text import)
         nextStepIndex = newData.metadata.currentStep;
       } else {
-        // From other steps, always increment by 1
+        // Default: always increment by 1
         nextStepIndex = prev.metadata.currentStep + 1;
       }
 

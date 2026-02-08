@@ -51,11 +51,18 @@ function ManualEntry({ data, onNext, onBack }: { data: CVData; onNext: (data: Pa
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('🔍 Form Submit - firstName:', firstName, 'lastName:', lastName);
+        console.log('🔍 data.personal:', data.personal);
+        console.log('🔍 data.metadata:', data.metadata);
+
         if (firstName && lastName) {
+            console.log('✅ Calling onNext...');
             onNext({
                 personal: { ...data.personal, firstName, lastName },
                 metadata: { ...data.metadata, importSource: 'manual' }
             });
+        } else {
+            console.log('❌ firstName or lastName is empty!');
         }
     };
 
