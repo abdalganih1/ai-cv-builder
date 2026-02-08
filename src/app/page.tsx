@@ -8,6 +8,7 @@ import QuestionnaireStep from '@/components/wizard/QuestionnaireStep';
 import ShamCashPayment from '@/components/payment/ShamCashPayment';
 import CVPreview from '@/components/preview/CVPreview';
 import { CVData } from '@/lib/types/cv-schema';
+import { useAnalytics } from '@/lib/analytics/provider';
 
 const STORAGE_KEY = 'cv_builder_data';
 
@@ -37,6 +38,7 @@ const steps = [
 export default function Home() {
   const [data, setData] = useState<CVData>(getInitialData());
   const [isLoaded, setIsLoaded] = useState(false);
+  const { trackStep, trackStepComplete } = useAnalytics();
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -66,6 +68,16 @@ export default function Home() {
     }
   }, [data, isLoaded]);
 
+  // Track step views for analytics
+  useEffect(() => {
+    if (isLoaded) {
+      const stepIndex = data.metadata.currentStep || 0;
+      const stepName = steps[stepIndex]?.title || 'Unknown';
+      trackStep(stepIndex, stepName);
+      console.log('📊 [Analytics] Tracked step view:', stepIndex, stepName);
+    }
+  }, [data.metadata.currentStep, isLoaded, trackStep]);
+
   // Clear saved data
   const clearSavedData = () => {
     localStorage.removeItem(STORAGE_KEY);
@@ -94,6 +106,10 @@ export default function Home() {
 
       const newStep = Math.min(nextStepIndex, steps.length - 1);
       console.log('📍 New step WILL BE:', newStep);
+
+      // Track step completion
+      trackStepComplete(prev.metadata.currentStep);
+      console.log('📊 [Analytics] Tracked step complete:', prev.metadata.currentStep);
 
       const updatedData = {
         ...prev,

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { AnalyticsStorage } from '@/lib/analytics/storage';
 
 export const runtime = 'edge';
 
@@ -14,6 +16,7 @@ export async function POST(request: NextRequest) {
         const file = formData.get('file') as File;
         const customerName = formData.get('customerName') as string;
         const phone = formData.get('phone') as string;
+        const sessionId = formData.get('sessionId') as string;
 
         // Validate file exists
         if (!file) {
@@ -63,10 +66,36 @@ export async function POST(request: NextRequest) {
         console.log(`📞 Phone: ${phone}`);
         console.log(`📁 Filename: ${filename}`);
         console.log(`📦 File Size: ${(uint8Array.length / 1024).toFixed(2)} KB`);
+        console.log(`🔑 Session ID: ${sessionId || 'Not provided'}`);
         console.log('='.repeat(50));
 
         // For now, we'll return a data URL as a temporary storage solution
         const dataUrl = `data:${file.type};base64,${base64}`;
+
+        // Save payment proof URL to session in D1 if sessionId is provided
+        if (sessionId) {
+            try {
+                let db: any = undefined;
+                try {
+                    const { env } = getRequestContext();
+                    db = env.ANALYTICS_DB || undefined;
+                } catch {
+                    console.log('[Upload] No Cloudflare context available');
+                }
+
+                if (db) {
+                    const storage = new AnalyticsStorage(db);
+                    await storage.upsertSession(sessionId, {
+                        paymentProofUrl: dataUrl,
+                        paymentStatus: 'uploaded',
+                    });
+                    console.log('[Upload] Payment proof URL saved to session:', sessionId);
+                }
+            } catch (dbError) {
+                console.error('[Upload] Failed to save payment proof to session:', dbError);
+                // Don't fail the request, just log the error
+            }
+        }
 
         return NextResponse.json({
             success: true,

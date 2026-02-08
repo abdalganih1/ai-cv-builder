@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { generateProfessionalCV } from '@/lib/ai/chat-editor';
 import Image from 'next/image';
 import AnalysisProgress from '../wizard/AnalysisProgress';
+import { useAnalytics } from '@/lib/analytics/provider';
 
 interface StepProps {
     data: CVData;
@@ -44,6 +45,7 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     const [showProofRequired, setShowProofRequired] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { trackFileUpload, sessionId } = useAnalytics();
 
     // Fetch payment settings from API (with localStorage fallback for local dev)
     useEffect(() => {
@@ -131,6 +133,9 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
             };
             reader.readAsDataURL(file);
             setShowProofRequired(false);
+            // Track payment proof file selection
+            trackFileUpload('payment_proof', file.name);
+            console.log('📊 [Analytics] Tracked payment proof upload:', file.name);
         }
     };
 
@@ -152,6 +157,9 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
             formData.append('file', paymentProof);
             formData.append('customerName', `${data.personal.firstName} ${data.personal.lastName}`);
             formData.append('phone', data.personal.phone || 'N/A');
+            if (sessionId) {
+                formData.append('sessionId', sessionId);
+            }
 
             const response = await fetch('/api/upload-proof', {
                 method: 'POST',
