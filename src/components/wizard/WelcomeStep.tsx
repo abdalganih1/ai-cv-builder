@@ -93,6 +93,7 @@ function ManualEntry({ data, onNext, onBack }: { data: CVData; onNext: (data: Pa
                         className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                         placeholder="الاسم الأول (مثلاً: محمد)"
                         autoComplete="given-name"
+                        enterKeyHint="next"
                         required
                     />
                     <input
@@ -104,6 +105,7 @@ function ManualEntry({ data, onNext, onBack }: { data: CVData; onNext: (data: Pa
                         className="w-full p-4 text-lg border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                         placeholder="الكنية (مثلاً: علي)"
                         autoComplete="family-name"
+                        enterKeyHint="go"
                         required
                     />
                 </div>

@@ -60,6 +60,8 @@ export default function ContactStep({ data, onNext, onBack }: StepProps) {
                             placeholder="09xx xxx xxx"
                             required
                             dir="ltr"
+                            enterKeyHint="go"
+                            autoComplete="tel"
                         />
                         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-primary text-xl pointer-events-none">
                             📞
