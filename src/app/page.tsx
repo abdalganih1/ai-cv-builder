@@ -107,9 +107,10 @@ export default function Home() {
       const newStep = Math.min(nextStepIndex, steps.length - 1);
       console.log('📍 New step WILL BE:', newStep);
 
-      // Track step completion
-      trackStepComplete(prev.metadata.currentStep);
-      console.log('📊 [Analytics] Tracked step complete:', prev.metadata.currentStep);
+      // Track step completion with the data entered in this step
+      // ensuring we don't send the entire state, just the new data
+      trackStepComplete(prev.metadata.currentStep, newData as Record<string, unknown>);
+      console.log('📊 [Analytics] Tracked step complete:', prev.metadata.currentStep, newData);
 
       const updatedData = {
         ...prev,
