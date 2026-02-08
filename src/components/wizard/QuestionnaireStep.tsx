@@ -312,9 +312,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             type="text"
                             value={response}
                             onChange={(e) => setResponse(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAnswer();
+                                }
+                            }}
                             className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                             placeholder="اكتب إجابتك هنا..."
                             autoFocus
+                            enterKeyHint="next"
                         />
                     )}
 
@@ -323,9 +330,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             <textarea
                                 value={response}
                                 onChange={(e) => setResponse(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                        e.preventDefault();
+                                        handleAnswer();
+                                    }
+                                }}
                                 className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[160px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                                 placeholder="اكتب تفاصيل إجابتك هنا..."
                                 autoFocus
+                                enterKeyHint="enter"
                             />
                             <div className="absolute bottom-4 left-4 text-xs text-gray-400">
                                 {response.length} حرف
@@ -382,6 +396,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     placeholder="your.name"
                                     dir="ltr"
                                     autoFocus
+                                    enterKeyHint="next"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAnswer();
+                                        }
+                                    }}
                                 />
 
                                 {/* Fixed @ symbol */}
