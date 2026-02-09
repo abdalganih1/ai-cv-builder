@@ -16,7 +16,11 @@ CREATE TABLE IF NOT EXISTS sessions (
   current_step INTEGER DEFAULT 0,
   max_step_reached INTEGER DEFAULT 0,
   form_data JSON,
+  cv_data JSON,                    -- بيانات السيرة الذاتية الكاملة
+  profile_photo TEXT,              -- الصورة الشخصية (base64)
   payment_proof_url TEXT,
+  payment_proof_data TEXT,         -- إثبات الدفع (base64)
+  advanced_data JSON,              -- بيانات الوضع المتقدم
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'uploaded', 'verified', 'rejected')),
   is_active BOOLEAN DEFAULT 1,
   total_page_views INTEGER DEFAULT 0,

@@ -59,7 +59,10 @@ export interface Session {
     currentStep: number;
     maxStepReached: number;
     formData?: Record<string, unknown>;
+    cvData?: Record<string, unknown>;      // بيانات السيرة الذاتية الكاملة
+    profilePhoto?: string;                  // الصورة الشخصية (base64)
     paymentProofUrl?: string;
+    paymentProofData?: string;              // إثبات الدفع (base64)
     paymentStatus: 'pending' | 'uploaded' | 'verified' | 'rejected';
     isActive: boolean;
     totalPageViews: number;

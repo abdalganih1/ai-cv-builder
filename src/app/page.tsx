@@ -62,11 +62,48 @@ export default function Home() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         console.log('💾 Saved CV data to localStorage - Step:', data.metadata.currentStep);
+
+        // إرسال البيانات للسيرفر (غير متزامن)
+        saveToServer(data);
       } catch (error) {
         console.error('Failed to save data:', error);
       }
     }
   }, [data, isLoaded]);
+
+  // حفظ البيانات على السيرفر
+  const saveToServer = async (cvData: CVData) => {
+    try {
+      const sessionId = localStorage.getItem('cv_analytics_session');
+      if (!sessionId) return;
+
+      // حذف البيانات الكبيرة إذا لم تتغير
+      const payload = {
+        sessionId: JSON.parse(sessionId).sessionId,
+        cvData: {
+          personal: { ...cvData.personal, photoUrl: undefined }, // لا نرسل الصورة هنا
+          education: cvData.education,
+          experience: cvData.experience,
+          skills: cvData.skills,
+          hobbies: cvData.hobbies,
+          languages: cvData.languages,
+        },
+        profilePhoto: cvData.personal.photoUrl && cvData.personal.photoUrl !== '__skipped__'
+          ? cvData.personal.photoUrl
+          : undefined,
+        currentStep: cvData.metadata.currentStep,
+      };
+
+      await fetch('/api/sessions/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      console.log('☁️ Synced to server');
+    } catch (error) {
+      console.warn('Failed to sync to server:', error);
+    }
+  };
 
   // Track step views for analytics
   useEffect(() => {

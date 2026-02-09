@@ -64,11 +64,35 @@ export class AnalyticsStorage {
                 values.push(JSON.stringify({ ...existingFormData, ...data.formData }));
             }
 
+            // CV Data الكامل
+            if (data.cvData) {
+                updates.push('cv_data = ?');
+                values.push(JSON.stringify(data.cvData));
+            }
+
+            // الصورة الشخصية
+            if (data.profilePhoto) {
+                updates.push('profile_photo = ?');
+                values.push(data.profilePhoto);
+            }
+
             if (data.paymentProofUrl) {
                 updates.push('payment_proof_url = ?');
                 values.push(data.paymentProofUrl);
                 updates.push('payment_status = ?');
                 values.push('uploaded');
+            }
+
+            // بيانات إثبات الدفع كـ base64
+            if (data.paymentProofData) {
+                updates.push('payment_proof_data = ?');
+                values.push(data.paymentProofData);
+            }
+
+            // بيانات الوضع المتقدم
+            if (data.advancedData) {
+                updates.push('advanced_data = ?');
+                values.push(JSON.stringify(data.advancedData));
             }
 
             if (data.paymentStatus) {
@@ -316,7 +340,11 @@ export class AnalyticsStorage {
             currentStep: Number(row.current_step) || 0,
             maxStepReached: Number(row.max_step_reached) || 0,
             formData: row.form_data ? JSON.parse(String(row.form_data)) : undefined,
+            cvData: row.cv_data ? JSON.parse(String(row.cv_data)) : undefined,
+            profilePhoto: row.profile_photo as string | undefined,
             paymentProofUrl: row.payment_proof_url as string | undefined,
+            paymentProofData: row.payment_proof_data as string | undefined,
+            advancedData: row.advanced_data ? JSON.parse(String(row.advanced_data)) : undefined,
             paymentStatus: (row.payment_status as Session['paymentStatus']) || 'pending',
             isActive: Boolean(row.is_active),
             totalPageViews: Number(row.total_page_views) || 0,
