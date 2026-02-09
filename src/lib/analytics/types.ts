@@ -64,6 +64,7 @@ export interface Session {
     isActive: boolean;
     totalPageViews: number;
     totalTimeSpent: number; // بالثواني
+    advancedData?: AdvancedSessionData; // بيانات الوضع المتقدم
 }
 
 // إحصائيات عامة

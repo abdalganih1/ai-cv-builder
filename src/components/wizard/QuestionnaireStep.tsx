@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import { motion } from 'framer-motion';
 import NextImage from 'next/image';
+import VoiceRecorder from '@/components/ui/VoiceRecorder';
 
 interface StepProps {
     data: CVData;
@@ -308,21 +309,29 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     )}
 
                     {currentQuestion.type === 'text' && (
-                        <input
-                            type="text"
-                            value={response}
-                            onChange={(e) => setResponse(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAnswer();
-                                }
-                            }}
-                            className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                            placeholder="اكتب إجابتك هنا..."
-                            autoFocus
-                            enterKeyHint="next"
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={response}
+                                onChange={(e) => setResponse(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAnswer();
+                                    }
+                                }}
+                                className="w-full p-5 pl-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                placeholder="اكتب إجابتك هنا..."
+                                autoFocus
+                                enterKeyHint="next"
+                            />
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                                <VoiceRecorder
+                                    onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
+                                    placeholder="🎤"
+                                />
+                            </div>
+                        </div>
                     )}
 
                     {currentQuestion.type === 'textarea' && (
@@ -336,13 +345,17 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         handleAnswer();
                                     }
                                 }}
-                                className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[160px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                className="w-full p-5 pb-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[160px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
                                 placeholder="اكتب تفاصيل إجابتك هنا..."
                                 autoFocus
                                 enterKeyHint="enter"
                             />
-                            <div className="absolute bottom-4 left-4 text-xs text-gray-400">
-                                {response.length} حرف
+                            <div className="absolute bottom-4 left-4 flex items-center gap-3">
+                                <VoiceRecorder
+                                    onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
+                                    placeholder="🎤"
+                                />
+                                <span className="text-xs text-gray-400">{response.length} حرف</span>
                             </div>
                         </div>
                     )}

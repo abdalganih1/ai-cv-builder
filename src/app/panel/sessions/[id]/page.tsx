@@ -32,6 +32,18 @@ const eventIcons: Record<string, string> = {
     session_start: '🚀',
     session_end: '🏁',
     error: '❌',
+    // Advanced Mode Events
+    advanced_mode_start: '⚡',
+    source_added: '➕',
+    source_removed: '➖',
+    source_type_changed: '🔄',
+    analysis_started: '🔍',
+    analysis_completed: '✨',
+    analysis_failed: '🚨',
+    chat_message_sent: '💬',
+    chat_response_received: '🤖',
+    cv_edit_applied: '✍️',
+    api_error: '⚠️',
 };
 
 const eventLabels: Record<string, string> = {
@@ -49,6 +61,18 @@ const eventLabels: Record<string, string> = {
     session_start: 'بدء الجلسة',
     session_end: 'انتهاء الجلسة',
     error: 'خطأ',
+    // Advanced Mode Labels
+    advanced_mode_start: 'بدء وضع متقدم',
+    source_added: 'إضافة مصدر',
+    source_removed: 'حذف مصدر',
+    source_type_changed: 'تغيير نوع مصدر',
+    analysis_started: 'بدء التحليل',
+    analysis_completed: 'اكتمال التحليل',
+    analysis_failed: 'فشل التحليل',
+    chat_message_sent: 'أرسل رسالة',
+    chat_response_received: 'استلم رد',
+    cv_edit_applied: 'تطبيق تعديل',
+    api_error: 'خطأ API',
 };
 
 export default function SessionDetailPage() {
@@ -234,6 +258,81 @@ export default function SessionDetailPage() {
                             {JSON.stringify(session.formData, null, 2)}
                         </pre>
                     </div>
+                </div>
+            )}
+
+            {/* Advanced Session Data (Sources, Chat, Analysis) */}
+            {session.advancedData && (
+                <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                    <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>بيانات الوضع المتقدم</span>
+                    </h3>
+
+                    {/* Sources */}
+                    {session.advancedData.sources && session.advancedData.sources.length > 0 && (
+                        <div className="mb-4">
+                            <h4 className="text-gray-400 text-sm mb-2 flex items-center gap-2">
+                                <span>📁</span> المصادر ({session.advancedData.sources.length})
+                            </h4>
+                            <div className="space-y-2">
+                                {session.advancedData.sources.map((source: { type: string; value: string; detectedType?: string }, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-3 bg-gray-700/50 rounded-lg p-2">
+                                        <span>{source.type === 'url' ? '🌐' : '📄'}</span>
+                                        <span className="flex-1 text-gray-300 text-sm truncate font-mono" dir="ltr">{source.value}</span>
+                                        <span className={`px-2 py-0.5 text-xs rounded ${source.detectedType === 'personal' ? 'bg-blue-500/20 text-blue-400' :
+                                                source.detectedType === 'job' ? 'bg-purple-500/20 text-purple-400' :
+                                                    'bg-gray-500/20 text-gray-400'
+                                            }`}>
+                                            {source.detectedType === 'personal' ? '👤 شخصي' :
+                                                source.detectedType === 'job' ? '💼 وظيفة' : '❓ غير محدد'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Analysis Result */}
+                    {session.advancedData.analysisResult && (
+                        <div className="mb-4">
+                            <h4 className="text-gray-400 text-sm mb-2 flex items-center gap-2">
+                                <span>🔍</span> نتيجة التحليل
+                            </h4>
+                            <div className="bg-gray-900 rounded-lg p-3">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <span className="text-gray-400 text-xs">بدأ: {session.advancedData.analysisResult.startedAt}</span>
+                                    {session.advancedData.analysisResult.completedAt && (
+                                        <span className="text-green-400 text-xs">اكتمل: {session.advancedData.analysisResult.completedAt}</span>
+                                    )}
+                                </div>
+                                {session.advancedData.analysisResult.error && (
+                                    <p className="text-red-400 text-sm">❌ {session.advancedData.analysisResult.error}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chat History */}
+                    {session.advancedData.chatHistory && session.advancedData.chatHistory.length > 0 && (
+                        <div>
+                            <h4 className="text-gray-400 text-sm mb-2 flex items-center gap-2">
+                                <span>💬</span> سجل الدردشة ({session.advancedData.chatHistory.length})
+                            </h4>
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {session.advancedData.chatHistory.map((msg: { role: string; content: string; timestamp: string }, idx: number) => (
+                                    <div key={idx} className={`p-2 rounded-lg text-sm ${msg.role === 'user' ? 'bg-blue-500/10 border-r-2 border-blue-500' : 'bg-gray-700/50 border-r-2 border-gray-500'
+                                        }`}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span>{msg.role === 'user' ? '👤' : '🤖'}</span>
+                                            <span className="text-gray-400 text-xs">{msg.timestamp}</span>
+                                        </div>
+                                        <p className="text-gray-300">{msg.content.substring(0, 200)}{msg.content.length > 200 ? '...' : ''}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

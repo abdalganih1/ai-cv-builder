@@ -64,6 +64,13 @@
 - زر 🎤 لبدء/إيقاف التسجيل
 - إضافة النص المُحوَّل للـ input
 
+### AdvancedInput.tsx ✨ جديد
+- دمج VoiceRecorder في textarea "معلومات إضافية"
+- دمج useAnalytics مع 7 tracking methods
+- useEffect لتتبع بدء الوضع المتقدم
+- تتبع إضافة/حذف/تغيير نوع المصادر
+- تتبع بدء/اكتمال/فشل التحليل
+
 ---
 
 ## 🛠️ إصلاحات
@@ -86,5 +93,10 @@
 2. src/lib/analytics/tracker.ts
 3. src/lib/analytics/provider.tsx
 4. src/components/chat/EditChat.tsx
-5. src/app/panel/page.tsx
-6. src/lib/ai/chat-editor.ts
+5. src/components/wizard/AdvancedInput.tsx ✨
+6. src/app/panel/page.tsx
+7. src/lib/ai/chat-editor.ts
+
+## Git Commits:
+- 91f3b67 feat: Advanced analytics + Error logging + Voice recorder
+- 717a244 feat: Integrate analytics tracking + VoiceRecorder in AdvancedInput

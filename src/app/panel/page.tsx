@@ -209,6 +209,42 @@ export default function AdminDashboard() {
                 </p>
             </div>
 
+            {/* Advanced Mode Stats */}
+            <div className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 rounded-xl p-6 border border-purple-500/30">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>إحصائيات الوضع المتقدم</span>
+                    </h2>
+                    <span className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm">
+                        تحليل ذكي
+                    </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-900/50 rounded-lg p-4 text-center">
+                        <p className="text-3xl font-bold text-purple-400">
+                            {recentSessions.filter(s => s.advancedData).length}
+                        </p>
+                        <p className="text-gray-400 text-sm">استخدموا الوضع المتقدم</p>
+                    </div>
+                    <div className="bg-gray-900/50 rounded-lg p-4 text-center">
+                        <p className="text-3xl font-bold text-blue-400">
+                            {recentSessions.filter(s => s.advancedData?.sources && s.advancedData.sources.length > 0).length}
+                        </p>
+                        <p className="text-gray-400 text-sm">أضافوا مصادر</p>
+                    </div>
+                    <div className="bg-gray-900/50 rounded-lg p-4 text-center">
+                        <p className="text-3xl font-bold text-green-400">
+                            {recentSessions.filter(s => s.advancedData?.analysisResult?.completedAt).length}
+                        </p>
+                        <p className="text-gray-400 text-sm">أكملوا التحليل</p>
+                    </div>
+                </div>
+                <p className="text-gray-500 text-xs mt-4 text-center">
+                    بناءً على آخر {recentSessions.length} جلسة
+                </p>
+            </div>
+
             {/* Step Dropoffs */}
             {stats?.stepDropoffs && Object.keys(stats.stepDropoffs).length > 0 && (
                 <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
