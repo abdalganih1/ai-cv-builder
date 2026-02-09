@@ -3,14 +3,16 @@
 /**
  * AdvancedInput - واجهة الإدخال الموحدة المتقدمة
  * تدعم: روابط متعددة + ملفات PDF + نص إضافي
- * مع اكتشاف ذكي لنوع كل مصدر
+ * مع اكتشاف ذكي لنوع كل مصدر + تتبع تحليلي كامل
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { CVData } from '@/lib/types/cv-schema';
 import AnalysisProgress from './AnalysisProgress';
+import { useAnalytics } from '@/lib/analytics';
+import VoiceRecorder from '@/components/ui/VoiceRecorder';
 
 interface AdvancedInputProps {
     data: CVData;
@@ -75,6 +77,22 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
     const [analysisStep, setAnalysisStep] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Analytics tracking
+    const {
+        trackAdvancedModeStart,
+        trackSourceAdded,
+        trackSourceRemoved,
+        trackSourceTypeChanged,
+        trackAnalysisStarted,
+        trackAnalysisCompleted,
+        trackAnalysisFailed
+    } = useAnalytics();
+
+    // تتبع بدء الوضع المتقدم مرة واحدة
+    useEffect(() => {
+        trackAdvancedModeStart();
+    }, [trackAdvancedModeStart]);
+
     // إضافة رابط
     const addUrl = () => {
         if (!newUrl.trim()) return;
@@ -93,13 +111,17 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
 
         const detectedType = detectUrlType(normalizedUrl);
 
+        const sourceId = Date.now().toString();
         setSources(prev => [...prev, {
-            id: Date.now().toString(),
+            id: sourceId,
             type: 'url',
             value: normalizedUrl,
             detectedType,
             status: 'idle',
         }]);
+
+        // تتبع إضافة المصدر
+        trackSourceAdded({ id: sourceId, type: 'url', value: normalizedUrl, detectedType });
 
         setNewUrl('');
         setError('');
@@ -117,8 +139,9 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
             return;
         }
 
+        const sourceId = Date.now().toString();
         setSources(prev => [...prev, {
-            id: Date.now().toString(),
+            id: sourceId,
             type: 'pdf',
             value: file.name,
             file,
@@ -126,12 +149,16 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
             status: 'idle',
         }]);
 
+        // تتبع إضافة الملف
+        trackSourceAdded({ id: sourceId, type: 'pdf', value: file.name, detectedType: 'unknown' });
+
         setError('');
     };
 
     // حذف مصدر
     const removeSource = (id: string) => {
         setSources(prev => prev.filter(s => s.id !== id));
+        trackSourceRemoved(id);
     };
 
     // تغيير نوع المصدر يدوياً
@@ -141,6 +168,7 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
                 const types: Array<'personal' | 'job' | 'unknown'> = ['personal', 'job', 'unknown'];
                 const currentIndex = types.indexOf(s.detectedType || 'unknown');
                 const nextType = types[(currentIndex + 1) % types.length];
+                trackSourceTypeChanged(id, nextType);
                 return { ...s, detectedType: nextType };
             }
             return s;
@@ -156,6 +184,9 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
 
         setIsAnalyzing(true);
         setError('');
+
+        // تتبع بدء التحليل
+        trackAnalysisStarted(sources.length, !!additionalText.trim());
 
         try {
             // تجهيز البيانات للإرسال
@@ -193,6 +224,10 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
             const result = await response.json();
 
             setAnalysisStep('✨ تم التحليل بنجاح!');
+
+            // تتبع اكتمال التحليل
+            trackAnalysisCompleted({ result: result.cvData });
+
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             // الانتقال للخطوة التالية مع البيانات
@@ -208,7 +243,9 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
 
         } catch (err) {
             console.error('Analysis error:', err);
-            setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+            const errorMsg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
+            trackAnalysisFailed(errorMsg);
+            setError(errorMsg);
         } finally {
             setIsAnalyzing(false);
             setAnalysisStep('');
@@ -391,20 +428,28 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
                     <span className="text-gray-400 text-sm">(اختياري)</span>
                 </div>
 
-                <textarea
-                    value={additionalText}
-                    onChange={(e) => setAdditionalText(e.target.value)}
-                    placeholder={`مثال:
+                <div className="relative">
+                    <textarea
+                        value={additionalText}
+                        onChange={(e) => setAdditionalText(e.target.value)}
+                        placeholder={`مثال:
 • أركز على خبرتي في React و Node.js
 • أبحث عن وظيفة Senior Developer
 • متاح للعمل عن بعد
 • أو الصق هنا وصف الوظيفة المطلوبة...`}
-                    className="w-full h-32 p-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-400 focus:border-primary focus:outline-none transition resize-none text-sm"
-                    dir="rtl"
-                />
+                        className="w-full h-32 p-4 pb-14 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-400 focus:border-primary focus:outline-none transition resize-none text-sm"
+                        dir="rtl"
+                    />
+                    <div className="absolute left-3 bottom-3">
+                        <VoiceRecorder
+                            onTranscript={(text) => setAdditionalText(prev => prev + ' ' + text)}
+                            placeholder="تحدث..."
+                        />
+                    </div>
+                </div>
 
                 <p className="text-xs text-gray-400">
-                    💡 أضف أي معلومات إضافية أو سياق يساعد في تحسين سيرتك
+                    💡 أضف أي معلومات إضافية أو سياق يساعد في تحسين سيرتك - يمكنك الكتابة أو التسجيل الصوتي 🎤
                 </p>
             </div>
 
