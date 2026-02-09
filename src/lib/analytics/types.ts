@@ -17,7 +17,21 @@ export type EventType =
     | 'page_exit'           // مغادرة الصفحة
     | 'session_start'       // بدء الجلسة
     | 'session_end'         // انتهاء الجلسة
-    | 'error';              // خطأ
+    | 'error'               // خطأ
+    // أحداث الوضع المتقدم
+    | 'advanced_mode_start' // بدء الوضع المتقدم
+    | 'source_added'        // إضافة مصدر (URL/PDF)
+    | 'source_removed'      // حذف مصدر
+    | 'source_type_changed' // تغيير نوع المصدر
+    | 'analysis_started'    // بدء التحليل
+    | 'analysis_completed'  // اكتمال التحليل
+    | 'analysis_failed'     // فشل التحليل
+    // أحداث الدردشة والتعديل
+    | 'chat_message_sent'   // إرسال رسالة دردشة
+    | 'chat_response_received' // استلام رد
+    | 'cv_edit_applied'     // تطبيق تعديل على السيرة
+    // أخطاء API
+    | 'api_error';          // خطأ HTTP
 
 // حدث تحليلي فردي
 export interface AnalyticsEvent {
@@ -100,4 +114,44 @@ export interface CFRequestInfo {
     city?: string;
     userAgent: string;
     cfRay?: string;
+}
+
+// بيانات الجلسة المتقدمة (للوضع المتقدم)
+export interface AdvancedSessionData {
+    mode: 'simple' | 'advanced';
+    sources: Array<{
+        id: string;
+        type: 'url' | 'pdf';
+        value: string;
+        detectedType: 'personal' | 'job' | 'unknown';
+        addedAt: string;
+    }>;
+    analysisResult?: {
+        startedAt: string;
+        completedAt?: string;
+        cvData?: Record<string, unknown>;
+        jobProfile?: Record<string, unknown>;
+        error?: string;
+    };
+    chatHistory: Array<{
+        id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: string;
+        changes?: Record<string, unknown>;
+    }>;
+}
+
+// سجل خطأ
+export interface ErrorLogEntry {
+    id: string;
+    sessionId?: string;
+    timestamp: string;
+    type: 'fetch' | 'runtime' | 'unhandled';
+    statusCode?: number;
+    url?: string;
+    method?: string;
+    message: string;
+    stack?: string;
+    context?: Record<string, unknown>;
 }

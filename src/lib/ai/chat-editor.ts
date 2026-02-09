@@ -69,11 +69,28 @@ ${dataToSend}
 
         const content = response.choices[0].message.content;
 
+        // Check for empty response
+        if (!content || content.trim() === '') {
+            console.error('❌ Empty response from AI');
+            throw new Error('لم يتم استلام رد من الذكاء الاصطناعي');
+        }
+
         try {
             const cleanJson = extractJSON(content);
-            return JSON.parse(cleanJson);
+            const parsedData = JSON.parse(cleanJson);
+
+            // Merge with original data to preserve photoUrl
+            return {
+                ...data,
+                ...parsedData,
+                personal: {
+                    ...data.personal,
+                    ...parsedData.personal,
+                    photoUrl: data.personal.photoUrl // Always preserve original photo
+                }
+            };
         } catch (_parseError) {
-            console.warn("⚠️ JSON parse failed, trying fix...");
+            console.warn("⚠️ JSON parse failed, trying fix...", _parseError);
 
             // Quick retry without full context
             const retryResponse = await chatWithAI([
@@ -81,12 +98,37 @@ ${dataToSend}
             ], { temperature: 0 });
 
             const retryContent = retryResponse.choices[0].message.content;
+
+            if (!retryContent || retryContent.trim() === '') {
+                throw new Error('فشل إصلاح الرد');
+            }
+
             const cleanRetryJson = extractJSON(retryContent);
-            return JSON.parse(cleanRetryJson);
+            const parsedRetryData = JSON.parse(cleanRetryJson);
+
+            return {
+                ...data,
+                ...parsedRetryData,
+                personal: {
+                    ...data.personal,
+                    ...parsedRetryData.personal,
+                    photoUrl: data.personal.photoUrl
+                }
+            };
         }
 
     } catch (error) {
         console.error("Failed to process edit:", error);
+
+        // Provide more descriptive error
+        if (error instanceof Error) {
+            if (error.message.includes('timeout') || error.message.includes('مهلة')) {
+                throw new Error('انتهت مهلة الطلب. يرجى المحاولة بطلب أقصر.');
+            }
+            if (error.message.includes('JSON')) {
+                throw new Error('حدث خطأ في معالجة الرد. يرجى إعادة صياغة الطلب.');
+            }
+        }
         throw error;
     }
 }

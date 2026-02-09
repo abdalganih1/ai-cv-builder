@@ -3,12 +3,15 @@
 /**
  * EditChat with Message History
  * محرر الذكاء الاصطناعي مع حفظ تاريخ المحادثة
+ * يدعم الآن: تتبع المحادثات، التسجيل الصوتي
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { CVData } from '@/lib/types/cv-schema';
 import { processEditRequest } from '@/lib/ai/chat-editor';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAnalytics } from '@/lib/analytics';
+import VoiceRecorder from '@/components/ui/VoiceRecorder';
 
 interface EditChatProps {
     data: CVData;
@@ -30,6 +33,9 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Analytics tracking
+    const { trackChatMessageSent, trackChatResponseReceived, trackCVEditApplied } = useAnalytics();
 
     // تحميل الرسائل من localStorage عند البداية
     useEffect(() => {
@@ -75,11 +81,14 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
         if (!input.trim() || isProcessing) return;
 
         const userMsg = input;
-        // لا نمسح الـ input فوراً - نحتفظ به
+        const msgId = generateId();
         setIsProcessing(true);
 
         // أضف رسالة المستخدم للتاريخ
         addMessage('user', userMsg);
+
+        // تتبع إرسال الرسالة
+        trackChatMessageSent({ id: msgId, content: userMsg });
 
         // الآن نمسح الـ input بعد حفظ الرسالة
         setInput('');
@@ -87,11 +96,31 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
         try {
             const updatedCV = await processEditRequest(data, userMsg);
             onUpdate(updatedCV);
+
+            const responseId = generateId();
             addMessage('assistant', 'تم تطبيق التعديلات بنجاح ✨');
+
+            // تتبع استلام الرد
+            trackChatResponseReceived({
+                id: responseId,
+                content: 'تم تطبيق التعديلات بنجاح',
+                changes: { appliedFrom: userMsg }
+            });
+
+            // تتبع تطبيق التعديل
+            trackCVEditApplied({
+                requestMessage: userMsg,
+                timestamp: new Date().toISOString()
+            });
         } catch (error) {
             console.error(error);
-            // حتى في حالة الخطأ، الرسالة محفوظة!
             addMessage('error', 'عذراً، حدث خطأ. النص الأصلي محفوظ في التاريخ أعلاه.');
+
+            // تتبع الخطأ
+            trackChatResponseReceived({
+                id: generateId(),
+                content: error instanceof Error ? error.message : 'Unknown error'
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -198,15 +227,25 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        className="w-full p-4 text-sm border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[120px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400"
+                        className="w-full p-4 pb-14 text-sm border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[120px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400"
                         placeholder='مثال: "اجعل الخبرات العملية تظهر أولاً" أو "أضف مهارة الذكاء الاصطناعي"'
                         disabled={isProcessing}
                     />
-                    {isProcessing && (
-                        <div className="absolute bottom-3 left-3">
+
+                    {/* Voice Recording + Processing indicator */}
+                    <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                        {/* Voice Recorder */}
+                        <VoiceRecorder
+                            onTranscript={(text) => setInput(prev => prev + (prev ? ' ' : '') + text)}
+                            language="ar"
+                            disabled={isProcessing}
+                            placeholder="سجل صوتك"
+                        />
+
+                        {isProcessing && (
                             <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin block" />
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 <button

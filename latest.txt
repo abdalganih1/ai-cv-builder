@@ -1,0 +1,90 @@
+# ملخص التعديلات - جلسة 9 فبراير 2026
+
+## 📊 نظام التحليلات المتقدم
+
+### types.ts
+- إضافة 15+ نوع حدث جديد:
+  - `advanced_mode_start` - بدء الوضع المتقدم
+  - `source_added/removed/type_changed` - إدارة المصادر
+  - `analysis_started/completed/failed` - مراحل التحليل
+  - `chat_message_sent/received` - تتبع الدردشة
+  - `cv_edit_applied` - تطبيق تعديلات
+  - `api_error` - أخطاء HTTP
+- إضافة `AdvancedSessionData` interface
+- إضافة `ErrorLogEntry` interface
+
+### tracker.ts
+- إضافة 12+ method للتتبع:
+  - `trackAdvancedModeStart()`
+  - `trackSourceAdded/Removed/TypeChanged()`
+  - `trackAnalysisStarted/Completed/Failed()`
+  - `trackChatMessageSent/ResponseReceived()`
+  - `trackCVEditApplied()`
+  - `trackApiError()`
+
+### provider.tsx
+- تكامل errorLogger
+- تصدير جميع methods التتبع الجديدة
+
+---
+
+## 🚨 نظام تسجيل الأخطاء
+
+### [جديد] errorLogger.ts
+- اعتراض fetch لالتقاط أخطاء HTTP (4xx, 5xx)
+- تسجيل أخطاء runtime
+- تسجيل unhandled promise rejections
+- إرسال دفعي للأخطاء كل 3 ثواني
+
+### [جديد] /api/analytics/errors/route.ts
+- GET: جلب الأخطاء مع فلترة (type, statusCode)
+- POST: استقبال أخطاء جديدة
+- DELETE: مسح كل السجل
+- إحصائيات: total, byType, byStatusCode
+
+### app/panel/page.tsx
+- قسم جديد "سجل الأخطاء" 
+- عرض الأخطاء مع badges ملونة
+- فلترة حسب النوع
+- زر مسح الكل
+- تحديث تلقائي كل 30 ثانية
+
+---
+
+## 🎤 التسجيل الصوتي
+
+### [جديد] VoiceRecorder.tsx
+- مكون تسجيل صوتي مع Web Speech API
+- دعم العربية (ar-SA) والإنجليزية (en-US)
+- معاينة مباشرة للنص أثناء التسجيل
+- بنية جاهزة لـ Gemini API
+
+### EditChat.tsx
+- دمج VoiceRecorder بجانب textarea
+- زر 🎤 لبدء/إيقاف التسجيل
+- إضافة النص المُحوَّل للـ input
+
+---
+
+## 🛠️ إصلاحات
+
+### chat-editor.ts (processEditRequest)
+- فحص الردود الفارغة من AI
+- رسائل خطأ أوضح بالعربية
+- الحفاظ على photoUrl عند merge
+- محاولة إعادة أفضل عند فشل JSON
+
+---
+
+## ملفات جديدة:
+1. src/lib/analytics/errorLogger.ts
+2. src/app/api/analytics/errors/route.ts  
+3. src/components/ui/VoiceRecorder.tsx
+
+## ملفات معدلة:
+1. src/lib/analytics/types.ts
+2. src/lib/analytics/tracker.ts
+3. src/lib/analytics/provider.tsx
+4. src/components/chat/EditChat.tsx
+5. src/app/panel/page.tsx
+6. src/lib/ai/chat-editor.ts

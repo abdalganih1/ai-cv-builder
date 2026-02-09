@@ -3,18 +3,47 @@
 /**
  * Client-side Analytics Tracker
  * يتتبع سلوك المستخدم ويرسل الأحداث للخادم
+ * يدعم الآن: الوضع المتقدم، تتبع المصادر، تتبع التحليل، تتبع الدردشة
  */
 
-import type { EventType, TrackRequest, TrackResponse } from './types';
+import type { EventType, TrackRequest, TrackResponse, AdvancedSessionData } from './types';
 
 const STORAGE_KEY = 'cv_analytics_session';
+const ADVANCED_DATA_KEY = 'cv_advanced_session_data';
 const API_ENDPOINT = '/api/analytics/track';
+
+// ======================== Interfaces ========================
+
+interface SourceData {
+    id: string;
+    type: 'url' | 'pdf';
+    value: string;
+    detectedType?: 'personal' | 'job' | 'unknown';
+}
+
+interface AnalysisData {
+    sources?: SourceData[];
+    additionalText?: string;
+    result?: Record<string, unknown>;
+    error?: string;
+}
+
+interface ChatMessageData {
+    id: string;
+    content: string;
+    changes?: Record<string, unknown>;
+}
+
+// ======================== Main Class ========================
 
 class AnalyticsTracker {
     private sessionId: string | null = null;
     private isInitialized = false;
     private eventQueue: TrackRequest[] = [];
     private flushTimeout: NodeJS.Timeout | null = null;
+    private advancedData: AdvancedSessionData | null = null;
+
+    // ======================== Initialization ========================
 
     /**
      * تهيئة المتتبع - يُستدعى مرة واحدة عند تحميل الصفحة
@@ -35,6 +64,7 @@ class AnalyticsTracker {
                 if (now - lastActivity < 30 * 60 * 1000) {
                     this.sessionId = data.sessionId;
                     this.isInitialized = true;
+                    this.loadAdvancedData();
                     this.updateLastActivity();
                     return this.sessionId!;
                 }
@@ -46,6 +76,7 @@ class AnalyticsTracker {
         // إنشاء جلسة جديدة
         this.sessionId = this.generateSessionId();
         this.isInitialized = true;
+        this.initAdvancedData();
         this.saveSession();
 
         // إرسال حدث بدء الجلسة
@@ -57,8 +88,10 @@ class AnalyticsTracker {
         return this.sessionId;
     }
 
+    // ======================== Basic Tracking ========================
+
     /**
-     * تتبع حدث
+     * تتبع حدث أساسي
      */
     async track(
         eventType: EventType,
@@ -78,12 +111,20 @@ class AnalyticsTracker {
             formData: options?.formData,
         };
 
-        // إضافة للقائمة وإرسال بشكل مجمع لتحسين الأداء
+        // إضافة للقائمة
         this.eventQueue.push(request);
         this.updateLastActivity();
 
         // إرسال فوري للأحداث المهمة
-        const immediateEvents: EventType[] = ['session_start', 'payment_proof_upload', 'page_exit'];
+        const immediateEvents: EventType[] = [
+            'session_start',
+            'payment_proof_upload',
+            'page_exit',
+            'analysis_completed',
+            'analysis_failed',
+            'api_error'
+        ];
+
         if (immediateEvents.includes(eventType)) {
             return this.flush();
         }
@@ -129,11 +170,187 @@ class AnalyticsTracker {
         return this.track('button_click', { buttonId, buttonText });
     }
 
+    // ======================== Advanced Mode Tracking ========================
+
+    /**
+     * تتبع بدء الوضع المتقدم
+     */
+    trackAdvancedModeStart(): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.mode = 'advanced';
+            this.saveAdvancedData();
+        }
+        return this.track('advanced_mode_start');
+    }
+
+    /**
+     * تتبع إضافة مصدر (URL أو PDF)
+     */
+    trackSourceAdded(source: SourceData): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.sources.push({
+                ...source,
+                detectedType: source.detectedType || 'unknown',
+                addedAt: new Date().toISOString(),
+            });
+            this.saveAdvancedData();
+        }
+        return this.track('source_added', {
+            sourceId: source.id,
+            sourceType: source.type,
+            sourceValue: source.value,
+            detectedType: source.detectedType,
+        });
+    }
+
+    /**
+     * تتبع حذف مصدر
+     */
+    trackSourceRemoved(sourceId: string): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.sources = this.advancedData.sources.filter(s => s.id !== sourceId);
+            this.saveAdvancedData();
+        }
+        return this.track('source_removed', { sourceId });
+    }
+
+    /**
+     * تتبع تغيير نوع المصدر
+     */
+    trackSourceTypeChanged(sourceId: string, newType: 'personal' | 'job' | 'unknown'): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            const source = this.advancedData.sources.find(s => s.id === sourceId);
+            if (source) {
+                source.detectedType = newType;
+                this.saveAdvancedData();
+            }
+        }
+        return this.track('source_type_changed', { sourceId, newType });
+    }
+
+    // ======================== Analysis Tracking ========================
+
+    /**
+     * تتبع بدء التحليل
+     */
+    trackAnalysisStarted(data: AnalysisData): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.analysisResult = {
+                startedAt: new Date().toISOString(),
+            };
+            this.saveAdvancedData();
+        }
+        return this.track('analysis_started', {
+            sourcesCount: data.sources?.length || 0,
+            hasAdditionalText: !!data.additionalText,
+        });
+    }
+
+    /**
+     * تتبع اكتمال التحليل
+     */
+    trackAnalysisCompleted(data: AnalysisData): Promise<TrackResponse | null> {
+        if (this.advancedData && this.advancedData.analysisResult) {
+            this.advancedData.analysisResult.completedAt = new Date().toISOString();
+            this.advancedData.analysisResult.cvData = data.result;
+            this.saveAdvancedData();
+        }
+        return this.track('analysis_completed', {
+            success: true,
+            hasJobProfile: !!data.result?.jobProfile,
+        });
+    }
+
+    /**
+     * تتبع فشل التحليل
+     */
+    trackAnalysisFailed(error: string): Promise<TrackResponse | null> {
+        if (this.advancedData && this.advancedData.analysisResult) {
+            this.advancedData.analysisResult.error = error;
+            this.saveAdvancedData();
+        }
+        return this.track('analysis_failed', { error });
+    }
+
+    // ======================== Chat Tracking ========================
+
+    /**
+     * تتبع إرسال رسالة دردشة
+     */
+    trackChatMessageSent(message: ChatMessageData): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.chatHistory.push({
+                id: message.id,
+                role: 'user',
+                content: message.content,
+                timestamp: new Date().toISOString(),
+            });
+            this.saveAdvancedData();
+        }
+        return this.track('chat_message_sent', {
+            messageId: message.id,
+            contentLength: message.content.length,
+        });
+    }
+
+    /**
+     * تتبع استلام رد الدردشة
+     */
+    trackChatResponseReceived(message: ChatMessageData): Promise<TrackResponse | null> {
+        if (this.advancedData) {
+            this.advancedData.chatHistory.push({
+                id: message.id,
+                role: 'assistant',
+                content: message.content,
+                timestamp: new Date().toISOString(),
+                changes: message.changes,
+            });
+            this.saveAdvancedData();
+        }
+        return this.track('chat_response_received', {
+            messageId: message.id,
+            hasChanges: !!message.changes,
+        });
+    }
+
+    /**
+     * تتبع تطبيق تعديل على السيرة
+     */
+    trackCVEditApplied(changes: Record<string, unknown>): Promise<TrackResponse | null> {
+        return this.track('cv_edit_applied', {
+            changedFields: Object.keys(changes),
+            timestamp: new Date().toISOString(),
+        });
+    }
+
+    // ======================== Error Tracking ========================
+
+    /**
+     * تتبع خطأ API
+     */
+    trackApiError(url: string, statusCode: number, error: string): Promise<TrackResponse | null> {
+        return this.track('api_error', {
+            url,
+            statusCode,
+            error,
+            timestamp: new Date().toISOString(),
+        });
+    }
+
+    // ======================== Getters ========================
+
     /**
      * الحصول على معرف الجلسة
      */
     getSessionId(): string | null {
         return this.sessionId;
+    }
+
+    /**
+     * الحصول على بيانات الجلسة المتقدمة
+     */
+    getAdvancedData(): AdvancedSessionData | null {
+        return this.advancedData;
     }
 
     // ======================== Private Methods ========================
@@ -164,13 +381,42 @@ class AnalyticsTracker {
         }
     }
 
+    private initAdvancedData(): void {
+        this.advancedData = {
+            mode: 'simple',
+            sources: [],
+            chatHistory: [],
+        };
+        this.saveAdvancedData();
+    }
+
+    private loadAdvancedData(): void {
+        if (typeof window === 'undefined') return;
+
+        try {
+            const stored = localStorage.getItem(ADVANCED_DATA_KEY);
+            if (stored) {
+                this.advancedData = JSON.parse(stored);
+            } else {
+                this.initAdvancedData();
+            }
+        } catch {
+            this.initAdvancedData();
+        }
+    }
+
+    private saveAdvancedData(): void {
+        if (typeof window === 'undefined' || !this.advancedData) return;
+        localStorage.setItem(ADVANCED_DATA_KEY, JSON.stringify(this.advancedData));
+    }
+
     private scheduleFlush(): void {
         if (this.flushTimeout) return;
 
         this.flushTimeout = setTimeout(() => {
             this.flush();
             this.flushTimeout = null;
-        }, 2000); // إرسال كل 2 ثانية
+        }, 2000);
     }
 
     private async flush(): Promise<TrackResponse | null> {
@@ -184,11 +430,10 @@ class AnalyticsTracker {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ events }),
-                keepalive: true, // للتأكد من الإرسال حتى عند إغلاق الصفحة
+                keepalive: true,
             });
 
             if (!response.ok) {
-                // إعادة الأحداث للقائمة عند الفشل
                 this.eventQueue.unshift(...events);
                 return null;
             }
@@ -196,7 +441,6 @@ class AnalyticsTracker {
             return response.json();
         } catch (error) {
             console.error('[Analytics] Failed to send events:', error);
-            // إعادة الأحداث للقائمة عند الفشل
             this.eventQueue.unshift(...events);
             return null;
         }
@@ -205,7 +449,7 @@ class AnalyticsTracker {
     private setupEventListeners(): void {
         if (typeof window === 'undefined') return;
 
-        // تتبع رؤية الصفحة (tab visible/hidden)
+        // تتبع رؤية الصفحة
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 this.track('tab_hidden');
@@ -217,7 +461,7 @@ class AnalyticsTracker {
         // تتبع مغادرة الصفحة
         window.addEventListener('beforeunload', () => {
             this.track('page_exit');
-            this.flush(); // إرسال فوري
+            this.flush();
         });
 
         // تتبع الأخطاء
@@ -231,7 +475,8 @@ class AnalyticsTracker {
     }
 }
 
-// Singleton instance
+// ======================== Singleton Export ========================
+
 let trackerInstance: AnalyticsTracker | null = null;
 
 export function getTracker(): AnalyticsTracker {
@@ -242,3 +487,4 @@ export function getTracker(): AnalyticsTracker {
 }
 
 export default AnalyticsTracker;
+

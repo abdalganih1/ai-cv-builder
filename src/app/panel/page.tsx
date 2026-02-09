@@ -256,6 +256,186 @@ export default function AdminDashboard() {
                     )}
                 </div>
             </div>
+
+            {/* Error Logs Section */}
+            <ErrorLogsSection />
+        </div>
+    );
+}
+
+// ======================== Error Logs Component ========================
+
+interface ErrorLogEntry {
+    id: string;
+    type: 'fetch' | 'runtime' | 'unhandled';
+    statusCode?: number;
+    url?: string;
+    message?: string;
+    stack?: string;
+    sessionId?: string;
+    timestamp: string;
+}
+
+interface ErrorStats {
+    total: number;
+    byType: { fetch: number; runtime: number; unhandled: number };
+    byStatusCode: Record<number, number>;
+}
+
+function ErrorLogsSection() {
+    const [errors, setErrors] = useState<ErrorLogEntry[]>([]);
+    const [stats, setStats] = useState<ErrorStats | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState<string>('all');
+
+    useEffect(() => {
+        async function fetchErrors() {
+            try {
+                const url = filter === 'all'
+                    ? '/api/analytics/errors?limit=20'
+                    : `/api/analytics/errors?limit=20&type=${filter}`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    setErrors(data.data || []);
+                    setStats(data.stats || null);
+                }
+            } catch (err) {
+                console.error('Failed to fetch errors:', err);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchErrors();
+        const interval = setInterval(fetchErrors, 30000);
+        return () => clearInterval(interval);
+    }, [filter]);
+
+    const getStatusColor = (code?: number) => {
+        if (!code) return 'bg-gray-500';
+        if (code >= 500) return 'bg-red-500';
+        if (code >= 400) return 'bg-orange-500';
+        return 'bg-yellow-500';
+    };
+
+    const getTypeColor = (type: string) => {
+        switch (type) {
+            case 'fetch': return 'bg-blue-500/20 text-blue-400';
+            case 'runtime': return 'bg-red-500/20 text-red-400';
+            case 'unhandled': return 'bg-purple-500/20 text-purple-400';
+            default: return 'bg-gray-500/20 text-gray-400';
+        }
+    };
+
+    const clearErrors = async () => {
+        if (!confirm('حذف كل سجل الأخطاء؟')) return;
+        try {
+            await fetch('/api/analytics/errors', { method: 'DELETE' });
+            setErrors([]);
+            setStats({ total: 0, byType: { fetch: 0, runtime: 0, unhandled: 0 }, byStatusCode: {} });
+        } catch (err) {
+            console.error('Failed to clear errors:', err);
+        }
+    };
+
+    return (
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-lg font-bold text-white">🚨 سجل الأخطاء</h2>
+                    {stats && (
+                        <div className="flex gap-2">
+                            <span className="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400">
+                                {stats.total} خطأ
+                            </span>
+                            {stats.byType.fetch > 0 && (
+                                <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                                    {stats.byType.fetch} fetch
+                                </span>
+                            )}
+                            {stats.byType.runtime > 0 && (
+                                <span className="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400">
+                                    {stats.byType.runtime} runtime
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <select
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        className="bg-gray-700 text-white text-sm rounded-lg px-3 py-1.5 border border-gray-600"
+                    >
+                        <option value="all">الكل</option>
+                        <option value="fetch">Fetch</option>
+                        <option value="runtime">Runtime</option>
+                        <option value="unhandled">Unhandled</option>
+                    </select>
+                    <button
+                        onClick={clearErrors}
+                        className="text-xs px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition"
+                    >
+                        مسح الكل
+                    </button>
+                </div>
+            </div>
+
+            <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
+                {loading ? (
+                    <div className="text-center py-8">
+                        <div className="w-8 h-8 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto" />
+                    </div>
+                ) : errors.length === 0 ? (
+                    <div className="text-gray-400 text-center py-8">
+                        ✅ لا توجد أخطاء مسجلة
+                    </div>
+                ) : (
+                    errors.map((err) => (
+                        <div
+                            key={err.id}
+                            className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition"
+                        >
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getTypeColor(err.type)}`}>
+                                            {err.type}
+                                        </span>
+                                        {err.statusCode && (
+                                            <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getStatusColor(err.statusCode)}`}>
+                                                {err.statusCode}
+                                            </span>
+                                        )}
+                                        <span className="text-gray-500 text-xs">
+                                            {new Date(err.timestamp).toLocaleTimeString('ar-SY')}
+                                        </span>
+                                    </div>
+                                    {err.url && (
+                                        <p className="text-blue-400 text-sm font-mono truncate" title={err.url}>
+                                            {err.url}
+                                        </p>
+                                    )}
+                                    {err.message && (
+                                        <p className="text-red-300 text-sm mt-1 line-clamp-2">
+                                            {err.message}
+                                        </p>
+                                    )}
+                                    {err.sessionId && (
+                                        <Link
+                                            href={`/panel/sessions/${err.sessionId}`}
+                                            className="text-xs text-gray-500 hover:text-blue-400 mt-2 inline-block"
+                                        >
+                                            Session: {err.sessionId.substring(0, 8)}...
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
         </div>
     );
 }
