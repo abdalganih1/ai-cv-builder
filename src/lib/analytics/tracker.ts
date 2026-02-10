@@ -12,6 +12,40 @@ const STORAGE_KEY = 'cv_analytics_session';
 const ADVANCED_DATA_KEY = 'cv_advanced_session_data';
 const API_ENDPOINT = '/api/analytics/track';
 
+// In-memory fallback when localStorage is unavailable (iOS private browsing)
+const memoryStorage: Record<string, string> = {};
+
+/** Safely check if localStorage is available without triggering iOS popup */
+function isLocalStorageAvailable(): boolean {
+    try {
+        const testKey = '__ls_test__';
+        localStorage.setItem(testKey, '1');
+        localStorage.removeItem(testKey);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function safeGetItem(key: string): string | null {
+    try {
+        if (isLocalStorageAvailable()) {
+            return localStorage.getItem(key);
+        }
+    } catch { /* ignore */ }
+    return memoryStorage[key] ?? null;
+}
+
+function safeSetItem(key: string, value: string): void {
+    try {
+        if (isLocalStorageAvailable()) {
+            localStorage.setItem(key, value);
+            return;
+        }
+    } catch { /* ignore */ }
+    memoryStorage[key] = value;
+}
+
 // ======================== Interfaces ========================
 
 interface SourceData {
@@ -54,7 +88,7 @@ class AnalyticsTracker {
         }
 
         // محاولة استعادة الجلسة من التخزين المحلي
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored = safeGetItem(STORAGE_KEY);
         if (stored) {
             try {
                 const data = JSON.parse(stored);
@@ -364,7 +398,7 @@ class AnalyticsTracker {
     private saveSession(): void {
         if (typeof window === 'undefined') return;
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        safeSetItem(STORAGE_KEY, JSON.stringify({
             sessionId: this.sessionId,
             lastActivity: new Date().toISOString(),
         }));
@@ -373,11 +407,11 @@ class AnalyticsTracker {
     private updateLastActivity(): void {
         if (typeof window === 'undefined') return;
 
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored = safeGetItem(STORAGE_KEY);
         if (stored) {
             const data = JSON.parse(stored);
             data.lastActivity = new Date().toISOString();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            safeSetItem(STORAGE_KEY, JSON.stringify(data));
         }
     }
 
@@ -394,7 +428,7 @@ class AnalyticsTracker {
         if (typeof window === 'undefined') return;
 
         try {
-            const stored = localStorage.getItem(ADVANCED_DATA_KEY);
+            const stored = safeGetItem(ADVANCED_DATA_KEY);
             if (stored) {
                 this.advancedData = JSON.parse(stored);
             } else {
@@ -407,7 +441,7 @@ class AnalyticsTracker {
 
     private saveAdvancedData(): void {
         if (typeof window === 'undefined' || !this.advancedData) return;
-        localStorage.setItem(ADVANCED_DATA_KEY, JSON.stringify(this.advancedData));
+        safeSetItem(ADVANCED_DATA_KEY, JSON.stringify(this.advancedData));
     }
 
     private scheduleFlush(): void {
