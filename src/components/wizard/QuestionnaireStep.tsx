@@ -402,59 +402,58 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     )}
 
                     {currentQuestion.type === 'email' && (
-                        <div className="space-y-4">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-0 bg-gray-50/50 rounded-2xl border-2 border-gray-100 focus-within:border-primary transition-all" dir="ltr">
-                                {/* Username input */}
-                                <input
-                                    type="text"
-                                    value={emailUsername}
+                        <div className="space-y-4" dir="ltr">
+                            {/* Username input - separate box */}
+                            <input
+                                type="email"
+                                value={emailUsername}
+                                onChange={(e) => {
+                                    const val = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+                                    setEmailUsername(val);
+                                    setResponse(`${val}@${emailDomain}`);
+                                }}
+                                className="w-full p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-800 placeholder:text-gray-400"
+                                placeholder="your.name"
+                                dir="ltr"
+                                autoFocus
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                autoComplete="username"
+                                enterKeyHint="next"
+                                style={{ fontSize: '16px' }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAnswer();
+                                    }
+                                }}
+                            />
+
+                            {/* @ + Domain - separate box */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-2xl font-bold text-primary">@</span>
+                                <select
+                                    value={emailDomain}
                                     onChange={(e) => {
-                                        setEmailUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''));
-                                        setResponse(`${e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${emailDomain}`);
+                                        setEmailDomain(e.target.value);
+                                        setResponse(`${emailUsername}@${e.target.value}`);
                                     }}
-                                    className="flex-1 p-4 sm:p-5 text-lg bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
-                                    placeholder="your.name"
+                                    className="flex-1 p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-700 font-medium"
                                     dir="ltr"
-                                    autoFocus
-                                    inputMode="email"
-                                    autoCapitalize="none"
-                                    autoCorrect="off"
-                                    enterKeyHint="next"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleAnswer();
-                                        }
-                                    }}
-                                />
-
-                                {/* @ + Domain row */}
-                                <div className="flex items-center border-t sm:border-t-0 border-gray-100">
-                                    <span className="text-2xl font-bold text-primary px-2">@</span>
-
-                                    {/* Domain dropdown */}
-                                    <select
-                                        value={emailDomain}
-                                        onChange={(e) => {
-                                            setEmailDomain(e.target.value);
-                                            setResponse(`${emailUsername}@${e.target.value}`);
-                                        }}
-                                        className="p-4 sm:p-5 text-lg bg-white border-l-2 border-gray-100 outline-none text-gray-700 font-medium cursor-pointer flex-1 sm:flex-none sm:min-w-[140px]"
-                                        dir="ltr"
-                                        style={{ WebkitAppearance: 'menulist' }}
-                                    >
-                                        <option value="gmail.com">gmail.com</option>
-                                        <option value="icloud.com">icloud.com</option>
-                                        <option value="outlook.com">outlook.com</option>
-                                        <option value="hotmail.com">hotmail.com</option>
-                                    </select>
-                                </div>
+                                    style={{ fontSize: '16px', WebkitAppearance: 'menulist', appearance: 'menulist' }}
+                                >
+                                    <option value="gmail.com">gmail.com</option>
+                                    <option value="icloud.com">icloud.com</option>
+                                    <option value="outlook.com">outlook.com</option>
+                                    <option value="hotmail.com">hotmail.com</option>
+                                </select>
                             </div>
 
-                            {/* Preview */}
+                            {/* Preview - always visible */}
                             {emailUsername && (
                                 <div className="text-center py-3 bg-primary/5 rounded-xl">
-                                    <span className="text-sm text-gray-500">البريد الإلكتروني: </span>
+                                    <span className="text-sm text-gray-500" dir="rtl">البريد الإلكتروني: </span>
                                     <span className="font-bold text-primary" dir="ltr">{emailUsername}@{emailDomain}</span>
                                 </div>
                             )}
