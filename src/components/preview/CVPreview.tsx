@@ -209,9 +209,9 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     };
 
     return (
-        <div className="flex flex-col md:flex-row gap-6 h-[850px] w-full">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 min-h-[100dvh] md:h-[850px] w-full">
             {/* Sidebar / Chat Interface */}
-            <div className="w-full md:w-1/3 order-2 md:order-1 flex flex-col gap-4">
+            <div className="w-full md:w-1/3 order-2 md:order-1 flex flex-col gap-3 md:gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-1 flex flex-col">
                     <h3 className="font-bold text-primary mb-2">مساعد التعديل الذكي</h3>
                     <p className="text-xs text-gray-500 mb-4">اطلب أي تعديل على سيرتك الذاتية وسأقوم بتنفيذه فوراً.</p>
@@ -296,7 +296,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             </div>
 
             {/* Preview Area */}
-            <div className="w-full md:w-2/3 order-1 md:order-2 bg-gray-50 rounded-xl border border-gray-200 p-4 overflow-hidden flex flex-col">
+            <div className="w-full md:w-2/3 order-1 md:order-2 bg-gray-50 rounded-xl border border-gray-200 p-2 sm:p-4 overflow-hidden flex flex-col min-h-[60vh] md:min-h-0">
                 {/* Language indicator */}
                 <div className="flex items-center justify-between mb-2 px-2">
                     <span className={`text-xs font-bold px-2 py-1 rounded ${activeLanguage === 'en' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
@@ -306,16 +306,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-white shadow-sm rounded-lg relative">
                     <div
-                        className="min-h-full p-8 md:p-12 bg-white"
+                        className="min-h-full p-4 sm:p-8 md:p-12 bg-white"
                         style={{ fontFamily: 'Arial, sans-serif', direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}
                     >
                         {/* Header */}
-                        <div className="border-b-2 border-primary pb-6 mb-6 flex justify-between items-end">
-                            <div className="flex gap-6 items-end">
+                        <div className="border-b-2 border-primary pb-4 sm:pb-6 mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-end w-full sm:w-auto">
                                 {/* Photo or Upload Button */}
                                 {displayPhotoUrl ? (
                                     <div className="relative group">
-                                        <div className="w-32 h-32 rounded-full border-4 border-primary overflow-hidden shadow-lg mb-2">
+                                        <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full border-4 border-primary overflow-hidden shadow-lg mb-2">
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img src={displayPhotoUrl} alt="Profile" className="w-full h-full object-cover" />
                                         </div>
@@ -331,9 +331,9 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                         </label>
                                     </div>
                                 ) : (
-                                    <label className="w-32 h-32 rounded-full border-4 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all mb-2 group">
-                                        <span className="text-3xl group-hover:scale-110 transition-transform">📷</span>
-                                        <span className="text-xs text-gray-500 mt-1 group-hover:text-primary">رفع صورة</span>
+                                    <label className="w-20 h-20 sm:w-32 sm:h-32 rounded-full border-4 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all mb-2 group">
+                                        <span className="text-2xl sm:text-3xl group-hover:scale-110 transition-transform">📷</span>
+                                        <span className="text-[10px] sm:text-xs text-gray-500 mt-1 group-hover:text-primary">رفع صورة</span>
                                         <input
                                             type="file"
                                             accept="image/*"
@@ -342,12 +342,12 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                         />
                                     </label>
                                 )}
-                                <div>
-                                    <h1 className="text-4xl font-bold text-primary mb-2">{previewData.personal.firstName} {previewData.personal.lastName}</h1>
-                                    <p className="text-xl text-accent font-medium">{previewData.personal.targetJobTitle || previewData.personal.jobTitle || labels.jobTitle}</p>
+                                <div className="text-center sm:text-right">
+                                    <h1 className="text-2xl sm:text-4xl font-bold text-primary mb-1 sm:mb-2">{previewData.personal.firstName} {previewData.personal.lastName}</h1>
+                                    <p className="text-base sm:text-xl text-accent font-medium">{previewData.personal.targetJobTitle || previewData.personal.jobTitle || labels.jobTitle}</p>
                                 </div>
                             </div>
-                            <div className="text-sm text-gray-600 leading-relaxed">
+                            <div className="text-xs sm:text-sm text-gray-600 leading-relaxed w-full sm:w-auto text-center sm:text-right">
                                 {previewData.personal.email && previewData.personal.email !== '__skipped__' && <p dir="ltr">{previewData.personal.email}</p>}
                                 {previewData.personal.phone && previewData.personal.phone !== '__skipped__' && <p dir="ltr">{previewData.personal.phone}</p>}
                                 {previewData.personal.country && previewData.personal.country !== '__skipped__' && <p>{previewData.personal.country}</p>}

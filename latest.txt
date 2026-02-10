@@ -1,78 +1,26 @@
-# ملخص التعديلات - جلسة 9 فبراير 2026
+fe8537409e7cf67c.js:322 ✅ Arabic fonts registered successfully (IBM Plex + Dubai)
+fe8537409e7cf67c.js:322 ✅ Restored CV data from localStorage Object
+fe8537409e7cf67c.js:322 🎨 Rendering - Current Step Index: 0
+fe8537409e7cf67c.js:322 🎨 Full data state: Object
+c01b68e1d6c567f7.js:1 [Analytics] Initialized with session: mlga4vzh-xa1tl1g
+fe8537409e7cf67c.js:322 💾 Saved CV data to localStorage - Step: 0
+fe8537409e7cf67c.js:322 📊 [Analytics] Tracked step view: 0 Welcome
+fe8537409e7cf67c.js:322 🎨 Rendering - Current Step Index: 0
+fe8537409e7cf67c.js:322 🎨 Full data state: Object
+fe8537409e7cf67c.js:322 🎨 Rendering - Current Step Index: 0
+fe8537409e7cf67c.js:322 🎨 Full data state: Object
+fe8537409e7cf67c.js:322 📊 [Analytics] Tracked step view: 0 Welcome
+fe8537409e7cf67c.js:9 Analysis error: Error: فشل في تحليل المصادر
+    at I (fe8537409e7cf67c.js:9:4069)
+I @ fe8537409e7cf67c.js:9
 
-## 📊 نظام التحليلات المتقدم
 
-### types.ts
-- إضافة 15+ نوع حدث جديد
-- إضافة `advancedData` للـ Session type ✨
-
-### tracker.ts
-- 12+ method جديدة للتتبع
-
-### provider.tsx
-- تكامل errorLogger + تصدير methods الجديدة
-
----
-
-## 🚨 نظام تسجيل الأخطاء
-
-### [جديد] errorLogger.ts
-- اعتراض fetch لالتقاط أخطاء HTTP
-
-### [جديد] /api/analytics/errors/route.ts
-- GET/POST/DELETE للأخطاء
 
 ---
 
-## 🎤 التسجيل الصوتي (مع VoiceRecorder.tsx)
+مشكلة بالايفون يظهر ان البيانات غير محمية
 
-| المكان | الحالة |
-|--------|--------|
-| EditChat.tsx | ✅ |
-| AdvancedInput.tsx | ✅ |
-| QuestionnaireStep.tsx | ✅ |
+--- 
 
----
+المشكلة الثانية لا يظهر البريد الالكتروني عند الايفون
 
-## 📍 تحديثات صفحة تفاصيل الجلسة
-
-### 12 icon جديد للـ Advanced Events:
-- ⚡ بدء وضع متقدم
-- ➕ إضافة مصدر / ➖ حذف مصدر / 🔄 تغيير نوع
-- 🔍 بدء تحليل / ✨ اكتمال / 🚨 فشل
-- 💬 إرسال رسالة / 🤖 استلام رد
-- ✍️ تطبيق تعديل / ⚠️ خطأ API
-
-### قسم جديد: بيانات الوضع المتقدم
-- عرض المصادر (URL/PDF + نوعها)
-- نتيجة التحليل (بدء/اكتمال/خطأ)
-- سجل الدردشة
-
----
-
-## � إحصائيات الوضع المتقدم (في لوحة التحكم)
-
-- عدد مستخدمي الوضع المتقدم
-- عدد من أضاف مصادر
-- عدد من أكمل التحليل
-
----
-
-## Git Commits:
-- `91f3b67` Analytics + Error logging + Voice recorder
-- `717a244` AdvancedInput tracking + VoiceRecorder
-- `1691e09` Complete remaining features ✅
-
-## ملفات معدلة:
-1. src/lib/analytics/types.ts
-2. src/lib/analytics/tracker.ts
-3. src/lib/analytics/provider.tsx
-4. src/components/ui/VoiceRecorder.tsx
-5. src/components/chat/EditChat.tsx
-6. src/components/wizard/AdvancedInput.tsx
-7. src/components/wizard/QuestionnaireStep.tsx ✨
-8. src/app/panel/page.tsx ✨
-9. src/app/panel/sessions/[id]/page.tsx ✨
-10. src/lib/ai/chat-editor.ts
-11. src/lib/analytics/errorLogger.ts
-12. src/app/api/analytics/errors/route.ts

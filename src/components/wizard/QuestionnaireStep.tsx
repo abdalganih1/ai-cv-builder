@@ -6,6 +6,7 @@ import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import { motion } from 'framer-motion';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
+import { translateAbbreviation } from '@/lib/utils/syrian-universities';
 
 interface StepProps {
     data: CVData;
@@ -135,7 +136,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         else if (field === 'education_institution') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].institution = response;
+            if (list.length > 0) list[list.length - 1].institution = translateAbbreviation(response, 'university');
             updatedData.education = list;
         }
         else if (field === 'education_degree') {
@@ -145,9 +146,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         else if (field === 'education_major') {
             const list = [...(data.education || [])];
-            if (list.length > 1) list[list.length - 1].major = response;
-            // note: fix lookup to be safe
-            if (list.length > 0) list[list.length - 1].major = response;
+            if (list.length > 0) list[list.length - 1].major = translateAbbreviation(response, 'major');
             updatedData.education = list;
         }
         else if (field === 'education_startYear') {
@@ -253,9 +252,17 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-2xl font-black text-gray-900">تم الانتهاء من جميع الأسئلة بنجاح!</h2>
             <p className="text-gray-500">لقد جمعنا معلومات كافية لبناء سيرة ذاتية احترافية.</p>
-            <button onClick={() => onNext({})} className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all">
-                الانتقال للدفع والمعاينة
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <button
+                    onClick={onBack}
+                    className="px-8 py-4 rounded-2xl font-bold border-2 border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all"
+                >
+                    ← العودة لتعديل البيانات
+                </button>
+                <button onClick={() => onNext({})} className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all">
+                    الانتقال للدفع والمعاينة
+                </button>
+            </div>
         </div>
     );
 
@@ -396,7 +403,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'email' && (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-0 bg-gray-50/50 rounded-2xl border-2 border-gray-100 focus-within:border-primary transition-all overflow-hidden" dir="ltr">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-0 bg-gray-50/50 rounded-2xl border-2 border-gray-100 focus-within:border-primary transition-all" dir="ltr">
                                 {/* Username input */}
                                 <input
                                     type="text"
@@ -405,10 +412,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         setEmailUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''));
                                         setResponse(`${e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${emailDomain}`);
                                     }}
-                                    className="flex-1 p-5 text-lg bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
+                                    className="flex-1 p-4 sm:p-5 text-lg bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
                                     placeholder="your.name"
                                     dir="ltr"
                                     autoFocus
+                                    inputMode="email"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
                                     enterKeyHint="next"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -418,24 +428,27 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     }}
                                 />
 
-                                {/* Fixed @ symbol */}
-                                <span className="text-2xl font-bold text-primary px-2">@</span>
+                                {/* @ + Domain row */}
+                                <div className="flex items-center border-t sm:border-t-0 border-gray-100">
+                                    <span className="text-2xl font-bold text-primary px-2">@</span>
 
-                                {/* Domain dropdown */}
-                                <select
-                                    value={emailDomain}
-                                    onChange={(e) => {
-                                        setEmailDomain(e.target.value);
-                                        setResponse(`${emailUsername}@${e.target.value}`);
-                                    }}
-                                    className="p-5 text-lg bg-white border-r-2 border-gray-100 outline-none text-gray-700 font-medium cursor-pointer min-w-[160px]"
-                                    dir="ltr"
-                                >
-                                    <option value="gmail.com">gmail.com</option>
-                                    <option value="icloud.com">icloud.com</option>
-                                    <option value="outlook.com">outlook.com</option>
-                                    <option value="hotmail.com">hotmail.com</option>
-                                </select>
+                                    {/* Domain dropdown */}
+                                    <select
+                                        value={emailDomain}
+                                        onChange={(e) => {
+                                            setEmailDomain(e.target.value);
+                                            setResponse(`${emailUsername}@${e.target.value}`);
+                                        }}
+                                        className="p-4 sm:p-5 text-lg bg-white border-l-2 border-gray-100 outline-none text-gray-700 font-medium cursor-pointer flex-1 sm:flex-none sm:min-w-[140px]"
+                                        dir="ltr"
+                                        style={{ WebkitAppearance: 'menulist' }}
+                                    >
+                                        <option value="gmail.com">gmail.com</option>
+                                        <option value="icloud.com">icloud.com</option>
+                                        <option value="outlook.com">outlook.com</option>
+                                        <option value="hotmail.com">hotmail.com</option>
+                                    </select>
+                                </div>
                             </div>
 
                             {/* Preview */}

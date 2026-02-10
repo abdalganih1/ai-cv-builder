@@ -5,8 +5,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
-
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية.
@@ -200,13 +198,16 @@ export async function POST(request: NextRequest) {
                 temperature: 0.3,
                 stream: false,
             }),
+            signal: AbortSignal.timeout(30000),
         });
 
         if (!response.ok) {
-            console.error('AI API error:', response.status);
+            const errorBody = await response.text().catch(() => 'unknown');
+            console.error('AI API error:', response.status, errorBody);
             return NextResponse.json({
                 success: false,
-                error: 'فشل في تحليل المصادر'
+                error: `فشل في تحليل المصادر (خطأ ${response.status})`,
+                details: `AI API returned ${response.status}`
             }, { status: 500 });
         }
 
