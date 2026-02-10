@@ -183,35 +183,70 @@ export async function POST(request: NextRequest) {
         console.log(fullContext.substring(0, 500));
         console.log(`--- Total length: ${fullContext.length} chars ---`);
 
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'GLM-4.7',
-                messages: [
-                    { role: 'system', content: SMART_ANALYSIS_PROMPT },
-                    { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
-                ],
-                temperature: 0.3,
-                stream: false,
-            }),
-            signal: AbortSignal.timeout(30000),
-        });
+        // AI API call with retry
+        let aiResponse: Response | null = null;
+        let lastError = '';
 
-        if (!response.ok) {
-            const errorBody = await response.text().catch(() => 'unknown');
-            console.error('AI API error:', response.status, errorBody);
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                aiResponse = await fetch(`${BASE_URL}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${ZAI_API_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        model: 'GLM-4.7',
+                        messages: [
+                            { role: 'system', content: SMART_ANALYSIS_PROMPT },
+                            { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
+                        ],
+                        temperature: 0.3,
+                        stream: false,
+                    }),
+                    signal: AbortSignal.timeout(45000),
+                });
+
+                if (aiResponse.ok) break;
+
+                lastError = `AI API returned ${aiResponse.status}`;
+                console.error(`AI API attempt ${attempt} failed:`, aiResponse.status);
+
+                if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+                }
+            } catch (fetchError) {
+                lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
+                console.error(`AI API attempt ${attempt} error:`, lastError);
+
+                if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+        }
+
+        if (!aiResponse || !aiResponse.ok) {
+            const errorBody = aiResponse ? await aiResponse.text().catch(() => 'unknown') : 'no response';
+            console.error('AI API final error:', errorBody);
+
+            // إذا عندنا بيانات PDF، استخدمها كـ fallback
+            if (pdfData) {
+                return NextResponse.json({
+                    success: true,
+                    cvData: pdfData,
+                    sourcesAnalyzed: 1,
+                    message: 'تم استخراج البيانات من ملف PDF (التحليل الذكي غير متوفر حالياً)',
+                });
+            }
+
             return NextResponse.json({
                 success: false,
-                error: `فشل في تحليل المصادر (خطأ ${response.status})`,
-                details: `AI API returned ${response.status}`
+                error: `فشل في تحليل المصادر: ${lastError}`,
+                details: `AI API error after 2 attempts: ${lastError}`
             }, { status: 500 });
         }
 
-        const data = await response.json();
+        const data = await aiResponse.json();
         const content = data.choices?.[0]?.message?.content || '';
 
         // استخراج JSON من الرد
@@ -221,10 +256,10 @@ export async function POST(request: NextRequest) {
             if (jsonMatch) {
                 cvData = JSON.parse(jsonMatch[0]);
             } else {
-                throw new Error('No JSON found');
+                throw new Error('No JSON found in AI response');
             }
         } catch {
-            console.error('Failed to parse AI response');
+            console.error('Failed to parse AI response:', content.substring(0, 200));
             // إذا فشل التحليل وعندنا بيانات PDF، نستخدمها
             if (pdfData) {
                 cvData = pdfData;
@@ -264,10 +299,22 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Smart analysis error:', error);
+
+        let errorMsg = 'فشل في تحليل المصادر';
+        if (error instanceof Error) {
+            if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+                errorMsg = 'انتهت مهلة التحليل - يرجى المحاولة مرة أخرى';
+            } else if (error.message.includes('fetch') || error.message.includes('network')) {
+                errorMsg = 'مشكلة في الاتصال بالخادم - يرجى التحقق من الإنترنت';
+            } else {
+                errorMsg = `فشل في تحليل المصادر: ${error.message}`;
+            }
+        }
+
         return NextResponse.json(
             {
                 success: false,
-                error: 'فشل في تحليل المصادر',
+                error: errorMsg,
                 details: error instanceof Error ? error.message : 'Unknown error',
             },
             { status: 500 }
