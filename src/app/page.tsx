@@ -56,21 +56,6 @@ export default function Home() {
     setIsLoaded(true);
   }, []);
 
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        console.log('💾 Saved CV data to localStorage - Step:', data.metadata.currentStep);
-
-        // إرسال البيانات للسيرفر (غير متزامن)
-        saveToServer(data);
-      } catch (error) {
-        console.error('Failed to save data:', error);
-      }
-    }
-  }, [data, isLoaded]);
-
   // حفظ البيانات على السيرفر
   const saveToServer = async (cvData: CVData) => {
     try {
@@ -104,6 +89,21 @@ export default function Home() {
       console.warn('Failed to sync to server:', error);
     }
   };
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (isLoaded) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        console.log('💾 Saved CV data to localStorage - Step:', data.metadata.currentStep);
+
+        // إرسال البيانات للسيرفر (غير متزامن)
+        saveToServer(data);
+      } catch (error) {
+        console.error('Failed to save data:', error);
+      }
+    }
+  }, [data, isLoaded]);
 
   // Track step views for analytics
   useEffect(() => {

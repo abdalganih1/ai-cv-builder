@@ -35,7 +35,6 @@ const DEFAULT_SETTINGS: PaymentSettings = {
 
 export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     const [settings, setSettings] = useState<PaymentSettings>(DEFAULT_SETTINGS);
-    const [settingsLoading, setSettingsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showProgress, setShowProgress] = useState(false);
     const [status, setStatus] = useState<string>('');
@@ -62,7 +61,6 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
 
                         if (parsed.paymentType === 'disabled') {
                             handleSkipPayment();
-                            setSettingsLoading(false);
                             return;
                         }
                     } catch (e) {
@@ -81,8 +79,6 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                 }
             } catch (error) {
                 console.error('Failed to fetch payment settings:', error);
-            } finally {
-                setSettingsLoading(false);
             }
         }
         fetchSettings();

@@ -262,7 +262,7 @@ function fallbackExtractText(buffer: ArrayBuffer): string {
     const textRegex = /\(([^\(\)]+)\)/g;
     let match;
     while ((match = textRegex.exec(pdfString)) !== null) {
-        let text = match[1]
+        const text = match[1]
             .replace(/\\n/g, '\n')
             .replace(/\\r/g, ' ')
             .replace(/\\\(/g, '(')

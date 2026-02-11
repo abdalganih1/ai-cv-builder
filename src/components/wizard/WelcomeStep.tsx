@@ -365,7 +365,7 @@ function URLInput({ onNext, setMode }: QuickStartProps) {
                         onClick={() => setMode('text')}
                         className="text-primary hover:text-primary-dark underline font-bold text-xs"
                     >
-                        🔄 تجربة طريقة "لصق النص" بدلاً من ذلك
+                        🔄 تجربة طريقة &apos;لصق النص&apos; بدلاً من ذلك
                     </button>
                 </div>
             )}

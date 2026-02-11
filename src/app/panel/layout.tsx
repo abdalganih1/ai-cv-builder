@@ -15,14 +15,16 @@ interface AuthState {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false, loading: true });
+    const [auth, setAuth] = useState<AuthState>(() => {
+        if (process.env.NODE_ENV === 'development') {
+            return { isAuthenticated: true, email: 'dev@localhost', loading: false };
+        }
+        return { isAuthenticated: false, loading: true };
+    });
 
     useEffect(() => {
-        // في بيئة التطوير، نسمح بالوصول مباشرة
-        if (process.env.NODE_ENV === 'development') {
-            setAuth({ isAuthenticated: true, email: 'dev@localhost', loading: false });
-            return;
-        }
+        // إذا كنا في وضع التطوير، فقد تمت التهيئة بالفعل
+        if (process.env.NODE_ENV === 'development') return;
 
         // في الإنتاج، إذا وصل المستخدم لهنا فهو مصادق عبر Cloudflare Access
         // لأن Access يعترض الطلب قبل وصوله للتطبيق
@@ -30,6 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const hasCFCookie = document.cookie.includes('CF_Authorization');
 
         if (hasCFCookie) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setAuth({ isAuthenticated: true, email: 'admin@cloudflare', loading: false });
         } else {
             // محاولة استدعاء API للتحقق
