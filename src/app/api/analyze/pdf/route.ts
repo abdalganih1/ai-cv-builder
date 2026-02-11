@@ -213,19 +213,38 @@ async function extractViaOCRSpace(
 }
 
 // Method 3: Python PyMuPDF (local development)
+// Note: This function uses Node.js APIs not available in Edge Runtime
+// It will only work in local development or Node.js server
 async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> {
+    // Check if we're in Edge Runtime - if so, skip Python extraction
+    // Edge Runtime doesn't support fs, path, child_process, os modules
+    // We use a try-catch with dynamic require to avoid static analysis warnings
     try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const { execSync } = await import('child_process');
-        const os = await import('os');
+        // Use eval to prevent static analysis of Node.js imports
+        // This ensures the code doesn't fail at build time in Edge Runtime
+        const nodeProcess = typeof process !== 'undefined' && process.versions?.node;
+        if (!nodeProcess) {
+            console.log('⚠️ Python extraction not available in Edge Runtime');
+            return { text: fallbackExtractText(buffer) };
+        }
+
+        // Dynamic require for Node.js modules
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const fs = require('fs');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const path = require('path');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { execSync } = require('child_process');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const os = require('os');
 
         const tempDir = os.tmpdir();
         const tempPdfPath = path.join(tempDir, `cv_upload_${Date.now()}.pdf`);
+        const cwd = process.cwd();
+        const scriptPath = path.join(cwd, 'scripts', 'pdf_text_extractor.py');
 
         try {
             fs.writeFileSync(tempPdfPath, Buffer.from(buffer));
-            const scriptPath = path.join(process.cwd(), 'scripts', 'pdf_text_extractor.py');
 
             const result = execSync(`python "${scriptPath}" "${tempPdfPath}"`, {
                 encoding: 'utf-8',

@@ -506,12 +506,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 setResponse('');
             }
         } else if (lastField === 'photoUrl') {
-            const currentValue = data.personal.photoUrl;
-            if (currentValue && currentValue !== '__skipped__') {
-                setResponse(currentValue);
-            } else {
-                setResponse('');
-            }
+            // لا نعيد تعيين response بقيمة قديمة - نريد عرض واجهة رفع الصورة فارغة
+            // لأن المستخدم يضغط رجوع ليعيد اختيار صورة أو يتخطى
+            setResponse('');
         }
 
         // For array fields (education, experience, languages), keep the history logic
@@ -519,37 +516,40 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         const entryIndex = lastEntry.entryIndex;
         const clearData: Partial<CVData> = {};
 
-        // Only clear data for array fields, not for personal info fields
+        // Pre-populate response with current value for array fields BEFORE clearing
         if (lastField.startsWith('education_') && entryIndex !== undefined) {
-            const list = [...(data.education || [])];
+            const list = data.education || [];
             const idx = entryIndex;
             if (idx >= 0 && idx < list.length) {
-                if (lastField === 'education_institution') list[idx].institution = '';
-                else if (lastField === 'education_degree') list[idx].degree = '';
-                else if (lastField === 'education_major') list[idx].major = '';
-                else if (lastField === 'education_startYear') list[idx].startYear = '';
-                else if (lastField === 'education_endYear') list[idx].endYear = '';
-                clearData.education = list;
+                const edu = list[idx];
+                if (lastField === 'education_institution') setResponse(edu.institution || '');
+                else if (lastField === 'education_degree') setResponse(edu.degree || '');
+                else if (lastField === 'education_major') setResponse(edu.major || '');
+                else if (lastField === 'education_startYear') setResponse(edu.startYear || '');
+                else if (lastField === 'education_endYear') setResponse(edu.endYear || '');
             }
+            // Don't clear data - keep it for editing
         } else if (lastField.startsWith('experience_') && entryIndex !== undefined) {
-            const list = [...(data.experience || [])];
+            const list = data.experience || [];
             const idx = entryIndex;
             if (idx >= 0 && idx < list.length) {
-                if (lastField === 'experience_company') list[idx].company = '';
-                else if (lastField === 'experience_position') list[idx].position = '';
-                else if (lastField === 'experience_startDate') list[idx].startDate = '';
-                else if (lastField === 'experience_endDate') list[idx].endDate = '';
-                else if (lastField === 'experience_description') list[idx].description = '';
-                clearData.experience = list;
+                const exp = list[idx];
+                if (lastField === 'experience_company') setResponse(exp.company || '');
+                else if (lastField === 'experience_position') setResponse(exp.position || '');
+                else if (lastField === 'experience_startDate') setResponse(exp.startDate || '');
+                else if (lastField === 'experience_endDate') setResponse(exp.endDate || '');
+                else if (lastField === 'experience_description') setResponse(exp.description || '');
             }
+            // Don't clear data - keep it for editing
         } else if (lastField.startsWith('languages_') && entryIndex !== undefined) {
-            const list = [...(data.languages || [])];
+            const list = data.languages || [];
             const idx = entryIndex;
             if (idx >= 0 && idx < list.length) {
-                if (lastField === 'languages_name') list[idx].name = '';
-                else if (lastField === 'languages_level') list[idx].level = '';
-                clearData.languages = list;
+                const lang = list[idx];
+                if (lastField === 'languages_name') setResponse(lang.name || '');
+                else if (lastField === 'languages_level') setResponse(lang.level || '');
             }
+            // Don't clear data - keep it for editing
         } else if (lastField === 'education_has') {
             clearData._completedEducation = undefined;
             if (data.education && data.education.length > 0) {

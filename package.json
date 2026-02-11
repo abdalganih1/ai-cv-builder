@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest",
     "pages:build": "vercel build && next-on-pages --skip-build",
-    "deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static"
+    "deploy": "npm run pages:build && npx wrangler pages deploy .vercel/output/static"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",

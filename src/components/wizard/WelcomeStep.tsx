@@ -547,7 +547,10 @@ function PDFUpload({ data, onNext, onBack }: { data: CVData; onNext: (data: Part
 
 // Main component
 export default function WelcomeStep({ data, onNext }: StepProps) {
-    const [mode, setMode] = useState<QuickStartMode>('select');
+    // إذا كان المستخدم قد أدخل اسمه بالفعل، ابدأ مباشرة في وضع الإدخال اليدوي
+    const [mode, setMode] = useState<QuickStartMode>(
+        data.personal.firstName || data.personal.lastName ? 'manual' : 'select'
+    );
 
     const handleBack = () => setMode('select');
 
