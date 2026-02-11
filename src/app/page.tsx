@@ -4,11 +4,22 @@ export const runtime = 'edge';
 
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import ProgressBar from '@/components/wizard/ProgressBar';
 import WelcomeStep from '@/components/wizard/WelcomeStep';
 import ContactStep from '@/components/wizard/ContactStep';
 import QuestionnaireStep from '@/components/wizard/QuestionnaireStep';
-import CVPreview from '@/components/preview/CVPreview';
+
+// Dynamically import CVPreview to reduce Edge Worker bundle size
+const CVPreview = dynamic(() => import('@/components/preview/CVPreview'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-col items-center justify-center p-20">
+      <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
+      <p className="text-gray-500 font-medium">جاري تجهيز المعاينة...</p>
+    </div>
+  )
+});
 import { CVData } from '@/lib/types/cv-schema';
 import { useAnalytics } from '@/lib/analytics/provider';
 

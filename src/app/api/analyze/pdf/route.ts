@@ -222,9 +222,9 @@ async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> 
     try {
         // Use eval to prevent static analysis of Node.js imports
         // This ensures the code doesn't fail at build time in Edge Runtime
-        const nodeProcess = typeof process !== 'undefined' && process.versions?.node;
+        const nodeProcess = typeof process !== 'undefined' && eval('process.versions?.node');
         if (!nodeProcess) {
-            console.log('⚠️ Python extraction not available in Edge Runtime');
+            console.log('⚠️ Python extraction not available in non-Node environment');
             return { text: fallbackExtractText(buffer) };
         }
 
