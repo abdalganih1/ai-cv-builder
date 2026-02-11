@@ -1,5 +1,8 @@
 'use client';
 
+export const runtime = 'edge';
+
+
 /**
  * Payment Settings Admin Page - صفحة إعدادات الدفع
  * للتحكم بـ QR, المبلغ, ونوع الدفع

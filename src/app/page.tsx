@@ -1,5 +1,8 @@
 "use client";
 
+export const runtime = 'edge';
+
+
 import { useState, useEffect } from 'react';
 import ProgressBar from '@/components/wizard/ProgressBar';
 import WelcomeStep from '@/components/wizard/WelcomeStep';

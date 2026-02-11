@@ -1,5 +1,8 @@
 'use client';
 
+export const runtime = 'edge';
+
+
 /**
  * Admin Dashboard - الصفحة الرئيسية
  * تعرض إحصائيات عامة وآخر الجلسات

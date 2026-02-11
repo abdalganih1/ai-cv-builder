@@ -1,5 +1,8 @@
 'use client';
 
+export const runtime = 'edge';
+
+
 /**
  * Sessions List Page
  * صفحة عرض جميع الجلسات مع فلترة
