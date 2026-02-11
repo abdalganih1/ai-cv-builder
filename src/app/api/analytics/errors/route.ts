@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ErrorLogEntry } from '@/lib/analytics/types';
 
+export const runtime = 'edge';
+
 // تخزين مؤقت للأخطاء (في الإنتاج يجب استخدام D1)
 const errorStore: ErrorLogEntry[] = [];
 const MAX_ERRORS = 500;

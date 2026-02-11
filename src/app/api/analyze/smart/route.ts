@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية.
