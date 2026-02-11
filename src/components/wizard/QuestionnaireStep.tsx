@@ -30,6 +30,110 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         entryIndex?: number; // For array fields like education, experience, languages
     }
     const [questionHistory, setQuestionHistory] = useState<HistoryEntry[]>([]);
+    const [historyInitialized, setHistoryInitialized] = useState(false);
+
+    // Helper: Check if field was skipped
+    const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
+
+    // Initialize history from existing data - allows back navigation to work correctly
+    const initializeHistoryFromData = (cvData: CVData): HistoryEntry[] => {
+        const history: HistoryEntry[] = [];
+
+        // Personal Info fields
+        if (cvData.personal.birthDate && !isSkipped(cvData.personal.birthDate)) {
+            history.push({ field: 'birthDate' });
+        }
+        if (cvData.personal.targetJobTitle) {
+            history.push({ field: 'targetJobTitle' });
+        }
+        if (cvData.personal.email && !isSkipped(cvData.personal.email)) {
+            history.push({ field: 'email' });
+        }
+        if (cvData.personal.photoUrl && !isSkipped(cvData.personal.photoUrl)) {
+            history.push({ field: 'photoUrl' });
+        }
+
+        // Education fields
+        if (cvData.education && cvData.education.length > 0) {
+            history.push({ field: 'education_has' });
+            cvData.education.forEach((edu, index) => {
+                if (edu.institution) history.push({ field: 'education_institution', entryIndex: index });
+                if (edu.degree) history.push({ field: 'education_degree', entryIndex: index });
+                if (edu.major) history.push({ field: 'education_major', entryIndex: index });
+                if (edu.startYear) history.push({ field: 'education_startYear', entryIndex: index });
+                if (edu.endYear) history.push({ field: 'education_endYear', entryIndex: index });
+            });
+            // If education is not completed, add education_more to history
+            if (!cvData._completedEducation && cvData.education.length > 0) {
+                const lastEdu = cvData.education[cvData.education.length - 1];
+                if (lastEdu.institution && lastEdu.degree && lastEdu.major && lastEdu.startYear && lastEdu.endYear) {
+                    history.push({ field: 'education_more' });
+                }
+            }
+        }
+
+        // Experience fields
+        if (cvData.experience && cvData.experience.length > 0) {
+            history.push({ field: 'experience_has' });
+            cvData.experience.forEach((exp, index) => {
+                if (exp.company) history.push({ field: 'experience_company', entryIndex: index });
+                if (exp.position) history.push({ field: 'experience_position', entryIndex: index });
+                if (exp.startDate) history.push({ field: 'experience_startDate', entryIndex: index });
+                if (exp.endDate) history.push({ field: 'experience_endDate', entryIndex: index });
+                if (exp.description) history.push({ field: 'experience_description', entryIndex: index });
+            });
+            // If experience is not completed, add experience_more to history
+            if (!cvData._completedExperience && cvData.experience.length > 0) {
+                const lastExp = cvData.experience[cvData.experience.length - 1];
+                if (lastExp.company && lastExp.position && lastExp.startDate && lastExp.endDate && lastExp.description) {
+                    history.push({ field: 'experience_more' });
+                }
+            }
+        }
+
+        // Skills
+        if (cvData.skills && cvData.skills.length > 0) {
+            history.push({ field: 'skills' });
+        }
+
+        // Languages fields
+        if (cvData.languages && cvData.languages.length > 0) {
+            history.push({ field: 'languages_has' });
+            cvData.languages.forEach((lang, index) => {
+                if (lang.name) history.push({ field: 'languages_name', entryIndex: index });
+                if (lang.level) history.push({ field: 'languages_level', entryIndex: index });
+            });
+            // If languages is not completed, add languages_more to history
+            if (!cvData._completedLanguages && cvData.languages.length > 0) {
+                const lastLang = cvData.languages[cvData.languages.length - 1];
+                if (lastLang.name && lastLang.level) {
+                    history.push({ field: 'languages_more' });
+                }
+            }
+        }
+
+        // Hobbies
+        if (cvData.hobbies && cvData.hobbies.length > 0) {
+            history.push({ field: 'hobbies_has' });
+            if (cvData.hobbies[0] !== '__pending__') {
+                history.push({ field: 'hobbies_text' });
+            }
+        }
+
+        return history;
+    };
+
+    // Initialize history on first mount only
+    useEffect(() => {
+        if (!historyInitialized) {
+            const initialHistory = initializeHistoryFromData(data);
+            if (initialHistory.length > 0) {
+                console.log('📜 Initialized question history:', initialHistory);
+                setQuestionHistory(initialHistory);
+            }
+            setHistoryInitialized(true);
+        }
+    }, [historyInitialized, data]);
 
     // Calculate progress based on completed sections
     const calculateProgress = (): { percentage: number; currentSection: string } => {

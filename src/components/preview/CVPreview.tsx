@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { CVData } from '@/lib/types/cv-schema';
 import EditChat from '@/components/chat/EditChat';
-import { translateCVToEnglish } from '@/lib/ai/chat-editor';
+import { translateCVToEnglish, generateProfessionalCV } from '@/lib/ai/chat-editor';
 import { base64ToBlobUrl, isBase64DataUrl, revokeBlobUrl } from '@/lib/utils/image-utils';
 
 import { pdf } from '@react-pdf/renderer';
 import PDFDocument, { CombinedPDFDocument } from './PDFDocument';
 import ImageCropper from './ImageCropper';
+import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
+import AnalysisProgress from '../wizard/AnalysisProgress';
+import { useAnalytics } from '@/lib/analytics/provider';
 
 interface StepProps {
     data: CVData;
@@ -43,6 +47,25 @@ const LABELS = {
 
 const ENGLISH_CV_CACHE_KEY = 'cv_english_translation';
 
+// Payment settings interface
+interface PaymentSettings {
+    qrImageUrl: string;
+    recipientName: string;
+    recipientCode: string;
+    amount: number;
+    currency: string;
+    paymentType: 'mandatory' | 'donation' | 'disabled';
+}
+
+const DEFAULT_SETTINGS: PaymentSettings = {
+    qrImageUrl: '/sham-cash-qr.png',
+    recipientName: 'عبد الغني أحمد الحمدي',
+    recipientCode: '0d4f56f704ded4f3148727e0edc03778',
+    amount: 500,
+    currency: 'ل.س',
+    paymentType: 'mandatory',
+};
+
 export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
@@ -54,6 +77,24 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     // Translation timer state
     const [translationProgress, setTranslationProgress] = useState(0);
     const [translationTimer, setTranslationTimer] = useState(100);
+
+    // Payment state
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(DEFAULT_SETTINGS);
+    const [paymentProof, setPaymentProof] = useState<File | null>(null);
+    const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
+    const [showProofRequired, setShowProofRequired] = useState(false);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState<string>('');
+    const [copied, setCopied] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [showProgress, setShowProgress] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { trackFileUpload, sessionId } = useAnalytics();
+
+    // Selected export option (to remember what user selected)
+    const [selectedExportOption, setSelectedExportOption] = useState<'ar' | 'en' | 'both' | null>(null);
 
     // Handle file upload - open cropper instead of directly setting photo
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +129,35 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         } catch (error) {
             console.warn('Failed to load cached English CV:', error);
         }
+    }, []);
+
+    // Fetch payment settings from API
+    useEffect(() => {
+        async function fetchSettings() {
+            try {
+                // أولاً: جلب من localStorage للتطوير المحلي
+                const localSettings = localStorage.getItem('cv_payment_settings');
+                if (localSettings) {
+                    try {
+                        const parsed = JSON.parse(localSettings);
+                        setPaymentSettings(prev => ({ ...prev, ...parsed }));
+                        console.log('[Payment] Loaded from localStorage:', parsed.paymentType);
+                    } catch (e) {
+                        console.error('Failed to parse local settings:', e);
+                    }
+                }
+
+                // ثانياً: محاولة جلب من API (للإنتاج)
+                const res = await fetch('/api/settings');
+                const responseData = await res.json();
+                if (responseData.success && responseData.data) {
+                    setPaymentSettings(responseData.data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch payment settings:', error);
+            }
+        }
+        fetchSettings();
     }, []);
 
     // Save English CV to localStorage when it changes
@@ -226,8 +296,20 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     };
 
     const handleExport = async (option: 'ar' | 'en' | 'both') => {
+        // Check if payment is required before export
+        if (paymentSettings.paymentType !== 'disabled' && data.metadata.paymentStatus !== 'completed') {
+            setSelectedExportOption(option);
+            setShowPaymentModal(true);
+            return;
+        }
+
+        await performExport(option);
+    };
+
+    const performExport = async (option: 'ar' | 'en' | 'both') => {
         setIsGenerating(true);
         setShowExportModal(false);
+        setShowPaymentModal(false);
 
         try {
             if (option === 'ar') {
@@ -243,6 +325,175 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             alert('عذراً، حدث خطأ أثناء إنشاء ملف PDF.');
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    // Payment functions
+    const copyCode = async () => {
+        try {
+            await navigator.clipboard.writeText(paymentSettings.recipientCode);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
+
+    const handlePaymentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setPaymentProof(file);
+            const reader = new FileReader();
+            reader.onload = () => {
+                setPaymentProofPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+            setShowProofRequired(false);
+            trackFileUpload('payment_proof', file.name);
+            console.log('📊 [Analytics] Tracked payment proof upload:', file.name);
+        }
+    };
+
+    const removeProof = () => {
+        setPaymentProof(null);
+        setPaymentProofPreview(null);
+    };
+
+    const uploadProofImage = async (): Promise<string | null> => {
+        if (!paymentProof) return null;
+
+        setUploadStatus('uploading');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', paymentProof);
+            formData.append('customerName', `${data.personal.firstName} ${data.personal.lastName}`);
+            formData.append('phone', data.personal.phone || 'N/A');
+            if (sessionId) {
+                formData.append('sessionId', sessionId);
+            }
+
+            const response = await fetch('/api/upload-proof', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+
+            const result = await response.json();
+            setUploadStatus('success');
+            return result.url;
+        } catch (error) {
+            console.error('Upload error:', error);
+            setUploadStatus('error');
+            return null;
+        }
+    };
+
+    const handlePaymentConfirm = async () => {
+        // Check if proof is required (only for mandatory payment type)
+        if (paymentSettings.paymentType === 'mandatory' && !paymentProof) {
+            setShowProofRequired(true);
+            return;
+        }
+
+        setIsProcessingPayment(true);
+        setPaymentStatus('📤 جاري رفع إثبات الدفع...');
+
+        // Upload the proof image
+        const proofUrl = await uploadProofImage();
+
+        if (!proofUrl && uploadStatus === 'error') {
+            setPaymentStatus('❌ فشل رفع إثبات الدفع. يرجى المحاولة مرة أخرى.');
+            setIsProcessingPayment(false);
+            return;
+        }
+
+        setPaymentStatus('✅ تم رفع إثبات الدفع بنجاح!');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Trigger AI to generate professional CV - Show progress indicator
+        setShowProgress(true);
+
+        try {
+            const enhancedData = await generateProfessionalCV(data);
+            setShowProgress(false);
+            setPaymentStatus('✨ تم إنشاء السيرة الذاتية الاحترافية بنجاح!');
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Update data with payment completed
+            onUpdate({
+                ...enhancedData,
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                    paymentProofUrl: proofUrl || undefined
+                }
+            });
+
+            // Now perform the export
+            if (selectedExportOption) {
+                await performExport(selectedExportOption);
+            }
+        } catch (error) {
+            console.error("AI Enhancement failed:", error);
+            setShowProgress(false);
+            setPaymentStatus('⚠️ تعذّر تحسين السيرة الذاتية، سننتقل للنسخة الأساسية...');
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            // Update payment status and proceed
+            onUpdate({
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                    paymentProofUrl: proofUrl || undefined
+                }
+            });
+
+            if (selectedExportOption) {
+                await performExport(selectedExportOption);
+            }
+        } finally {
+            setIsProcessingPayment(false);
+        }
+    };
+
+    const handleSkipPayment = async () => {
+        // Only allow skip for donation type
+        if (paymentSettings.paymentType !== 'donation') return;
+
+        setShowProgress(true);
+        try {
+            const enhancedData = await generateProfessionalCV(data);
+            setShowProgress(false);
+
+            onUpdate({
+                ...enhancedData,
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                }
+            });
+
+            if (selectedExportOption) {
+                await performExport(selectedExportOption);
+            }
+        } catch (error) {
+            console.error("AI Enhancement failed:", error);
+            setShowProgress(false);
+            onUpdate({
+                metadata: {
+                    ...data.metadata,
+                    paymentStatus: 'completed',
+                }
+            });
+
+            if (selectedExportOption) {
+                await performExport(selectedExportOption);
+            }
         }
     };
 
@@ -538,6 +789,227 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         >
                             إلغاء
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Payment Modal */}
+            {showPaymentModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !isProcessingPayment && setShowPaymentModal(false)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Show progress indicator during AI processing */}
+                        {showProgress ? (
+                            <AnalysisProgress estimatedDuration={50} />
+                        ) : (
+                            <>
+                                {/* Header */}
+                                <div className="text-center space-y-3 mb-6">
+                                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">💳 بوابة الدفع</h2>
+                                    <p className="text-sm text-gray-500 font-medium">
+                                        {paymentSettings.paymentType === 'mandatory'
+                                            ? 'الدفع مطلوب لتصدير السيرة الذاتية'
+                                            : 'تبرع اختياري لدعم المشروع'}
+                                    </p>
+                                    <div className="flex justify-center">
+                                        <div className="h-1.5 w-16 bg-accent rounded-full"></div>
+                                    </div>
+                                </div>
+
+                                {/* Toggle QR Code Button */}
+                                {!showScanner && (
+                                    <button
+                                        onClick={() => setShowScanner(true)}
+                                        className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold text-base shadow-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 mb-4"
+                                    >
+                                        <span>📱</span>
+                                        <span>عرض رمز الدفع</span>
+                                    </button>
+                                )}
+
+                                {/* QR Code Section */}
+                                <AnimatePresence>
+                                    {showScanner && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden mb-4"
+                                        >
+                                            <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-4 rounded-2xl shadow-xl">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    {/* QR Image */}
+                                                    <div className="bg-white p-2 rounded-xl shadow-lg">
+                                                        <Image
+                                                            src={paymentSettings.qrImageUrl}
+                                                            alt="Payment QR Code"
+                                                            width={160}
+                                                            height={160}
+                                                            className="rounded-lg"
+                                                        />
+                                                    </div>
+
+                                                    {/* Account Info */}
+                                                    <div className="text-center text-white space-y-2">
+                                                        <p className="text-sm font-bold">{paymentSettings.recipientName}</p>
+                                                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-2 rounded-lg border border-white/20">
+                                                            <code className="text-xs font-mono text-cyan-300 select-all flex-1" dir="ltr">
+                                                                {paymentSettings.recipientCode}
+                                                            </code>
+                                                            <button
+                                                                onClick={copyCode}
+                                                                className="px-2 py-1 bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold rounded transition-all"
+                                                            >
+                                                                {copied ? '✓' : 'نسخ'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Cost Badge */}
+                                                    <div className="flex items-baseline gap-1 text-white">
+                                                        <span className="text-2xl font-black">{paymentSettings.amount}</span>
+                                                        <span className="text-sm font-bold opacity-80">{paymentSettings.currency}</span>
+                                                    </div>
+
+                                                    {/* Payment Type Badge */}
+                                                    {paymentSettings.paymentType === 'donation' && (
+                                                        <div className="px-3 py-1 bg-yellow-500/20 rounded-full">
+                                                            <span className="text-yellow-300 text-xs font-bold">🎁 تبرع اختياري</span>
+                                                        </div>
+                                                    )}
+
+                                                    <button
+                                                        onClick={() => setShowScanner(false)}
+                                                        className="text-gray-400 hover:text-white text-xs transition-colors"
+                                                    >
+                                                        إخفاء الباركود
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* Upload Proof Section */}
+                                <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+                                    <div className="text-center">
+                                        <h3 className="text-sm font-bold text-gray-800">📸 رفع إثبات الدفع</h3>
+                                        <p className="text-xs text-gray-500">التقط صورة للإيصال أو لقطة شاشة</p>
+                                    </div>
+
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handlePaymentFileChange}
+                                        className="hidden"
+                                        id="payment-proof-upload"
+                                    />
+
+                                    <AnimatePresence mode="wait">
+                                        {paymentProofPreview ? (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.9 }}
+                                                className="relative"
+                                            >
+                                                <Image
+                                                    src={paymentProofPreview}
+                                                    alt="Payment Proof"
+                                                    width={300}
+                                                    height={200}
+                                                    className="w-full max-h-40 object-contain rounded-lg border border-gray-200"
+                                                />
+                                                <button
+                                                    onClick={removeProof}
+                                                    className="absolute top-1 left-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-all text-xs"
+                                                >
+                                                    ✕
+                                                </button>
+                                                <div className="mt-1 text-center text-xs text-green-600 font-medium">
+                                                    ✓ تم اختيار الصورة
+                                                </div>
+                                            </motion.div>
+                                        ) : (
+                                            <motion.label
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                htmlFor="payment-proof-upload"
+                                                className={`flex flex-col items-center justify-center py-6 cursor-pointer rounded-lg transition-all ${showProofRequired
+                                                    ? 'bg-red-50 border-2 border-red-300'
+                                                    : 'bg-gray-50 hover:bg-gray-100'
+                                                    }`}
+                                            >
+                                                <div className="text-3xl mb-1">📤</div>
+                                                <span className="font-bold text-gray-700 text-sm">اضغط لاختيار صورة</span>
+                                                {showProofRequired && (
+                                                    <motion.p
+                                                        initial={{ opacity: 0, y: -10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        className="text-red-500 font-bold mt-2 text-xs"
+                                                    >
+                                                        ⚠️ يجب رفع إثبات الدفع
+                                                    </motion.p>
+                                                )}
+                                            </motion.label>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Status Message */}
+                                {paymentStatus && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="text-center py-3 px-4 bg-primary/5 rounded-xl border-2 border-primary/10 mb-4"
+                                    >
+                                        <p className="text-sm font-bold text-primary">{paymentStatus}</p>
+                                    </motion.div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={handlePaymentConfirm}
+                                        disabled={isProcessingPayment}
+                                        className={`w-full py-3 rounded-xl font-bold text-base transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2 ${paymentProof
+                                            ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/20'
+                                            : 'bg-primary hover:bg-primary-dark text-white shadow-primary/20'
+                                            } ${isProcessingPayment ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isProcessingPayment ? (
+                                            <>
+                                                <span className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                                <span>جاري المعالجة...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>{paymentProof ? 'تأكيد الدفع والتصدير' : 'متابعة'}</span>
+                                                <span>{paymentProof ? '✅' : '💳'}</span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Skip button for donation type */}
+                                    {paymentSettings.paymentType === 'donation' && (
+                                        <button
+                                            onClick={handleSkipPayment}
+                                            disabled={isProcessingPayment}
+                                            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                        >
+                                            تخطي الدفع والتصدير مباشرة
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={() => setShowPaymentModal(false)}
+                                        disabled={isProcessingPayment}
+                                        className="w-full py-2 text-sm text-gray-500 hover:text-gray-700"
+                                    >
+                                        إلغاء
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

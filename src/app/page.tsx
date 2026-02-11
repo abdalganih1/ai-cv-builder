@@ -5,7 +5,6 @@ import ProgressBar from '@/components/wizard/ProgressBar';
 import WelcomeStep from '@/components/wizard/WelcomeStep';
 import ContactStep from '@/components/wizard/ContactStep';
 import QuestionnaireStep from '@/components/wizard/QuestionnaireStep';
-import ShamCashPayment from '@/components/payment/ShamCashPayment';
 import CVPreview from '@/components/preview/CVPreview';
 import { CVData } from '@/lib/types/cv-schema';
 import { useAnalytics } from '@/lib/analytics/provider';
@@ -31,7 +30,6 @@ const steps = [
   { component: WelcomeStep, title: 'Welcome' },
   { component: ContactStep, title: 'Contact' },
   { component: QuestionnaireStep, title: 'Questionnaire' },
-  { component: ShamCashPayment, title: 'Payment' },
   { component: CVPreview, title: 'Preview' },
 ];
 
