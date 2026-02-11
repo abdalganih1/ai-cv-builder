@@ -32,6 +32,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [questionHistory, setQuestionHistory] = useState<HistoryEntry[]>([]);
     const [historyInitialized, setHistoryInitialized] = useState(false);
 
+    // Rewinding state - for handling "back" navigation correctly
+    const [rewindingField, setRewindingField] = useState<string | null>(null);
+
     // Helper: Check if field was skipped
     const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
 
@@ -189,9 +192,58 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
     const { percentage, currentSection } = calculateProgress();
 
+    // Get question for a specific field (used when rewinding)
+    const getQuestionForField = (field: string, cvData: CVData): Question | null => {
+        const fieldNameMap: Record<string, Omit<Question, 'id'>> = {
+            'birthDate': {
+                field: 'birthDate',
+                text: 'ما هو تاريخ ميلادك؟ (مثال: 1990/05/15)',
+                type: 'text',
+                skippable: true
+            },
+            'targetJobTitle': {
+                field: 'targetJobTitle',
+                text: 'ما هو المسمى الوظيفي الذي ترغب أن يظهر في أعلى السيرة الذاتية؟ (مثال: مبرمج واجهات أمامية، مدير مشاريع)',
+                type: 'text',
+                skippable: false
+            },
+            'email': {
+                field: 'email',
+                text: 'ما هو بريدك الإلكتروني؟',
+                type: 'email',
+                skippable: true,
+                placeholder: `${cvData.personal.firstName?.toLowerCase() || 'your.name'}@gmail.com`
+            },
+            'photoUrl': {
+                field: 'photoUrl',
+                text: 'هل تود إضافة صورة شخصية للسيرة الذاتية؟ يفضل صورة احترافية خلفية بيضاء.',
+                type: 'file',
+                skippable: true
+            }
+        };
+
+        const questionData = fieldNameMap[field];
+        if (questionData) {
+            return { id: field, ...questionData } as Question;
+        }
+
+        // For array fields (education, experience, languages), return null to let normal flow handle it
+        // This is a simplified approach - for complex fields we'd need more logic
+        return null;
+    };
+
     // Load the next question when the component mounts or after an answer
     useEffect(() => {
         const fetchQuestion = async () => {
+            // If we're rewinding to a specific field, show that question directly
+            if (rewindingField) {
+                const question = getQuestionForField(rewindingField, data);
+                setCurrentQuestion(question);
+                setLoading(false);
+                setRewindingField(null); // Clear after use
+                return;
+            }
+
             setLoading(true);
             const question = await questionnaireAgent.getNextQuestion(data);
             setCurrentQuestion(question);
@@ -199,7 +251,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         };
 
         fetchQuestion();
-    }, [data]);
+    }, [data, rewindingField]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -410,67 +462,111 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             return;
         }
 
-        // Pop the last question field
+        // Pop the last question field to get the PREVIOUS question
         const newHistory = [...questionHistory];
         const lastEntry = newHistory.pop();
         setQuestionHistory(newHistory);
 
-        // Clear data for the popped field to make "getNextQuestion" return it again
-        const clearData: Partial<CVData> = {};
-
         if (!lastEntry) return;
 
         const lastField = lastEntry.field;
-        const entryIndex = lastEntry.entryIndex;
 
-        console.log('🔙 Backing up from field:', lastField, 'entryIndex:', entryIndex);
+        console.log('🔙 Backing up to field:', lastField);
 
-        // 1. Personal Info
-        if (lastField === 'birthDate') clearData.personal = { ...data.personal, birthDate: '' };
-        else if (lastField === 'targetJobTitle') clearData.personal = { ...data.personal, targetJobTitle: '' };
-        else if (lastField === 'email') clearData.personal = { ...data.personal, email: '' };
-        else if (lastField === 'photoUrl') clearData.personal = { ...data.personal, photoUrl: '' };
+        // Set rewinding field to show that question for editing
+        setRewindingField(lastField);
 
-        // 2. Education
-        else if (lastField === 'education_has') {
-            clearData._completedEducation = undefined;
-            // If the last entry is empty (created by 'yes'), remove it
-            if (data.education && data.education.length > 0) {
-                const lastEdu = data.education[data.education.length - 1];
-                if (!lastEdu.institution && !lastEdu.degree) {
-                    clearData.education = data.education.slice(0, -1);
+        // Pre-populate response with current value for single fields
+        if (lastField === 'birthDate') {
+            const currentValue = data.personal.birthDate;
+            if (currentValue && currentValue !== '__skipped__') {
+                setResponse(currentValue);
+            } else {
+                setResponse('');
+            }
+        } else if (lastField === 'targetJobTitle') {
+            setResponse(data.personal.targetJobTitle || '');
+        } else if (lastField === 'email') {
+            const currentEmail = data.personal.email;
+            if (currentEmail && currentEmail !== '__skipped__') {
+                // Parse email for username and domain
+                const parts = currentEmail.split('@');
+                if (parts.length === 2) {
+                    setEmailUsername(parts[0]);
+                    setEmailDomain(parts[1]);
+                    setResponse(currentEmail);
+                } else {
+                    setEmailUsername('');
+                    setEmailDomain('gmail.com');
+                    setResponse('');
                 }
+            } else {
+                setEmailUsername('');
+                setEmailDomain('gmail.com');
+                setResponse('');
+            }
+        } else if (lastField === 'photoUrl') {
+            const currentValue = data.personal.photoUrl;
+            if (currentValue && currentValue !== '__skipped__') {
+                setResponse(currentValue);
+            } else {
+                setResponse('');
             }
         }
-        else if (lastField.startsWith('education_')) {
-            // Clear the specific field in the correct entry using entryIndex
+
+        // For array fields (education, experience, languages), keep the history logic
+        // but don't clear data - just allow re-entry
+        const entryIndex = lastEntry.entryIndex;
+        const clearData: Partial<CVData> = {};
+
+        // Only clear data for array fields, not for personal info fields
+        if (lastField.startsWith('education_') && entryIndex !== undefined) {
             const list = [...(data.education || [])];
-            // Use entryIndex if available, otherwise fall back to last entry
-            const idx = entryIndex !== undefined ? entryIndex : list.length - 1;
+            const idx = entryIndex;
             if (idx >= 0 && idx < list.length) {
                 if (lastField === 'education_institution') list[idx].institution = '';
                 else if (lastField === 'education_degree') list[idx].degree = '';
                 else if (lastField === 'education_major') list[idx].major = '';
                 else if (lastField === 'education_startYear') list[idx].startYear = '';
                 else if (lastField === 'education_endYear') list[idx].endYear = '';
-
                 clearData.education = list;
             }
-        }
-        else if (lastField === 'education_more') {
+        } else if (lastField.startsWith('experience_') && entryIndex !== undefined) {
+            const list = [...(data.experience || [])];
+            const idx = entryIndex;
+            if (idx >= 0 && idx < list.length) {
+                if (lastField === 'experience_company') list[idx].company = '';
+                else if (lastField === 'experience_position') list[idx].position = '';
+                else if (lastField === 'experience_startDate') list[idx].startDate = '';
+                else if (lastField === 'experience_endDate') list[idx].endDate = '';
+                else if (lastField === 'experience_description') list[idx].description = '';
+                clearData.experience = list;
+            }
+        } else if (lastField.startsWith('languages_') && entryIndex !== undefined) {
+            const list = [...(data.languages || [])];
+            const idx = entryIndex;
+            if (idx >= 0 && idx < list.length) {
+                if (lastField === 'languages_name') list[idx].name = '';
+                else if (lastField === 'languages_level') list[idx].level = '';
+                clearData.languages = list;
+            }
+        } else if (lastField === 'education_has') {
             clearData._completedEducation = undefined;
-            // Remove the empty entry that was created by "yes" to education_more
             if (data.education && data.education.length > 0) {
                 const lastEdu = data.education[data.education.length - 1];
-                // Only remove if it's empty (just created)
+                if (!lastEdu.institution && !lastEdu.degree) {
+                    clearData.education = data.education.slice(0, -1);
+                }
+            }
+        } else if (lastField === 'education_more') {
+            clearData._completedEducation = undefined;
+            if (data.education && data.education.length > 0) {
+                const lastEdu = data.education[data.education.length - 1];
                 if (!lastEdu.institution && !lastEdu.degree && !lastEdu.major && !lastEdu.startYear && !lastEdu.endYear) {
                     clearData.education = data.education.slice(0, -1);
                 }
             }
-        }
-
-        // 3. Experience
-        else if (lastField === 'experience_has') {
+        } else if (lastField === 'experience_has') {
             clearData._completedExperience = undefined;
             if (data.experience && data.experience.length > 0) {
                 const lastExp = data.experience[data.experience.length - 1];
@@ -478,49 +574,23 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     clearData.experience = data.experience.slice(0, -1);
                 }
             }
-        }
-        else if (lastField.startsWith('experience_')) {
-            const list = [...(data.experience || [])];
-            // Use entryIndex if available, otherwise fall back to last entry
-            const idx = entryIndex !== undefined ? entryIndex : list.length - 1;
-            if (idx >= 0 && idx < list.length) {
-                if (lastField === 'experience_company') list[idx].company = '';
-                else if (lastField === 'experience_position') list[idx].position = '';
-                else if (lastField === 'experience_startDate') list[idx].startDate = '';
-                else if (lastField === 'experience_endDate') list[idx].endDate = '';
-                else if (lastField === 'experience_description') list[idx].description = '';
-
-                clearData.experience = list;
-            }
-        }
-        else if (lastField === 'experience_more') {
+        } else if (lastField === 'experience_more') {
             clearData._completedExperience = undefined;
-            // Remove the empty entry that was created by "yes" to experience_more
             if (data.experience && data.experience.length > 0) {
                 const lastExp = data.experience[data.experience.length - 1];
                 if (!lastExp.company && !lastExp.position && !lastExp.startDate && !lastExp.endDate && !lastExp.description) {
                     clearData.experience = data.experience.slice(0, -1);
                 }
             }
-        }
-
-        // 4. Skills
-        else if (lastField === 'skills') {
+        } else if (lastField === 'skills') {
             clearData.skills = [];
-        }
-
-        // 5. Hobbies
-        else if (lastField === 'hobbies_has') {
+        } else if (lastField === 'hobbies_has') {
             clearData._completedHobbies = undefined;
             clearData.hobbies = [];
-        }
-        else if (lastField === 'hobbies_text') {
+        } else if (lastField === 'hobbies_text') {
             clearData._completedHobbies = undefined;
             clearData.hobbies = ['__pending__'];
-        }
-
-        // 6. Languages
-        else if (lastField === 'languages_has') {
+        } else if (lastField === 'languages_has') {
             clearData._completedLanguages = undefined;
             if (data.languages && data.languages.length > 0) {
                 const lastLang = data.languages[data.languages.length - 1];
@@ -528,28 +598,8 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     clearData.languages = data.languages.slice(0, -1);
                 }
             }
-        }
-        else if (lastField === 'languages_name') {
-            const list = [...(data.languages || [])];
-            // Use entryIndex if available, otherwise fall back to last entry
-            const idx = entryIndex !== undefined ? entryIndex : list.length - 1;
-            if (idx >= 0 && idx < list.length) {
-                list[idx].name = '';
-                clearData.languages = list;
-            }
-        }
-        else if (lastField === 'languages_level') {
-            const list = [...(data.languages || [])];
-            // Use entryIndex if available, otherwise fall back to last entry
-            const idx = entryIndex !== undefined ? entryIndex : list.length - 1;
-            if (idx >= 0 && idx < list.length) {
-                list[idx].level = '';
-                clearData.languages = list;
-            }
-        }
-        else if (lastField === 'languages_more') {
+        } else if (lastField === 'languages_more') {
             clearData._completedLanguages = undefined;
-            // Remove the empty entry that was created by "yes" to languages_more
             if (data.languages && data.languages.length > 0) {
                 const lastLang = data.languages[data.languages.length - 1];
                 if (!lastLang.name && !lastLang.level) {
@@ -558,7 +608,10 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
-        onUpdate(clearData);
+        // Update data only if we have clearData (for array fields or special cases)
+        if (Object.keys(clearData).length > 0) {
+            onUpdate(clearData);
+        }
     };
 
     if (loading) return (
