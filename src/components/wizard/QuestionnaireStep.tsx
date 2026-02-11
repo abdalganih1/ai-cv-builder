@@ -3,7 +3,6 @@
 import { CVData, Question } from '@/lib/types/cv-schema';
 import { useState, useEffect } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
-import { motion } from 'framer-motion';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
 import { translateAbbreviation } from '@/lib/utils/syrian-universities';
@@ -649,20 +648,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     <span>{percentage}%</span>
                 </div>
                 <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        className="h-full bg-primary rounded-full"
-                        transition={{ duration: 0.5 }}
+                    <div
+                        className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${percentage}%` }}
                     />
                 </div>
             </div>
 
-            <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
+            <div
                 key={currentQuestion.id}
-                className="space-y-8"
+                className="space-y-8 animate-in fade-in duration-300"
             >
                 <div className="space-y-2">
                     <label className="text-2xl font-bold text-gray-900 block leading-tight">
@@ -866,7 +861,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                         </button>
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 }
