@@ -44,6 +44,7 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
     const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
     const [showProofRequired, setShowProofRequired] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [showScanner, setShowScanner] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { trackFileUpload, sessionId } = useAnalytics();
 
@@ -257,50 +258,79 @@ export default function ShamCashPayment({ data, onNext, onBack }: StepProps) {
                 </div>
             </div>
 
+            {/* Toggle QR Code Button */}
+            {!showScanner && (
+                <button
+                    onClick={() => setShowScanner(true)}
+                    className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg shadow-xl hover:bg-gray-800 transition-all flex items-center justify-center gap-3"
+                >
+                    <span>📱</span>
+                    <span>عرض رمز الباركود للدفع</span>
+                </button>
+            )}
+
             {/* QR Code Section */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-3xl shadow-2xl">
-                <div className="flex flex-col items-center gap-4">
-                    {/* QR Image */}
-                    <div className="bg-white p-3 rounded-2xl shadow-lg">
-                        <Image
-                            src={settings.qrImageUrl}
-                            alt="Sham Cash QR Code"
-                            width={200}
-                            height={200}
-                            className="rounded-xl"
-                        />
-                    </div>
+            <AnimatePresence>
+                {showScanner && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-3xl shadow-2xl mb-6">
+                            <div className="flex flex-col items-center gap-4">
+                                {/* QR Image */}
+                                <div className="bg-white p-3 rounded-2xl shadow-lg">
+                                    <Image
+                                        src={settings.qrImageUrl}
+                                        alt="Sham Cash QR Code"
+                                        width={200}
+                                        height={200}
+                                        className="rounded-xl"
+                                    />
+                                </div>
 
-                    {/* Account Info */}
-                    <div className="text-center text-white space-y-2">
-                        <p className="text-lg font-bold">{settings.recipientName}</p>
-                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/20">
-                            <code className="text-sm font-mono text-cyan-300 select-all flex-1" dir="ltr">
-                                {settings.recipientCode}
-                            </code>
-                            <button
-                                onClick={copyCode}
-                                className="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-bold rounded-lg transition-all active:scale-95"
-                            >
-                                {copied ? '✓ تم النسخ' : 'نسخ'}
-                            </button>
+                                {/* Account Info */}
+                                <div className="text-center text-white space-y-2">
+                                    <p className="text-lg font-bold">{settings.recipientName}</p>
+                                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/20">
+                                        <code className="text-sm font-mono text-cyan-300 select-all flex-1" dir="ltr">
+                                            {settings.recipientCode}
+                                        </code>
+                                        <button
+                                            onClick={copyCode}
+                                            className="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-bold rounded-lg transition-all active:scale-95"
+                                        >
+                                            {copied ? '✓ تم النسخ' : 'نسخ'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Cost Badge */}
+                                <div className="flex items-baseline gap-2 text-white mt-2">
+                                    <span className="text-4xl font-black">{settings.amount}</span>
+                                    <span className="text-xl font-bold opacity-80">{settings.currency}</span>
+                                </div>
+
+                                {/* Payment Type Badge */}
+                                {settings.paymentType === 'donation' && (
+                                    <div className="mt-2 px-4 py-2 bg-yellow-500/20 rounded-full">
+                                        <span className="text-yellow-300 text-sm font-bold">🎁 تبرع اختياري</span>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setShowScanner(false)}
+                                    className="text-gray-400 hover:text-white text-sm mt-2 transition-colors"
+                                >
+                                    إخفاء الباركود
+                                </button>
+                            </div>
                         </div>
-                    </div>
-
-                    {/* Cost Badge */}
-                    <div className="flex items-baseline gap-2 text-white mt-2">
-                        <span className="text-4xl font-black">{settings.amount}</span>
-                        <span className="text-xl font-bold opacity-80">{settings.currency}</span>
-                    </div>
-
-                    {/* Payment Type Badge */}
-                    {settings.paymentType === 'donation' && (
-                        <div className="mt-2 px-4 py-2 bg-yellow-500/20 rounded-full">
-                            <span className="text-yellow-300 text-sm font-bold">🎁 تبرع اختياري</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Upload Proof Section */}
             <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 space-y-4">

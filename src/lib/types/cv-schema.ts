@@ -30,13 +30,18 @@ export interface WorkExperience {
   description: string;
 }
 
+export interface Language {
+  name: string;
+  level: string;
+}
+
 export interface CVData {
   personal: PersonalInfo;
   education: Education[];
   experience: WorkExperience[];
   skills: string[];
   hobbies: string[];
-  languages: string[];
+  languages: Language[];
   metadata: {
     currentStep: number;
     paymentStatus: 'pending' | 'completed';
@@ -51,6 +56,7 @@ export interface CVData {
   _completedEducation?: boolean;
   _completedExperience?: boolean;
   _completedHobbies?: boolean;
+  _completedLanguages?: boolean;
 }
 
 export type ResponseDepth = 'brief' | 'medium' | 'detailed';

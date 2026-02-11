@@ -434,7 +434,7 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                     <View style={styles.skillsContainer}>
                         {data.languages.map((lang, idx) => (
                             <View key={idx} style={styles.skillBadge}>
-                                <Text style={styles.skillBadgeText}>{lang}</Text>
+                                <Text style={styles.skillBadgeText}>{lang.name} ({lang.level})</Text>
                             </View>
                         ))}
                     </View>

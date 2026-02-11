@@ -114,7 +114,10 @@ export const CV_GENERATOR_SYSTEM_PROMPT = `
     "التواصل الفعال والعمل الجماعي",
     "إتقان أدوات Microsoft Office"
   ],
-  "languages": ["العربية (اللغة الأم)", "الإنجليزية (مستوى جيد)"],
+  "languages": [
+    { "name": "العربية", "level": "اللغة الأم" },
+    { "name": "الإنجليزية", "level": "مستوى جيد" }
+  ],
   "hobbies": ["..."],
   "certifications": ["شهادة 1 إن وجدت"]
 }

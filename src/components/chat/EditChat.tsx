@@ -16,6 +16,7 @@ import VoiceRecorder from '@/components/ui/VoiceRecorder';
 interface EditChatProps {
     data: CVData;
     onUpdate: (newData: CVData) => void;
+    language?: 'ar' | 'en';
 }
 
 interface ChatMessage {
@@ -28,7 +29,7 @@ interface ChatMessage {
 // توليد معرف فريد
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-export default function EditChat({ data, onUpdate }: EditChatProps) {
+export default function EditChat({ data, onUpdate, language = 'ar' }: EditChatProps) {
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -94,11 +95,12 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
         setInput('');
 
         try {
-            const updatedCV = await processEditRequest(data, userMsg);
+            const updatedCV = await processEditRequest(data, userMsg, language);
             onUpdate(updatedCV);
 
             const responseId = generateId();
-            addMessage('assistant', 'تم تطبيق التعديلات بنجاح ✨');
+            const successMsg = language === 'en' ? 'Changes applied successfully ✨' : 'تم تطبيق التعديلات بنجاح ✨';
+            addMessage('assistant', successMsg);
 
             // تتبع استلام الرد
             trackChatResponseReceived({
@@ -215,7 +217,7 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
             <div className="space-y-3">
                 {/* العنوان والمؤشرات فوق مربع النص */}
                 <div className="flex items-center justify-between px-1">
-                    <span className="text-gray-500 text-sm font-medium">✨ AI Editor</span>
+                    <span className="text-gray-500 text-sm font-medium">✨ {language === 'en' ? 'AI Editor' : 'مساعد التعديل'}</span>
                     {input.length > 0 && (
                         <span className="text-xs text-green-500 animate-pulse">
                             💾 سيتم حفظ الطلب
@@ -228,7 +230,7 @@ export default function EditChat({ data, onUpdate }: EditChatProps) {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         className="w-full p-4 pb-14 text-sm border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[120px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-400"
-                        placeholder='مثال: "اجعل الخبرات العملية تظهر أولاً" أو "أضف مهارة الذكاء الاصطناعي"'
+                        placeholder={language === 'en' ? 'Example: "Change title to Senior Engineer" or "Add React skill"' : 'مثال: "اجعل الخبرات العملية تظهر أولاً" أو "أضف مهارة الذكاء الاصطناعي"'}
                         disabled={isProcessing}
                     />
 

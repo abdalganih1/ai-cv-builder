@@ -24,10 +24,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [emailUsername, setEmailUsername] = useState<string>('');
     const [emailDomain, setEmailDomain] = useState<string>('gmail.com');
 
+    // History stack for internal navigation
+    const [questionHistory, setQuestionHistory] = useState<string[]>([]);
+
     // Calculate progress based on completed sections
     const calculateProgress = (): { percentage: number; currentSection: string } => {
         let completed = 0;
-        const totalSections = 5; // birthDate, education, experience, skills, hobbies
+        const totalSections = 6; // birthDate, education, experience, skills, languages, hobbies
 
         // 1. Birth date
         if (data.personal.birthDate) completed += 1;
@@ -56,7 +59,10 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         // 4. Skills
         if (data.skills && data.skills.length > 0) completed += 1;
 
-        // 5. Hobbies
+        // 5. Languages
+        if (data._completedLanguages) completed += 1;
+
+        // 6. Hobbies
         if (data._completedHobbies) completed += 1;
 
         const percentage = Math.round((completed / totalSections) * 100);
@@ -67,6 +73,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         else if (!data._completedEducation) currentSection = 'التعليم والشهادات';
         else if (!data._completedExperience) currentSection = 'الخبرات العملية';
         else if (!data.skills || data.skills.length === 0) currentSection = 'المهارات';
+        else if (!data._completedLanguages) currentSection = 'الغات';
         else if (!data._completedHobbies) currentSection = 'الهوايات';
 
         return { percentage, currentSection };
@@ -99,6 +106,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
     const handleAnswer = async () => {
         if (!currentQuestion) return;
+
+        // Save current question to history before moving forward
+        setQuestionHistory(prev => [...prev, currentQuestion.field]);
 
         const field = currentQuestion.field;
         const updatedData: Partial<CVData> = {};
@@ -235,9 +245,181 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             updatedData._completedHobbies = true;
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // LANGUAGES
+        // ═══════════════════════════════════════════════════════════════
+        else if (field === 'languages_has') {
+            if (response === 'yes') {
+                const list = [...(data.languages || [])];
+                list.push({ name: '', level: '' });
+                updatedData.languages = list;
+            } else {
+                updatedData._completedLanguages = true;
+                // Add default native language if empty? Maybe Arabic?
+                // For now, leave as is.
+            }
+        }
+        else if (field === 'languages_name') {
+            const list = [...(data.languages || [])];
+            if (list.length > 0) list[list.length - 1].name = response;
+            updatedData.languages = list;
+        }
+        else if (field === 'languages_level') {
+            const list = [...(data.languages || [])];
+            if (list.length > 0) list[list.length - 1].level = response;
+            updatedData.languages = list;
+        }
+        else if (field === 'languages_more') {
+            if (response === 'yes') {
+                const list = [...(data.languages || [])];
+                list.push({ name: '', level: '' });
+                updatedData.languages = list;
+            } else {
+                updatedData._completedLanguages = true;
+            }
+        }
+
         // Update global state, trigger useEffect to fetch next question
         onUpdate(updatedData);
         setResponse('');
+    };
+
+    const handleInternalBack = () => {
+        // If history is empty, go back to previous step (Contact)
+        if (questionHistory.length === 0) {
+            onBack();
+            return;
+        }
+
+        // Pop the last question field
+        const newHistory = [...questionHistory];
+        const lastField = newHistory.pop();
+        setQuestionHistory(newHistory);
+
+        // Clear data for the popped field to make "getNextQuestion" return it again
+        const clearData: Partial<CVData> = {};
+
+        if (!lastField) return;
+
+        console.log('🔙 Backing up from field:', lastField);
+
+        // 1. Personal Info
+        if (lastField === 'birthDate') clearData.personal = { ...data.personal, birthDate: '' };
+        else if (lastField === 'targetJobTitle') clearData.personal = { ...data.personal, targetJobTitle: '' };
+        else if (lastField === 'email') clearData.personal = { ...data.personal, email: '' };
+        else if (lastField === 'photoUrl') clearData.personal = { ...data.personal, photoUrl: '' };
+
+        // 2. Education
+        else if (lastField === 'education_has') {
+            // If they said "yes", we added an empty entry. We should remove it? 
+            // Actually, if we clear data, we just want to reset _completedEducation if it was set to true
+            // OR if they said yes, we remove the *last* added education.
+            // But this is complex. Simplest way: just clear _completedEducation
+            clearData._completedEducation = undefined;
+            // If the last entry is empty (created by 'yes'), remove it
+            if (data.education && data.education.length > 0) {
+                const lastEdu = data.education[data.education.length - 1];
+                if (!lastEdu.institution && !lastEdu.degree) {
+                    clearData.education = data.education.slice(0, -1);
+                }
+            }
+        }
+        else if (lastField.startsWith('education_')) {
+            // Clear the specific field in the last entry
+            const list = [...(data.education || [])];
+            if (list.length > 0) {
+                const idx = list.length - 1;
+                if (lastField === 'education_institution') list[idx].institution = '';
+                else if (lastField === 'education_degree') list[idx].degree = '';
+                else if (lastField === 'education_major') list[idx].major = '';
+                else if (lastField === 'education_startYear') list[idx].startYear = '';
+                else if (lastField === 'education_endYear') list[idx].endYear = '';
+
+                clearData.education = list;
+            }
+        }
+        else if (lastField === 'education_more') {
+            clearData._completedEducation = undefined;
+        }
+
+        // 3. Experience
+        else if (lastField === 'experience_has') {
+            clearData._completedExperience = undefined;
+            if (data.experience && data.experience.length > 0) {
+                const lastExp = data.experience[data.experience.length - 1];
+                if (!lastExp.company && !lastExp.position) {
+                    clearData.experience = data.experience.slice(0, -1);
+                }
+            }
+        }
+        else if (lastField.startsWith('experience_')) {
+            const list = [...(data.experience || [])];
+            if (list.length > 0) {
+                const idx = list.length - 1;
+                if (lastField === 'experience_company') list[idx].company = '';
+                else if (lastField === 'experience_position') list[idx].position = '';
+                else if (lastField === 'experience_startDate') list[idx].startDate = '';
+                else if (lastField === 'experience_endDate') list[idx].endDate = '';
+                else if (lastField === 'experience_description') list[idx].description = '';
+
+                clearData.experience = list;
+            }
+        }
+        else if (lastField === 'experience_more') {
+            clearData._completedExperience = undefined;
+        }
+
+        // 4. Skills
+        else if (lastField === 'skills') {
+            clearData.skills = [];
+        }
+
+        // 5. Hobbies
+        else if (lastField === 'hobbies_has') {
+            clearData._completedHobbies = undefined;
+            clearData.hobbies = [];
+        }
+        else if (lastField === 'hobbies_text') {
+            clearData._completedHobbies = undefined;
+            // Try to keep the "pending" state if they said "yes" to hasHobbies? 
+            // Only if hobbies was ['__pending__']. 
+            // If we clear hobbies completely, the agent will ask "hobbies_has" again, which is acceptable (step back 2 steps effectively).
+            // Better: Set hobbies to ['__pending__'] so it asks for text again? 
+            // actually if we want to go back to "hobbies_text", we need hobbies to be ['__pending__'].
+            // If we want to go back to "hobbies_has", we need hobbies to be [].
+            // To be safe, let's clear hobbies completely, so it asks "hobbies_has" again.
+            clearData.hobbies = ['__pending__'];
+        }
+
+        // 6. Languages
+        else if (lastField === 'languages_has') {
+            clearData._completedLanguages = undefined;
+            if (data.languages && data.languages.length > 0) {
+                const lastLang = data.languages[data.languages.length - 1];
+                if (!lastLang.name) {
+                    clearData.languages = data.languages.slice(0, -1);
+                }
+            }
+        }
+        else if (lastField === 'languages_name') {
+            const list = [...(data.languages || [])];
+            if (list.length > 0) {
+                list[list.length - 1].name = '';
+                clearData.languages = list;
+            }
+        }
+        else if (lastField === 'languages_level') {
+            const list = [...(data.languages || [])];
+            if (list.length > 0) {
+                list[list.length - 1].level = '';
+                clearData.languages = list;
+            }
+        }
+        else if (lastField === 'languages_more') {
+            clearData._completedLanguages = undefined;
+        }
+
+        onUpdate(clearData);
     };
 
     if (loading) return (
@@ -254,7 +436,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             <p className="text-gray-500">لقد جمعنا معلومات كافية لبناء سيرة ذاتية احترافية.</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                 <button
-                    onClick={onBack}
+                    onClick={handleInternalBack}
                     className="px-8 py-4 rounded-2xl font-bold border-2 border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all"
                 >
                     ← العودة لتعديل البيانات
@@ -463,7 +645,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                 <div className="flex items-center justify-between pt-6 border-t border-gray-100">
                     <button
-                        onClick={onBack}
+                        onClick={handleInternalBack}
                         className="flex items-center gap-2 text-gray-400 hover:text-gray-600 font-medium transition-colors"
                     >
                         <span>←</span>

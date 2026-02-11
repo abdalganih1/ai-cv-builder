@@ -29,7 +29,7 @@ function extractJSON(content: string): string {
  * Process a user's edit request using the AI Agent
  * Optimized for faster response with compact prompts
  */
-export async function processEditRequest(data: CVData, request: string): Promise<CVData> {
+export async function processEditRequest(data: CVData, request: string, language: 'ar' | 'en' = 'ar'): Promise<CVData> {
     // Create a compact version of data WITHOUT the photoUrl (base64 images are huge!)
     const dataWithoutPhoto = {
         ...data,
@@ -47,12 +47,32 @@ export async function processEditRequest(data: CVData, request: string): Promise
         : compactData;
 
     // Streamlined prompt - shorter and more focused
-    const systemPrompt = `أنت خبير تعديل سير ذاتية. عدّل البيانات حسب الطلب.
+    let systemPrompt = '';
+
+    if (language === 'en') {
+        systemPrompt = `You are an expert CV editor. Edit the CV data based on the user's request.
+Rules:
+1. Output VALID JSON only (no markdown).
+2. Keep the same structure.
+3. Edit ONLY what the user asks.
+4. Keep photoUrl as "[PHOTO]" or empty.
+5. If the user asks to change a value, use the English text provided.
+
+Current Data:
+${dataToSend}
+
+User Request: "${request}"
+
+Return Modified JSON:`;
+    } else {
+        systemPrompt = `أنت خبير تعديل سير ذاتية. عدّل البيانات حسب الطلب.
 قواعد: 
 1. أرجع JSON صالح فقط (بدون markdown)
 2. احتفظ بالهيكل نفسه
 3. عدّل فقط ما يطلبه المستخدم
 4. احتفظ بـ photoUrl كما هو إذا كان "[PHOTO]" أو فارغ
+5. وإذا طلب المستخدم تغيير الاسم أو أي نص إلى الإنجليزية، استبدل القيمة بالنص الإنجليزي كما هو.
+6. إذا طلب تصحيح اسم (Capitalization/Spelling)، التزم بالتصحيح حرفياً.
 
 البيانات الحالية:
 ${dataToSend}
@@ -60,6 +80,7 @@ ${dataToSend}
 طلب التعديل: "${request}"
 
 أرجع JSON المُعدَّل:`;
+    }
 
     try {
         // Single call with optimized settings
@@ -257,9 +278,10 @@ Rules:
 1. Output valid JSON only (no markdown)
 2. Translate ALL Arabic text to English
 3. Keep technical terms (React, Python, etc.) as-is
-4. Use professional CV language (action verbs, concise)
-5. Preserve dates, emails, phones exactly as-is
-6. Keep photoUrl as "[PHOTO]" if present
+4. If a value is already in English (e.g. name is "Mohammed"), keep it EXACTLY as-is. Do not transliterate it back.
+5. Use professional CV language (action verbs, concise)
+6. Preserve dates, emails, phones exactly as-is
+7. Keep photoUrl as "[PHOTO]" if present
 
 Arabic CV Data:
 ${dataToSend}

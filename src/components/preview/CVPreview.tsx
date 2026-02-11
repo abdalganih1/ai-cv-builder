@@ -51,6 +51,9 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [showExportModal, setShowExportModal] = useState(false);
     // Image cropper state
     const [pendingCropImage, setPendingCropImage] = useState<string | null>(null);
+    // Translation timer state
+    const [translationProgress, setTranslationProgress] = useState(0);
+    const [translationTimer, setTranslationTimer] = useState(100);
 
     // Handle file upload - open cropper instead of directly setting photo
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,10 +143,45 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         }
     };
 
+    // Handle updates from Chat - routes to correct language state
+    const handleChatUpdate = (newData: CVData) => {
+        if (activeLanguage === 'en') {
+            // Independent English Update
+            setEnglishCV(newData);
+            console.log('🇬🇧 English CV updated independently');
+        } else {
+            // Arabic/Main Update
+            handleUpdate(newData);
+        }
+    };
+
+    // Countdown timer effect
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isTranslating) {
+            setTranslationTimer(100);
+            setTranslationProgress(0);
+            interval = setInterval(() => {
+                setTranslationTimer(prev => {
+                    if (prev <= 1) return 1;
+                    return prev - 1;
+                });
+                setTranslationProgress(prev => {
+                    if (prev >= 95) return 95;
+                    return prev + 1;
+                });
+            }, 1000);
+        } else {
+            setTranslationTimer(100);
+            setTranslationProgress(0);
+        }
+        return () => clearInterval(interval);
+    }, [isTranslating]);
+
     const handleTranslateToEnglish = async () => {
-        if (isTranslating) return;
 
         setIsTranslating(true);
+        setActiveLanguage('en'); // Switch to English tab immediately to show loading state
         try {
             const translated = await translateCVToEnglish(data);
             setEnglishCV(translated);
@@ -215,7 +253,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-1 flex flex-col">
                     <h3 className="font-bold text-primary mb-2">مساعد التعديل الذكي</h3>
                     <p className="text-xs text-gray-500 mb-4">اطلب أي تعديل على سيرتك الذاتية وسأقوم بتنفيذه فوراً.</p>
-                    <EditChat data={data} onUpdate={handleUpdate} />
+                    <EditChat
+                        data={previewData}
+                        onUpdate={handleChatUpdate}
+                        language={activeLanguage}
+                    />
                 </div>
 
                 {/* Language Toggle & Translation */}
@@ -230,42 +272,55 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                 العربية
                             </button>
                             <button
-                                onClick={() => englishCV && setActiveLanguage('en')}
-                                disabled={!englishCV}
-                                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeLanguage === 'en' ? 'bg-primary text-white' : englishCV ? 'text-gray-500 hover:bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}
+                                onClick={() => {
+                                    if (englishCV) {
+                                        setActiveLanguage('en');
+                                    } else {
+                                        handleTranslateToEnglish();
+                                    }
+                                }}
+                                disabled={isTranslating}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100'} ${isTranslating ? 'opacity-50 cursor-wait' : ''}`}
                             >
                                 English
                             </button>
                         </div>
                     </div>
 
-                    {!englishCV ? (
-                        <button
-                            onClick={handleTranslateToEnglish}
-                            disabled={isTranslating}
-                            className="w-full bg-white text-indigo-600 py-2.5 rounded-lg font-bold text-sm border-2 border-indigo-200 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {isTranslating ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-                                    <span>جاري الترجمة...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>🇬🇧</span>
-                                    <span>إنشاء نسخة إنجليزية</span>
-                                </>
-                            )}
-                        </button>
-                    ) : (
-                        <div className="flex items-center justify-between">
-                            <p className="text-xs text-green-600 font-medium">✅ النسخة الإنجليزية جاهزة!</p>
+                    {/* Progress Bar / Timer when translating */}
+                    {isTranslating && (
+                        <div className="space-y-2 animate-in fade-in zoom-in duration-300">
+                            <div className="flex justify-between text-xs font-medium text-indigo-600">
+                                <span>جاري ترجمة السيرة الذاتية...</span>
+                                <span>{translationTimer} ثانية</span>
+                            </div>
+                            <div className="h-2 bg-indigo-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-linear"
+                                    style={{ width: `${translationProgress}%` }}
+                                />
+                            </div>
+                            <p className="text-[10px] text-gray-400 text-center">يقوم الذكاء الاصطناعي بصياغة احترافية (يستغرق 1-2 دقيقة)</p>
+                        </div>
+                    )}
+
+                    {!englishCV && !isTranslating && activeLanguage === 'ar' && (
+                        <div className="bg-white/50 rounded-lg p-3 text-center border border-indigo-100">
+                            <p className="text-xs text-indigo-600 mb-2">اضغط على English لإنشاء نسخة مترجمة تلقائياً</p>
+                        </div>
+                    )}
+
+                    {englishCV && !isTranslating && (
+                        <div className="flex items-center justify-between bg-green-50 px-3 py-2 rounded-lg border border-green-100">
+                            <p className="text-xs text-green-700 font-medium flex items-center gap-1">
+                                <span>✅</span>
+                                <span>النسخة الإنجليزية جاهزة</span>
+                            </p>
                             <button
                                 onClick={handleTranslateToEnglish}
-                                disabled={isTranslating}
-                                className="text-xs text-indigo-500 hover:underline"
+                                className="text-[10px] bg-white text-indigo-600 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50"
                             >
-                                {isTranslating ? '...' : '🔄 تحديث'}
+                                🔄 تحديث
                             </button>
                         </div>
                     )}
@@ -411,6 +466,23 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                 </div>
                             </div>
                         )}
+
+                        {/* Languages */}
+                        {previewData.languages && previewData.languages.length > 0 && (
+                            <div className="mb-8">
+                                <h2 className="text-xl font-bold text-primary mb-4 border-b border-gray-100 pb-2">{labels.languages}</h2>
+                                <div className="flex flex-col gap-2">
+                                    {previewData.languages.map((lang, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-gray-50 border border-gray-200 px-4 py-2 rounded-lg">
+                                            <span className="text-sm text-gray-800 font-bold">{lang.name}</span>
+                                            <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-1 rounded">
+                                                {lang.level}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -440,8 +512,10 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             >
                                 <span className="text-2xl">🇬🇧</span>
                                 <div className="text-right flex-1">
-                                    <p className="font-bold text-gray-900">النسخة الإنجليزية فقط</p>
-                                    <p className="text-xs text-gray-500">{englishCV ? 'ملف PDF واحد بالإنجليزية' : 'يجب إنشاء النسخة الإنجليزية أولاً'}</p>
+                                    <p className="font-bold text-gray-900" dir="ltr">English Only</p>
+                                    <p className="text-xs text-gray-500">
+                                        {englishCV ? 'Single PDF in English' : 'يجب إنشاء النسخة الإنجليزية أولاً'}
+                                    </p>
                                 </div>
                             </button>
 
@@ -452,8 +526,8 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             >
                                 <span className="text-2xl">📦</span>
                                 <div className="text-right flex-1">
-                                    <p className="font-bold text-gray-900">كلا النسختين</p>
-                                    <p className="text-xs text-gray-500">{englishCV ? 'ملفان PDF منفصلان' : 'يجب إنشاء النسخة الإنجليزية أولاً'}</p>
+                                    <p className="font-bold text-gray-900">كلا النسختين (Arabic & English)</p>
+                                    <p className="text-xs text-gray-500">{englishCV ? 'ملف PDF واحد يحتوي اللغتين' : 'يجب إنشاء النسخة الإنجليزية أولاً'}</p>
                                 </div>
                             </button>
                         </div>

@@ -231,7 +231,56 @@ class QuestionnaireAgent {
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // PHASE 5: HOBBIES
+        // PHASE 5: LANGUAGES
+        // ═══════════════════════════════════════════════════════════════
+        const languages = data.languages;
+
+        if (!data._completedLanguages) {
+            // 5a. Ask if they have languages (only if no entries yet)
+            if (!languages || languages.length === 0) {
+                return {
+                    id: 'hasLanguages',
+                    field: 'languages_has',
+                    text: 'هل تتقن لغات أخرى غير لغتك الأم؟',
+                    type: 'yesno'
+                };
+            }
+
+            // 5b. Complete the last language entry
+            const lastLang = languages[languages.length - 1];
+            if (lastLang) {
+                if (!lastLang.name) {
+                    return {
+                        id: 'lang_name',
+                        field: 'languages_name',
+                        text: 'ما هي اللغة؟ (مثال: الإنجليزية، الفرنسية، الألمانية)',
+                        type: 'text'
+                    };
+                }
+                if (!lastLang.level) {
+                    return {
+                        id: 'lang_level',
+                        field: 'languages_level',
+                        text: `ما هو مستواك في اللغة ${lastLang.name}؟`,
+                        type: 'select',
+                        options: ['مبتدئ', 'متوسط', 'جيد', 'جيد جداً', 'ممتاز', 'لغة أم/طلاقة تامة']
+                    };
+                }
+            }
+
+            // 5c. Ask for more
+            if (lastLang && lastLang.name && lastLang.level) {
+                return {
+                    id: 'moreLanguages',
+                    field: 'languages_more',
+                    text: 'هل تود إضافة لغة أخرى؟',
+                    type: 'yesno'
+                };
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // PHASE 6: HOBBIES
         // ═══════════════════════════════════════════════════════════════
         if (!data._completedHobbies) {
             if (!hobbies || hobbies.length === 0) {
