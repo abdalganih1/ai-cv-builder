@@ -216,19 +216,18 @@ async function extractViaOCRSpace(
 // Note: This function uses Node.js APIs not available in Edge Runtime
 // It will only work in local development or Node.js server
 async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> {
-    // Check if we're in Edge Runtime - if so, skip Python extraction
     // Edge Runtime doesn't support fs, path, child_process, os modules
-    // We use a try-catch with dynamic require to avoid static analysis warnings
+    // Always return fallback in Edge Runtime
     try {
-        // Use eval to prevent static analysis of Node.js imports
-        // This ensures the code doesn't fail at build time in Edge Runtime
-        const nodeProcess = process.env.NEXT_RUNTIME === 'nodejs';
-        if (!nodeProcess) {
-            console.log('⚠️ Python extraction not available in non-Node environment');
+        // Check if we're in Edge Runtime by checking for unavailable APIs
+        // Using typeof check to avoid bundler issues
+        if (typeof process !== 'undefined' && process.env.NEXT_RUNTIME === 'edge') {
+            console.log('⚠️ Python extraction not available in Edge Runtime');
             return { text: fallbackExtractText(buffer) };
         }
 
-        // Dynamic require for Node.js modules
+        // Try to use Node.js modules if available
+        // This will only work in Node.js runtime (local development)
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const fs = require('fs');
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -240,7 +239,8 @@ async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> 
 
         const tempDir = os.tmpdir();
         const tempPdfPath = path.join(tempDir, `cv_upload_${Date.now()}.pdf`);
-        const cwd = process.cwd();
+        // Use process.cwd() only in Node.js runtime where it's available
+        const cwd = typeof process.cwd === 'function' ? process.cwd() : '.';
         const scriptPath = path.join(cwd, 'scripts', 'pdf_text_extractor.py');
 
         try {
