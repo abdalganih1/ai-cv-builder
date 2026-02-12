@@ -6,12 +6,13 @@
 # 2. طلب رسالة commit من المستخدم
 # 3. إضافة الملفات وعمل commit
 # 4. عمل push إلى GitHub
-# 5. تشغيل عملية deploy إلى Cloudflare
+#
+# ملاحظة: Cloudflare Pages يأخذ المشروع تلقائياً من Git
+# لا حاجة لعمل npm run build أو npm run deploy محلياً
 # ============================================================================
 
 param(
     [string]$Message = "",
-    [switch]$SkipDeploy,
     [switch]$SkipPush,
     [switch]$Help
 )
@@ -32,13 +33,14 @@ if ($Help) {
 الاستخدام:
     .\deploy.ps1                    # تشغيل تفاعلي (يسأل عن رسالة commit)
     .\deploy.ps1 -Message "نص"      # تحديد رسالة commit مباشرة
-    .\deploy.ps1 -SkipDeploy        # تخطي عملية deploy (فقط commit و push)
     .\deploy.ps1 -SkipPush          # تخطي عملية push (فقط commit)
     .\deploy.ps1 -Help              # عرض هذه المساعدة
 
 أمثلة:
     .\deploy.ps1 -Message "إصلاح مشكلة التنقل"
-    .\deploy.ps1 -SkipDeploy -Message "تحديث التوثيق"
+    .\deploy.ps1 -SkipPush -Message "تحديث التوثيق"
+
+ملاحظة: Cloudflare Pages يبني وينشر تلقائياً عند push إلى GitHub
 
 "@
     exit 0
@@ -49,12 +51,6 @@ Write-Header "مرحباً بك في سكريبت النشر 🚀"
 # التحقق من وجود git
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "Git غير مثبت على النظام!"
-    exit 1
-}
-
-# التحقق من وجود npm
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-    Write-Error "NPM غير مثبت على النظام!"
     exit 1
 }
 
@@ -179,35 +175,10 @@ if (-not $SkipPush) {
         exit 1
     }
     Write-Success "تم رفع التغييرات إلى GitHub بنجاح"
+    Write-Info "Cloudflare Pages سيقوم بالبناء والنشر تلقائياً..."
 }
 else {
     Write-Warning "تم تخطي عملية Push"
-}
-
-# تشغيل deploy
-if (-not $SkipDeploy) {
-    Write-Header "نشر المشروع على Cloudflare"
-    
-    # بناء المشروع أولاً
-    Write-Info "بناء المشروع..."
-    npm run build
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "فشل في بناء المشروع!"
-        exit 1
-    }
-    Write-Success "تم بناء المشروع بنجاح"
-    
-    # نشر على Cloudflare
-    Write-Info "نشر على Cloudflare Pages..."
-    npm run deploy
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "فشل في نشر المشروع!"
-        exit 1
-    }
-    Write-Success "تم نشر المشروع على Cloudflare بنجاح"
-}
-else {
-    Write-Warning "تم تخطي عملية Deploy"
 }
 
 Write-Header "اكتملت العملية بنجاح! 🎉"
@@ -217,8 +188,6 @@ Write-Host "  ✅ تم إضافة الملفات" -ForegroundColor Green
 Write-Host "  ✅ تم إنشاء Commit: $Message" -ForegroundColor Green
 if (-not $SkipPush) {
     Write-Host "  ✅ تم الرفع إلى GitHub" -ForegroundColor Green
-}
-if (-not $SkipDeploy) {
-    Write-Host "  ✅ تم النشر على Cloudflare" -ForegroundColor Green
+    Write-Host "  🔄 Cloudflare Pages يقوم بالبناء والنشر تلقائياً..." -ForegroundColor Cyan
 }
 Write-Host ""

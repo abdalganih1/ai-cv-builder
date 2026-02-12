@@ -23,8 +23,10 @@ This file provides guidance to agents when working with code in this repository.
 - **CV Schema**: Central type definitions in [`src/lib/types/cv-schema.ts`](src/lib/types/cv-schema.ts)
 
 ## Deployment
-- Cloudflare Pages via `@cloudflare/next-on-pages`
-- `npm run deploy` - Build and deploy to Cloudflare
+- **النشر التلقائي**: Cloudflare Pages يأخذ المشروع تلقائياً من GitHub
+- لا حاجة لعمل `npm run build` أو `npm run deploy` محلياً
+- فقط اعمل `git push` وسيقوم Cloudflare بالبناء والنشر تلقائياً
+- سكريبت [`deploy.ps1`](deploy.ps1) يقوم بـ: git add → commit → push فقط
 
 ## 📋 تقارير المستخدم - User Reports
 **مهم جداً:** بعد كل محادثة أو تعديل بناءً على طلب المستخدم، يجب إضافة تقرير إلى ملف [`UserReport.md`](UserReport.md).
