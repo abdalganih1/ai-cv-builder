@@ -33,6 +33,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
     // Rewinding state - for handling "back" navigation correctly
     const [rewindingField, setRewindingField] = useState<string | null>(null);
+    const [isRewinding, setIsRewinding] = useState(false);
 
     // Helper: Check if field was skipped
     const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
@@ -273,11 +274,17 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     useEffect(() => {
         const fetchQuestion = async () => {
             // If we're rewinding to a specific field, show that question directly
-            if (rewindingField) {
+            if (isRewinding && rewindingField) {
                 const question = getQuestionForField(rewindingField, data);
                 setCurrentQuestion(question);
                 setLoading(false);
-                setRewindingField(null); // Clear after use
+                setIsRewinding(false);
+                setRewindingField(null);
+                return;
+            }
+
+            // Skip fetching if we're in rewinding mode
+            if (isRewinding) {
                 return;
             }
 
@@ -288,7 +295,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         };
 
         fetchQuestion();
-    }, [data, rewindingField]);
+    }, [data, rewindingField, isRewinding]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -510,8 +517,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
         console.log('🔙 Backing up to field:', lastField);
 
-        // Set rewinding field to show that question for editing
+        // Set rewinding state to prevent useEffect from overriding our question
+        setIsRewinding(true);
         setRewindingField(lastField);
+
+        // Get the question for this field directly
+        const question = getQuestionForField(lastField, data);
+        if (question) {
+            setCurrentQuestion(question);
+            setLoading(false);
+        }
 
         // Pre-populate response with current value for single fields
         if (lastField === 'birthDate') {

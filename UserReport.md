@@ -4,6 +4,56 @@
 
 ---
 
+## 📅 التقرير الثامن: 2026-02-12
+
+### 🐛 إصلاح مشكلة زر الرجوع - عدم استرجاع عنوان السؤال
+
+#### 📋 ملخص المشكلة
+عند الضغط على زر "رجوع" من سؤال "المسمى الوظيفي" (targetJobTitle)، كان يتم استرجاع قيمة تاريخ الميلاد (birthDate) لكن لم يكن يتم استرجاع عنوان السؤال (النص) بشكل صحيح.
+
+#### 🔍 السبب الجذري
+**الملف:** [`src/components/wizard/QuestionnaireStep.tsx`](src/components/wizard/QuestionnaireStep.tsx)
+
+1. **تضارب في توقيت تحديث السؤال:** `handleInternalBack` كان يعين `rewindingField` و `useEffect` كان يعتمد عليه لتحديث السؤال، لكن كان هناك تضارب في التوقيت.
+2. **عدم تعيين السؤال مباشرة:** كان الكود يعتمد على `useEffect` لتحديث `currentQuestion` بدلاً من تعيينه مباشرة.
+
+#### ✅ الحل المطبق
+
+1. **إضافة متغير `isRewinding`:** لتتبع حالة الرجوع ومنع `useEffect` من تجاوز السؤال المحدد.
+   ```typescript
+   const [isRewinding, setIsRewinding] = useState(false);
+   ```
+
+2. **تعيين السؤال مباشرة في `handleInternalBack`:**
+   ```typescript
+   const question = getQuestionForField(lastField, data);
+   if (question) {
+       setCurrentQuestion(question);
+       setLoading(false);
+   }
+   ```
+
+3. **تحديث `useEffect` لاحترام حالة الرجوع:**
+   ```typescript
+   if (isRewinding && rewindingField) {
+       const question = getQuestionForField(rewindingField, data);
+       setCurrentQuestion(question);
+       setLoading(false);
+       setIsRewinding(false);
+       setRewindingField(null);
+       return;
+   }
+   ```
+
+#### 📊 النتيجة
+- TypeScript compilation: **passed** ✅
+- الآن عند الرجوع، يتم استرجاع كل من القيمة والعنوان بشكل صحيح
+
+#### 📁 الملفات المعدلة
+- [`src/components/wizard/QuestionnaireStep.tsx`](src/components/wizard/QuestionnaireStep.tsx) - إصلاح منطق الرجوع
+
+---
+
 ## 📅 التقرير السابع: 2026-02-12
 
 ### 🔄 تحديث سكريبت النشر للاعتماد على Cloudflare التلقائي
