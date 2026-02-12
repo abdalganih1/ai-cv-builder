@@ -140,10 +140,26 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     // Calculate progress based on completed sections
     const calculateProgress = (): { percentage: number; currentSection: string } => {
         let completed = 0;
-        const totalSections = 6; // birthDate, education, experience, skills, languages, hobbies
+        const totalSections = 7; // personal info, education, experience, skills, languages, hobbies (+1 for personal info)
 
-        // 1. Birth date
-        if (data.personal.birthDate) completed += 1;
+        // Helper to check if field was skipped
+        const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
+
+        // 1. Personal Info (birthDate, targetJobTitle, email, photoUrl)
+        const personalFields = [
+            data.personal.birthDate && !isSkippedField(data.personal.birthDate),
+            data.personal.targetJobTitle,
+            data.personal.email && !isSkippedField(data.personal.email),
+            data.personal.photoUrl && !isSkippedField(data.personal.photoUrl)
+        ];
+        const personalFilled = personalFields.filter(Boolean).length;
+        const personalSkipped = [
+            isSkippedField(data.personal.birthDate),
+            isSkippedField(data.personal.email),
+            isSkippedField(data.personal.photoUrl)
+        ].filter(Boolean).length;
+        // Count as complete if filled or skipped
+        completed += (personalFilled + personalSkipped) / 4;
 
         // 2. Education
         if (data._completedEducation) {
@@ -178,13 +194,35 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         const percentage = Math.round((completed / totalSections) * 100);
 
         // Determine current section for label
+        // Check personal info fields IN ORDER before moving to other sections
         let currentSection = 'المعلومات الشخصية';
-        if (!data.personal.birthDate) currentSection = 'المعلومات الشخصية';
-        else if (!data._completedEducation) currentSection = 'التعليم والشهادات';
-        else if (!data._completedExperience) currentSection = 'الخبرات العملية';
-        else if (!data.skills || data.skills.length === 0) currentSection = 'المهارات';
-        else if (!data._completedLanguages) currentSection = 'الغات';
-        else if (!data._completedHobbies) currentSection = 'الهوايات';
+
+        // Personal info includes: birthDate, targetJobTitle, email, photoUrl
+        const hasBirthDate = data.personal.birthDate && !isSkippedField(data.personal.birthDate);
+        const hasTargetJobTitle = data.personal.targetJobTitle;
+        const hasEmail = data.personal.email && !isSkippedField(data.personal.email);
+        const hasPhoto = data.personal.photoUrl && !isSkippedField(data.personal.photoUrl);
+
+        // Only move to Education if ALL personal info fields are filled/skipped
+        const personalInfoComplete =
+            (data.personal.birthDate || isSkippedField(data.personal.birthDate)) &&
+            data.personal.targetJobTitle &&
+            (data.personal.email || isSkippedField(data.personal.email)) &&
+            (data.personal.photoUrl || isSkippedField(data.personal.photoUrl));
+
+        if (!personalInfoComplete) {
+            currentSection = 'المعلومات الشخصية';
+        } else if (!data._completedEducation) {
+            currentSection = 'التعليم والشهادات';
+        } else if (!data._completedExperience) {
+            currentSection = 'الخبرات العملية';
+        } else if (!data.skills || data.skills.length === 0) {
+            currentSection = 'المهارات';
+        } else if (!data._completedLanguages) {
+            currentSection = 'اللغات';
+        } else if (!data._completedHobbies) {
+            currentSection = 'الهوايات';
+        }
 
         return { percentage, currentSection };
     };

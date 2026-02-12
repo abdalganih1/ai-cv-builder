@@ -32,3 +32,4 @@ This file provides guidance to agents when working with code in this repository.
 - يجب توثيق: المشكلة، السبب الجذري، الحل المطبق، الملفات المعدلة، النتيجة
 - دائما التقارير تكتب باللغة العربية
 - دائما اقرا اخر التقارير حتى تعرف تقدم المشروع في كل امر جديد
+- دائما بس تنتهي بتشغل الملف اسمه deploy.ps1 باستعمال powershell 
