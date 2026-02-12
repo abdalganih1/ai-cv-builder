@@ -14,6 +14,7 @@
 param(
     [string]$Message = "",
     [switch]$SkipPush,
+    [switch]$Yes,
     [switch]$Help
 )
 
@@ -33,11 +34,12 @@ if ($Help) {
 الاستخدام:
     .\deploy.ps1                    # تشغيل تفاعلي (يسأل عن رسالة commit)
     .\deploy.ps1 -Message "نص"      # تحديد رسالة commit مباشرة
+    .\deploy.ps1 -Yes               # الموافقة التلقائية (بدون تأكيد)
     .\deploy.ps1 -SkipPush          # تخطي عملية push (فقط commit)
     .\deploy.ps1 -Help              # عرض هذه المساعدة
 
 أمثلة:
-    .\deploy.ps1 -Message "إصلاح مشكلة التنقل"
+    .\deploy.ps1 -Message "إصلاح مشكلة التنقل" -Yes
     .\deploy.ps1 -SkipPush -Message "تحديث التوثيق"
 
 ملاحظة: Cloudflare Pages يبني وينشر تلقائياً عند push إلى GitHub
@@ -146,7 +148,12 @@ if (-not $Message) {
 Write-Info "رسالة Commit: $Message"
 
 # تأكيد المتابعة
-$confirm = Read-Host "`nهل تريد المتابعة؟ (y/n)"
+if ($Yes) {
+    $confirm = "y"
+} else {
+    $confirm = Read-Host "`nهل تريد المتابعة؟ (y/n)"
+}
+
 if ($confirm -ne "y" -and $confirm -ne "Y") {
     Write-Warning "تم إلغاء العملية"
     exit 0
