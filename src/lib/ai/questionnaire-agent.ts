@@ -107,7 +107,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'edu_degree',
                         field: 'education_degree',
-                        text: 'ما هي الدرجة العلمية التي حصلت عليها؟ (مثال: بكالوريوس، ماجستير، دبلوم)',
+                        text: `ما هي الدرجة العلمية التي حصلت عليها من ${lastEdu.institution}؟ (مثال: بكالوريوس، ماجستير، دبلوم)`,
                         type: 'text'
                     };
                 }
@@ -115,7 +115,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'edu_major',
                         field: 'education_major',
-                        text: 'ما هو التخصص الذي درسته؟',
+                        text: `ما هو التخصص الذي درسته في ${lastEdu.institution}؟`,
                         type: 'text'
                     };
                 }
@@ -123,7 +123,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'edu_startYear',
                         field: 'education_startYear',
-                        text: 'متى بدأت الدراسة في هذه المؤسسة؟ (مثال: 2015)',
+                        text: `متى بدأت الدراسة في ${lastEdu.institution}؟ (مثال: 2015)`,
                         type: 'text'
                     };
                 }
@@ -131,7 +131,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'edu_endYear',
                         field: 'education_endYear',
-                        text: 'متى تخرجت أو متى تتوقع التخرج؟ (مثال: 2019 أو "حالياً")',
+                        text: `متى تخرجت من ${lastEdu.institution} أو متى تتوقع التخرج؟ (مثال: 2019 أو "حالياً")`,
                         type: 'text'
                     };
                 }
@@ -177,7 +177,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'exp_position',
                         field: 'experience_position',
-                        text: 'ما هو المسمى الوظيفي أو الدور الذي شغلته؟',
+                        text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${lastExp.company}؟`,
                         type: 'text'
                     };
                 }
@@ -185,7 +185,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'exp_startDate',
                         field: 'experience_startDate',
-                        text: 'متى بدأت العمل في هذه الوظيفة؟ (مثال: 2020/01)',
+                        text: `متى بدأت العمل في ${lastExp.company}؟ (مثال: 2020/01)`,
                         type: 'text'
                     };
                 }
@@ -193,7 +193,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'exp_endDate',
                         field: 'experience_endDate',
-                        text: 'متى انتهت هذه الوظيفة؟ (أو اكتب "حتى الآن" إذا كنت لا تزال تعمل بها)',
+                        text: `متى انتهت عملك في ${lastExp.company}؟ (أو اكتب "حتى الآن" إذا كنت لا تزال تعمل بها)`,
                         type: 'text'
                     };
                 }
@@ -201,7 +201,7 @@ class QuestionnaireAgent {
                     return {
                         id: 'exp_description',
                         field: 'experience_description',
-                        text: 'صف مهامك ومسؤولياتك الرئيسية في هذه الوظيفة بجملتين أو أكثر:',
+                        text: `صف مهامك ومسؤولياتك الرئيسية في ${lastExp.company} بجملتين أو أكثر:`,
                         type: 'textarea'
                     };
                 }

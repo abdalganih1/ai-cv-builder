@@ -35,6 +35,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [rewindingField, setRewindingField] = useState<string | null>(null);
     const [isRewinding, setIsRewinding] = useState(false);
 
+    // State to track which entry index we are currently editing (for array fields)
+    const [activeEntryIndex, setActiveEntryIndex] = useState<number | null>(null);
+
     // Helper: Check if field was skipped
     const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
 
@@ -305,6 +308,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         if (isRewinding) {
             setIsRewinding(false);
             setRewindingField(null);
+            // Don't reset activeEntryIndex here - we need it for THIS update
         }
 
         // Save current question to history before moving forward
@@ -312,11 +316,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         const historyEntry: { field: string; entryIndex?: number } = { field: currentQuestion.field };
 
         if (currentQuestion.field.startsWith('education_')) {
-            historyEntry.entryIndex = data.education?.length ? data.education.length - 1 : 0;
+            // Use activeEntryIndex if available, otherwise default to last item
+            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.education?.length ? data.education.length - 1 : 0);
         } else if (currentQuestion.field.startsWith('experience_')) {
-            historyEntry.entryIndex = data.experience?.length ? data.experience.length - 1 : 0;
+            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.experience?.length ? data.experience.length - 1 : 0);
         } else if (currentQuestion.field.startsWith('languages_')) {
-            historyEntry.entryIndex = data.languages?.length ? data.languages.length - 1 : 0;
+            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.languages?.length ? data.languages.length - 1 : 0);
         }
 
         setQuestionHistory(prev => [...prev, historyEntry]);
@@ -357,27 +362,32 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         else if (field === 'education_institution') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].institution = translateAbbreviation(response, 'university');
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].institution = translateAbbreviation(response, 'university');
             updatedData.education = list;
         }
         else if (field === 'education_degree') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].degree = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].degree = response;
             updatedData.education = list;
         }
         else if (field === 'education_major') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].major = translateAbbreviation(response, 'major');
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].major = translateAbbreviation(response, 'major');
             updatedData.education = list;
         }
         else if (field === 'education_startYear') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].startYear = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].startYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_endYear') {
             const list = [...(data.education || [])];
-            if (list.length > 0) list[list.length - 1].endYear = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].endYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_more') {
@@ -404,27 +414,32 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         else if (field === 'experience_company') {
             const list = [...(data.experience || [])];
-            if (list.length > 0) list[list.length - 1].company = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].company = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_position') {
             const list = [...(data.experience || [])];
-            if (list.length > 0) list[list.length - 1].position = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].position = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_startDate') {
             const list = [...(data.experience || [])];
-            if (list.length > 0) list[list.length - 1].startDate = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].startDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_endDate') {
             const list = [...(data.experience || [])];
-            if (list.length > 0) list[list.length - 1].endDate = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].endDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_description') {
             const list = [...(data.experience || [])];
-            if (list.length > 0) list[list.length - 1].description = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].description = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_more') {
@@ -472,12 +487,14 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         else if (field === 'languages_name') {
             const list = [...(data.languages || [])];
-            if (list.length > 0) list[list.length - 1].name = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].name = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_level') {
             const list = [...(data.languages || [])];
-            if (list.length > 0) list[list.length - 1].level = response;
+            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > idx) list[idx].level = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_more') {
@@ -489,6 +506,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 updatedData._completedLanguages = true;
             }
         }
+
+        // Reset activeEntryIndex after processing answer
+        setActiveEntryIndex(null);
 
         // Update global state, trigger useEffect to fetch next question
         onUpdate(updatedData);
@@ -511,11 +531,18 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
         const lastField = lastEntry.field;
 
-        console.log('🔙 Backing up to field:', lastField);
+        console.log('🔙 Backing up to field:', lastField, 'EntryIndex:', lastEntry.entryIndex);
 
         // Set rewinding state to prevent useEffect from overriding our question
         setIsRewinding(true);
         setRewindingField(lastField);
+
+        // IMPORTANT: Restore the activeEntryIndex if we are backing into an array item
+        if (lastEntry.entryIndex !== undefined) {
+            setActiveEntryIndex(lastEntry.entryIndex);
+        } else {
+            setActiveEntryIndex(null);
+        }
 
         // Get the question for this field directly
         const question = getQuestionForField(lastField, data);
