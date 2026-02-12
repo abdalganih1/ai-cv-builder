@@ -43,21 +43,21 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         const history: HistoryEntry[] = [];
 
         // Personal Info fields
-        if (cvData.personal.birthDate && !isSkipped(cvData.personal.birthDate)) {
+        if (cvData.personal.birthDate) {
             history.push({ field: 'birthDate' });
         }
         if (cvData.personal.targetJobTitle) {
             history.push({ field: 'targetJobTitle' });
         }
-        if (cvData.personal.email && !isSkipped(cvData.personal.email)) {
+        if (cvData.personal.email) {
             history.push({ field: 'email' });
         }
-        if (cvData.personal.photoUrl && !isSkipped(cvData.personal.photoUrl)) {
+        if (cvData.personal.photoUrl) {
             history.push({ field: 'photoUrl' });
         }
 
         // Education fields
-        if (cvData.education && cvData.education.length > 0) {
+        if ((cvData.education && cvData.education.length > 0) || cvData._completedEducation) {
             history.push({ field: 'education_has' });
             cvData.education.forEach((edu, index) => {
                 if (edu.institution) history.push({ field: 'education_institution', entryIndex: index });
@@ -76,7 +76,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
 
         // Experience fields
-        if (cvData.experience && cvData.experience.length > 0) {
+        if ((cvData.experience && cvData.experience.length > 0) || cvData._completedExperience) {
             history.push({ field: 'experience_has' });
             cvData.experience.forEach((exp, index) => {
                 if (exp.company) history.push({ field: 'experience_company', entryIndex: index });
@@ -100,7 +100,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
 
         // Languages fields
-        if (cvData.languages && cvData.languages.length > 0) {
+        if ((cvData.languages && cvData.languages.length > 0) || cvData._completedLanguages) {
             history.push({ field: 'languages_has' });
             cvData.languages.forEach((lang, index) => {
                 if (lang.name) history.push({ field: 'languages_name', entryIndex: index });
@@ -116,7 +116,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
 
         // Hobbies
-        if (cvData.hobbies && cvData.hobbies.length > 0) {
+        if ((cvData.hobbies && cvData.hobbies.length > 0) || cvData._completedHobbies) {
             history.push({ field: 'hobbies_has' });
             if (cvData.hobbies[0] !== '__pending__') {
                 history.push({ field: 'hobbies_text' });
