@@ -273,16 +273,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     // Load the next question when the component mounts or after an answer
     useEffect(() => {
         const fetchQuestion = async () => {
-            // If we're rewinding to a specific field, show that question directly
-            if (isRewinding && rewindingField) {
-                const question = getQuestionForField(rewindingField, data);
-                setCurrentQuestion(question);
-                setLoading(false);
-                setIsRewinding(false);
-                setRewindingField(null);
-                return;
-            }
-
             // Skip fetching if we're in rewinding mode
             if (isRewinding) {
                 return;
@@ -310,6 +300,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
     const handleAnswer = async () => {
         if (!currentQuestion) return;
+
+        // Reset rewinding state so future updates will fetch the next question
+        if (isRewinding) {
+            setIsRewinding(false);
+            setRewindingField(null);
+        }
 
         // Save current question to history before moving forward
         // Include entry index for array fields
