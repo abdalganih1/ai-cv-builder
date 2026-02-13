@@ -4,63 +4,49 @@ export const runtime = 'edge';
 
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
-// System prompts per field type
+// System prompts - SIMPLE and DIRECT to avoid thinking mode
 const FIELD_PROMPTS: Record<string, string> = {
-    university: 'أنت مساعد متخصص باقتراح أسماء جامعات ومؤسسات تعليمية. أعطِ 5 اقتراحات فقط كقائمة مرقمة مختصرة. ركّز على الجامعات السورية والعربية المعروفة.',
-    degree: 'أنت مساعد متخصص باقتراح درجات علمية. أعطِ 5 اقتراحات فقط كقائمة مرقمة. مثل: بكالوريوس، ماجستير، دبلوم، دكتوراه، شهادة مهنية.',
-    major: 'أنت مساعد متخصص باقتراح تخصصات جامعية. أعطِ 5 اقتراحات فقط كقائمة مرقمة بناءً على سياق الجامعة المذكورة.',
-    company: 'أنت مساعد متخصص باقتراح أسماء شركات وجهات عمل. أعطِ 5 اقتراحات فقط كقائمة مرقمة. ركّز على شركات معروفة في المنطقة العربية.',
-    position: 'أنت مساعد متخصص باقتراح مسميات وظيفية. أعطِ 5 اقتراحات فقط كقائمة مرقمة بناءً على اسم الشركة أو جهة العمل المذكورة.',
-    description: 'أنت مساعد متخصص بكتابة وصف مهام وظيفية. أعطِ 3 اقتراحات فقط لوصف المهام والمسؤوليات بجملتين لكل اقتراح بناءً على المسمى الوظيفي والشركة.',
-    jobTitle: 'أنت مساعد متخصص باقتراح مسميات وظيفية للسيرة الذاتية. أعطِ 5 اقتراحات فقط كقائمة مرقمة لعناوين وظيفية شائعة ومهنية.',
-    skills: 'أنت مساعد متخصص باقتراح مهارات مهنية. أعطِ 5 اقتراحات فقط كقائمة مرقمة بناءً على المسمى الوظيفي المذكور.',
-    language: 'أنت مساعد متخصص باقتراح أسماء لغات. أعطِ 5 اقتراحات فقط كقائمة مرقمة للغات الأكثر طلباً في سوق العمل.',
+    university: 'جامعة دمشق، جامعة حلب، جامعة تشرين، الجامعة الوطنية الخاصة، الجامعة العربية الدولية، جامعة القلمون، جامعة الفرات، جامعة حماة، جامعة إدلب، الجامعة السورية الخاصة، جامعة قرطبة، جامعة الشام الخاصة',
+    degree: 'بكالوريوس، ماجستير، دبلوم، دكتوراه، شهادة مهنية',
+    major: 'هندسة برمجيات، طب عام، إدارة أعمال، حقوق، صيدلة',
+    company: 'شركة سيريتل، MTN سوريا، بنك سورية والخليج، بنك البركة، سيرياتل',
+    position: 'مطور برمجي، مهندس شبكات، مدير مبيعات، محاسب، مصمم جرافيك',
+    description: 'إدارة وتطوير التطبيقات، متابعة المشاريع، كتابة التقارير',
+    jobTitle: 'مطور full-stack، مهندس DevOps، مدير منتج، محلل بيانات، مصمم UX',
+    skills: 'JavaScript، Python، تواصل فعّال، إدارة وقت، تفكير ناقد',
+    language: 'الإنجليزية، الفرنسية، الألمانية، التركية، الروسية',
 };
 
-// User prompts per field type
-function buildUserPrompt(fieldType: string, context: string, currentValue: string): string {
-    const cv = currentValue ? ` (القيمة الحالية: ${currentValue})` : '';
-    switch (fieldType) {
-        case 'university':
-            return `اقترح أسماء جامعات أو مؤسسات تعليمية${cv}`;
-        case 'degree':
-            return `اقترح درجات علمية مناسبة${context ? ` لجامعة ${context}` : ''}${cv}`;
-        case 'major':
-            return `اقترح تخصصات جامعية${context ? ` في ${context}` : ''}${cv}`;
-        case 'company':
-            return `اقترح أسماء شركات أو جهات عمل${cv}`;
-        case 'position':
-            return `اقترح مسميات وظيفية${context ? ` في ${context}` : ''}${cv}`;
-        case 'description':
-            return `اقترح وصف مهام ومسؤوليات${context ? ` لوظيفة ${context}` : ''}${cv}`;
-        case 'jobTitle':
-            return `اقترح مسميات وظيفية احترافية للسيرة الذاتية${cv}`;
-        case 'skills':
-            return `اقترح مهارات مهنية${context ? ` مناسبة لوظيفة ${context}` : ''}${cv}`;
-        case 'language':
-            return `اقترح لغات مطلوبة في سوق العمل${cv}`;
-        default:
-            return `اقترح خيارات مناسبة${context ? ` بناءً على: ${context}` : ''}${cv}`;
-    }
-}
-
-// Parse AI response into suggestion array
+// Parse: just split by comma
 function parseSuggestions(text: string): string[] {
-    // Split by newlines, filter numbered items
-    const lines = text.split('\n').filter(line => line.trim());
+    if (!text || text.trim().length === 0) return [];
+
+    console.log('[parseSuggestions] Raw text:', text);
+
+    // Clean common prefixes
+    let cleaned = text
+        .replace(/^(الجواب:|الإجابة:|الاقتراحات:|اقتراحاتي:|هذه|Answer:|Suggestions:)\s*/i, '')
+        .trim();
+
+    // Split by comma (Arabic or English)
+    const parts = cleaned.split(/[،,]/);
     const suggestions: string[] = [];
 
-    for (const line of lines) {
-        // Remove numbering like "1.", "1-", "1)", etc.
-        const cleaned = line.replace(/^\s*[\d]+[\.\-\)]\s*/, '').trim();
-        // Remove markdown bold
-        const noBold = cleaned.replace(/\*\*/g, '').trim();
-        if (noBold && noBold.length > 1 && noBold.length < 200) {
-            suggestions.push(noBold);
+    for (const part of parts) {
+        let s = part.trim();
+        s = s.replace(/^\d+[\.\-\)]\s*/, '');  // Remove numbering
+        s = s.replace(/\*\*/g, '');            // Remove bold
+        s = s.replace(/[\u064B-\u065F]/g, ''); // Remove diacritics
+        s = s.trim();
+
+        if (s && s.length > 1 && s.length < 200) {
+            suggestions.push(s);
         }
     }
 
-    return suggestions.slice(0, 6); // Max 6 suggestions
+    const result = suggestions.slice(0, 6);
+    console.log('[parseSuggestions] Parsed:', result);
+    return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -75,25 +61,30 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { fieldType, context, currentValue } = body;
+        const { fieldType } = body;
+        console.log('[suggest] Request:', fieldType);
 
         if (!fieldType) {
             return new Response(
-                JSON.stringify({ error: 'fieldType is required' }),
+                JSON.stringify({ error: 'fieldType required' }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
         const ZAI_API_KEY = process.env.ZAI_API_KEY;
         if (!ZAI_API_KEY) {
+            console.log('[suggest] No API key - returning hardcoded');
+            // Return hardcoded suggestions when no API key
+            const hardcoded = FIELD_PROMPTS[fieldType] || FIELD_PROMPTS['jobTitle'];
             return new Response(
-                JSON.stringify({ suggestions: [] }),
+                JSON.stringify({ suggestions: parseSuggestions(hardcoded) }),
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
-        const systemPrompt = FIELD_PROMPTS[fieldType] || FIELD_PROMPTS['jobTitle'];
-        const userPrompt = buildUserPrompt(fieldType, context || '', currentValue || '');
+        const prompt = `اقترح 5 خيارات مشابهة لـ: ${FIELD_PROMPTS[fieldType] || 'خيارات مهنية'}. أعطِ الخيارات فقط مفصولة بفاصلة بدون ترقيم.`;
+
+        console.log('[suggest] Calling ZAI API:', prompt);
 
         const response = await fetch(`${BASE_URL}/chat/completions`, {
             method: 'POST',
@@ -102,28 +93,37 @@ export async function POST(request: NextRequest) {
                 'Authorization': `Bearer ${ZAI_API_KEY}`,
             },
             body: JSON.stringify({
-                model: 'glm-4-flash',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.7,
+                model: 'GLM-4.5-Flash',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.3,
                 stream: false,
-                max_tokens: 200,
+                max_tokens: 100,
             }),
         });
 
         if (!response.ok) {
-            console.error('Suggest API error:', response.status);
+            console.error('[suggest] API error:', response.status);
+            // Fallback to hardcoded
+            const hardcoded = FIELD_PROMPTS[fieldType] || FIELD_PROMPTS['jobTitle'];
             return new Response(
-                JSON.stringify({ suggestions: [] }),
+                JSON.stringify({ suggestions: parseSuggestions(hardcoded) }),
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
         const data = await response.json();
         const content = data?.choices?.[0]?.message?.content || '';
-        const suggestions = parseSuggestions(content);
+
+        console.log('[suggest] AI response:', content);
+
+        let suggestions = parseSuggestions(content);
+
+        // If parsing failed, use hardcoded
+        if (suggestions.length === 0) {
+            console.log('[suggest] Parsing failed, using hardcoded');
+            const hardcoded = FIELD_PROMPTS[fieldType] || FIELD_PROMPTS['jobTitle'];
+            suggestions = parseSuggestions(hardcoded);
+        }
 
         return new Response(
             JSON.stringify({ suggestions }),
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
         );
 
     } catch (error) {
-        console.error('Suggest route error:', error);
+        console.error('[suggest] Error:', error);
         return new Response(
             JSON.stringify({ suggestions: [] }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
