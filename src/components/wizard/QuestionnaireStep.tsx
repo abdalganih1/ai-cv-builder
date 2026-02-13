@@ -5,7 +5,23 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
+import AISuggestButton from '@/components/ui/AISuggestButton';
 import { translateAbbreviation } from '@/lib/utils/syrian-universities';
+
+// ═══════════════════════════════════════════════════════════════
+// AI SUGGEST FIELD MAPPING
+// ═══════════════════════════════════════════════════════════════
+const AI_SUGGEST_FIELDS: Record<string, string> = {
+    'education_institution': 'university',
+    'education_degree': 'degree',
+    'education_major': 'major',
+    'experience_company': 'company',
+    'experience_position': 'position',
+    'experience_description': 'description',
+    'targetJobTitle': 'jobTitle',
+    'skills_text': 'skills',
+    'languages_name': 'language',
+};
 
 interface StepProps {
     data: CVData;
@@ -855,6 +871,15 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 {SECTIONS.map((section) => {
                     const status = getSectionStatus(section.id);
                     const isCurrentSection = section.label === currentSection;
+                    // Entry count badge for array sections
+                    let entryBadge = '';
+                    if (section.id === 'education' && data.education.length > 0) {
+                        entryBadge = `(${data.education.length})`;
+                    } else if (section.id === 'experience' && data.experience.length > 0) {
+                        entryBadge = `(${data.experience.length})`;
+                    } else if (section.id === 'languages' && data.languages.length > 0) {
+                        entryBadge = `(${data.languages.length})`;
+                    }
                     return (
                         <button
                             key={section.id}
@@ -870,6 +895,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                         >
                             <span className="text-sm">{section.icon}</span>
                             <span className="hidden sm:inline">{section.label}</span>
+                            {entryBadge && <span className="text-[9px] opacity-70">{entryBadge}</span>}
                             {status === 'completed' && <span className="text-green-500 text-[10px]">✓</span>}
                         </button>
                     );
@@ -920,54 +946,85 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     )}
 
                     {currentQuestion.type === 'text' && (
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={response}
-                                onChange={(e) => setResponse(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleAnswer();
-                                    }
-                                }}
-                                className="w-full p-5 pl-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                                placeholder="اكتب إجابتك هنا..."
-                                autoFocus
-                                enterKeyHint="next"
-                            />
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                                <VoiceRecorder
-                                    onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
-                                    placeholder="🎤"
+                        <div>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={response}
+                                    onChange={(e) => setResponse(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAnswer();
+                                        }
+                                    }}
+                                    className="w-full p-5 pl-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                    placeholder="اكتب إجابتك هنا..."
+                                    autoFocus
+                                    enterKeyHint="next"
                                 />
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                                    <VoiceRecorder
+                                        onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
+                                        placeholder="🎤"
+                                    />
+                                </div>
                             </div>
+                            {/* AI Suggestions */}
+                            {AI_SUGGEST_FIELDS[currentQuestion.field] && (
+                                <AISuggestButton
+                                    fieldType={AI_SUGGEST_FIELDS[currentQuestion.field]}
+                                    context={
+                                        currentQuestion.field === 'education_major' ? (data.education[data.education.length - 1]?.institution || '') :
+                                            currentQuestion.field === 'experience_position' ? (data.experience[data.experience.length - 1]?.company || '') :
+                                                currentQuestion.field === 'skills_text' ? (data.personal.targetJobTitle || '') :
+                                                    ''
+                                    }
+                                    currentValue={response}
+                                    onSelect={(value) => setResponse(value)}
+                                />
+                            )}
                         </div>
                     )}
 
                     {currentQuestion.type === 'textarea' && (
-                        <div className="relative">
-                            <textarea
-                                value={response}
-                                onChange={(e) => setResponse(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                        e.preventDefault();
-                                        handleAnswer();
-                                    }
-                                }}
-                                className="w-full p-5 pb-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[160px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                                placeholder="اكتب تفاصيل إجابتك هنا..."
-                                autoFocus
-                                enterKeyHint="enter"
-                            />
-                            <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                                <VoiceRecorder
-                                    onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
-                                    placeholder="🎤"
+                        <div>
+                            <div className="relative">
+                                <textarea
+                                    value={response}
+                                    onChange={(e) => setResponse(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault();
+                                            handleAnswer();
+                                        }
+                                    }}
+                                    className="w-full p-5 pb-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none min-h-[160px] transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                    placeholder="اكتب تفاصيل إجابتك هنا..."
+                                    autoFocus
+                                    enterKeyHint="enter"
                                 />
-                                <span className="text-xs text-gray-400">{response.length} حرف</span>
+                                <div className="absolute bottom-4 left-4 flex items-center gap-3">
+                                    <VoiceRecorder
+                                        onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
+                                        placeholder="🎤"
+                                    />
+                                    <span className="text-xs text-gray-400">{response.length} حرف</span>
+                                </div>
                             </div>
+                            {/* AI Suggestions */}
+                            {AI_SUGGEST_FIELDS[currentQuestion.field] && (
+                                <AISuggestButton
+                                    fieldType={AI_SUGGEST_FIELDS[currentQuestion.field]}
+                                    context={
+                                        currentQuestion.field === 'experience_description' ?
+                                            `${data.experience[data.experience.length - 1]?.company || ''} - ${data.experience[data.experience.length - 1]?.position || ''}` :
+                                            ''
+                                    }
+                                    currentValue={response}
+                                    onSelect={(value) => setResponse(value)}
+                                />
+                            )}
                         </div>
                     )}
 

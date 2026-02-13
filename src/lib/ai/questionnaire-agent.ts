@@ -1,5 +1,20 @@
 import { CVData, Question, ResponseDepth } from '../types/cv-schema';
 
+// ═══════════════════════════════════════════════════════════════
+// ORDINAL NUMBERING — Arabic ordinals for repeated entries
+// ═══════════════════════════════════════════════════════════════
+function getOrdinalArabic(n: number): string {
+    // n is 0-indexed entry index
+    if (n <= 0) return ''; // first entry — no ordinal
+    const ordinals = ['الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة', 'السابعة', 'الثامنة'];
+    return ordinals[n - 1] || `رقم ${n + 1}`;
+}
+
+function getOrdinalPrefix(n: number): string {
+    const ord = getOrdinalArabic(n);
+    return ord ? ` ${ord}` : '';
+}
+
 class QuestionnaireAgent {
     // Analyze how detailed the user's response is
     analyzeResponse(response: string): ResponseDepth {
@@ -94,12 +109,14 @@ class QuestionnaireAgent {
 
             // 2b. If there's an incomplete entry, complete it field by field
             const lastEdu = education[education.length - 1];
+            const eduIdx = education.length - 1;
+            const eduOrd = getOrdinalPrefix(eduIdx);
             if (lastEdu) {
                 if (!lastEdu.institution) {
                     return {
                         id: 'edu_institution',
                         field: 'education_institution',
-                        text: 'ما هو اسم الجامعة أو المؤسسة التعليمية؟',
+                        text: `ما هو اسم الجامعة أو المؤسسة التعليمية${eduOrd}؟`,
                         type: 'text'
                     };
                 }
@@ -177,8 +194,9 @@ class QuestionnaireAgent {
                     return {
                         id: 'exp_position',
                         field: 'experience_position',
-                        text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${lastExp.company}؟`,
-                        type: 'text'
+                        text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${lastExp.company}؟ (مثال: مطور برمجي، محاسب، مدير مبيعات، مصمم جرافيك، مهندس شبكات، مدرّس، موظف استقبال)`,
+                        type: 'text',
+                        skippable: true
                     };
                 }
                 if (!lastExp.startDate) {
@@ -364,7 +382,7 @@ class QuestionnaireAgent {
             },
             'education_institution': {
                 id: 'edu_institution', field: 'education_institution',
-                text: 'ما هو اسم الجامعة أو المؤسسة التعليمية؟',
+                text: `ما هو اسم الجامعة أو المؤسسة التعليمية${getOrdinalPrefix(idx)}؟`,
                 type: 'text'
             },
             'education_degree': {
@@ -412,8 +430,9 @@ class QuestionnaireAgent {
             },
             'experience_position': {
                 id: 'exp_position', field: 'experience_position',
-                text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${expName}؟`,
-                type: 'text'
+                text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${expName}؟ (مثال: مطور برمجي، محاسب، مدير مبيعات، مصمم جرافيك، مهندس شبكات، مدرّس، موظف استقبال)`,
+                type: 'text',
+                skippable: true
             },
             'experience_startDate': {
                 id: 'exp_startDate', field: 'experience_startDate',
