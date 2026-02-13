@@ -211,7 +211,8 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 setEmailUsername(''); setEmailDomain('gmail.com'); setResponse('');
             }
         } else if (field === 'photoUrl') {
-            setResponse('');
+            const v = d.personal.photoUrl;
+            setResponse(v && v !== '__skipped__' ? v : '');
         }
         // Education array fields
         else if (field.startsWith('education_') && entryIndex !== undefined) {
@@ -462,14 +463,66 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     };
 
     // ═══════════════════════════════════════════════════════════════
+    // HELPER: Check if a field's value has actually changed
+    // ═══════════════════════════════════════════════════════════════
+    const getStoredValue = (field: string, entryIdx: number | null): string => {
+        const d = data;
+        if (field === 'birthDate') return (d.personal.birthDate && d.personal.birthDate !== '__skipped__') ? d.personal.birthDate : '';
+        if (field === 'targetJobTitle') return d.personal.targetJobTitle || '';
+        if (field === 'email') return (d.personal.email && d.personal.email !== '__skipped__') ? d.personal.email : '';
+        if (field === 'photoUrl') return (d.personal.photoUrl && d.personal.photoUrl !== '__skipped__') ? d.personal.photoUrl : '';
+        if (field === 'education_has') return d.education.length > 0 ? 'yes' : (d._completedEducation ? 'no' : '');
+        if (field === 'education_more') return d._completedEducation ? 'no' : '';
+        if (field === 'experience_has') return d.experience.length > 0 ? 'yes' : (d._completedExperience ? 'no' : '');
+        if (field === 'experience_more') return d._completedExperience ? 'no' : '';
+        if (field === 'languages_has') return d.languages.length > 0 ? 'yes' : (d._completedLanguages ? 'no' : '');
+        if (field === 'languages_more') return d._completedLanguages ? 'no' : '';
+        if (field === 'hobbies_has') return (d.hobbies && d.hobbies.length > 0) ? 'yes' : (d._completedHobbies ? 'no' : '');
+        if (field === 'skills') return d.skills?.join('، ') || '';
+        if (field === 'hobbies_text') return d.hobbies?.filter(h => h !== '__pending__').join('، ') || '';
+        const i = entryIdx ?? 0;
+        if (field === 'education_institution') return d.education?.[i]?.institution || '';
+        if (field === 'education_degree') return d.education?.[i]?.degree || '';
+        if (field === 'education_major') return d.education?.[i]?.major || '';
+        if (field === 'education_startYear') return d.education?.[i]?.startYear || '';
+        if (field === 'education_endYear') return d.education?.[i]?.endYear || '';
+        if (field === 'experience_company') return d.experience?.[i]?.company || '';
+        if (field === 'experience_position') return d.experience?.[i]?.position || '';
+        if (field === 'experience_startDate') return d.experience?.[i]?.startDate || '';
+        if (field === 'experience_endDate') return d.experience?.[i]?.endDate || '';
+        if (field === 'experience_description') return d.experience?.[i]?.description || '';
+        if (field === 'languages_name') return d.languages?.[i]?.name || '';
+        if (field === 'languages_level') return d.languages?.[i]?.level || '';
+        return '';
+    };
+
+    // ═══════════════════════════════════════════════════════════════
     // HANDLE ANSWER (forward navigation) — cursor++
     // ═══════════════════════════════════════════════════════════════
     const handleAnswer = async () => {
         if (!currentQuestion) return;
 
         const field = currentQuestion.field;
-        const updatedData: Partial<CVData> = {};
         const idx = activeEntryIndex !== null ? activeEntryIndex : 0;
+
+        // ═══ FAST PATH: If value hasn't changed, just advance cursor ═══
+        const storedValue = getStoredValue(field, activeEntryIndex);
+        if (response === storedValue && storedValue !== '') {
+            // Value is the same — just advance cursor without modifying data
+            console.log('⏩ Fast path (no change):', field, '→ cursor++');
+            const nextCursor = cursorIndex + 1;
+            if (nextCursor >= sequence.length) {
+                setCursorIndex(nextCursor);
+                setCurrentQuestion(null);
+                setLoading(false);
+            } else {
+                setCursorIndex(nextCursor);
+                showQuestionAtCursor(sequence, nextCursor, data);
+            }
+            return;
+        }
+
+        const updatedData: Partial<CVData> = {};
 
         // ═══ PERSONAL INFO ═══
         if (field === 'birthDate') {
@@ -493,10 +546,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     const list = [...(data.education || [])];
                     list.push({ id: Date.now().toString(), institution: '', degree: '', major: '', startYear: '', endYear: '' });
                     updatedData.education = list;
+                    updatedData._completedEducation = undefined;
                 }
-                updatedData._completedEducation = undefined;
+                // If education already has entries, DON'T touch _completedEducation
             } else {
                 updatedData._completedEducation = true;
+                updatedData.education = [];
             }
         }
         else if (field === 'education_institution') {
@@ -547,10 +602,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     const list = [...(data.experience || [])];
                     list.push({ id: Date.now().toString(), company: '', position: '', startDate: '', endDate: '', description: '' });
                     updatedData.experience = list;
+                    updatedData._completedExperience = undefined;
                 }
-                updatedData._completedExperience = undefined;
+                // If experience already has entries, DON'T touch _completedExperience
             } else {
                 updatedData._completedExperience = true;
+                updatedData.experience = [];
             }
         }
         else if (field === 'experience_company') {
@@ -618,10 +675,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     const list = [...(data.languages || [])];
                     list.push({ name: '', level: '' });
                     updatedData.languages = list;
+                    updatedData._completedLanguages = undefined;
                 }
-                updatedData._completedLanguages = undefined;
+                // If languages already has entries, DON'T touch _completedLanguages
             } else {
                 updatedData._completedLanguages = true;
+                updatedData.languages = [];
             }
         }
         else if (field === 'languages_name') {
