@@ -431,6 +431,20 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
     }, [data, getSectionStatus, initializeHistoryFromData, navigateToField]);
 
+    // Helper: determine the active entry index for a field from data
+    const getEntryIndexForField = useCallback((field: string): number | undefined => {
+        if (field.startsWith('education_') && field !== 'education_has' && field !== 'education_more') {
+            return data.education?.length ? data.education.length - 1 : 0;
+        }
+        if (field.startsWith('experience_') && field !== 'experience_has' && field !== 'experience_more') {
+            return data.experience?.length ? data.experience.length - 1 : 0;
+        }
+        if (field.startsWith('languages_') && field !== 'languages_has' && field !== 'languages_more') {
+            return data.languages?.length ? data.languages.length - 1 : 0;
+        }
+        return undefined;
+    }, [data]);
+
     // ═══════════════════════════════════════════════════════════════
     // FETCH NEXT QUESTION (normal flow)
     // ═══════════════════════════════════════════════════════════════
@@ -445,9 +459,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             if (isRewindingRef.current) return;
             setCurrentQuestion(question);
             setLoading(false);
+
+            // Auto-populate response if the field already has stored data
+            // This prevents data loss when navigating forward after going back
+            if (question) {
+                const entryIdx = getEntryIndexForField(question.field);
+                populateResponseForField(question.field, entryIdx);
+            }
         };
         fetchQuestion();
-    }, [data, isRewinding]);
+    }, [data, isRewinding, getEntryIndexForField]);
 
     // ═══════════════════════════════════════════════════════════════
     // FILE UPLOAD HANDLER
@@ -515,31 +536,32 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         else if (field === 'education_institution') {
             const list = [...(data.education || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].institution = translateAbbreviation(response, 'university');
+            // Protect existing data: don't overwrite with empty string
+            if (list.length > idx && response) list[idx].institution = translateAbbreviation(response, 'university');
             updatedData.education = list;
         }
         else if (field === 'education_degree') {
             const list = [...(data.education || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].degree = response;
+            if (list.length > idx && response) list[idx].degree = response;
             updatedData.education = list;
         }
         else if (field === 'education_major') {
             const list = [...(data.education || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].major = translateAbbreviation(response, 'major');
+            if (list.length > idx && response) list[idx].major = translateAbbreviation(response, 'major');
             updatedData.education = list;
         }
         else if (field === 'education_startYear') {
             const list = [...(data.education || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].startYear = response;
+            if (list.length > idx && response) list[idx].startYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_endYear') {
             const list = [...(data.education || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].endYear = response;
+            if (list.length > idx && response) list[idx].endYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_more') {
@@ -565,31 +587,31 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         else if (field === 'experience_company') {
             const list = [...(data.experience || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].company = response;
+            if (list.length > idx && response) list[idx].company = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_position') {
             const list = [...(data.experience || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].position = response;
+            if (list.length > idx && response) list[idx].position = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_startDate') {
             const list = [...(data.experience || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].startDate = response;
+            if (list.length > idx && response) list[idx].startDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_endDate') {
             const list = [...(data.experience || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].endDate = response;
+            if (list.length > idx && response) list[idx].endDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_description') {
             const list = [...(data.experience || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].description = response;
+            if (list.length > idx && response) list[idx].description = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_more') {
@@ -632,13 +654,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         else if (field === 'languages_name') {
             const list = [...(data.languages || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].name = response;
+            if (list.length > idx && response) list[idx].name = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_level') {
             const list = [...(data.languages || [])];
             const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx) list[idx].level = response;
+            if (list.length > idx && response) list[idx].level = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_more') {
