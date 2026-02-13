@@ -1,7 +1,7 @@
 "use client";
 
 import { CVData, Question } from '@/lib/types/cv-schema';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
@@ -70,8 +70,14 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [questionHistory, setQuestionHistory] = useState<HistoryEntry[]>([]);
     const [historyInitialized, setHistoryInitialized] = useState(false);
 
-    // Rewinding state
+    // Rewinding state - use BOTH state + ref to prevent race condition
+    // The ref is read synchronously by useEffect to prevent stale closure issues
     const [isRewinding, setIsRewinding] = useState(false);
+    const isRewindingRef = useRef(false);
+    const setRewindingState = (val: boolean) => {
+        isRewindingRef.current = val;
+        setIsRewinding(val);
+    };
 
     // Active entry index for array fields
     const [activeEntryIndex, setActiveEntryIndex] = useState<number | null>(null);
@@ -283,7 +289,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         const question = questionnaireAgent.getQuestionForFieldDirect(field, data, entryIndex);
         if (!question) return;
 
-        setIsRewinding(true);
+        setRewindingState(true);
         setActiveEntryIndex(entryIndex ?? null);
         setCurrentQuestion(question);
         setLoading(false);
@@ -419,7 +425,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         } else {
             // Active section - clear rewinding and let normal flow take over
-            setIsRewinding(false);
+            setRewindingState(false);
             setActiveEntryIndex(null);
             setResponse('');
         }
@@ -430,9 +436,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     // ═══════════════════════════════════════════════════════════════
     useEffect(() => {
         const fetchQuestion = async () => {
-            if (isRewinding) return;
+            // Use ref for SYNCHRONOUS check - prevents race condition where
+            // setState(true) hasn't been committed yet but useEffect already fired
+            if (isRewindingRef.current || isRewinding) return;
             setLoading(true);
             const question = await questionnaireAgent.getNextQuestion(data);
+            // Double-check after async operation - user may have pressed back during fetch
+            if (isRewindingRef.current) return;
             setCurrentQuestion(question);
             setLoading(false);
         };
@@ -461,7 +471,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
         // Reset rewinding state
         if (isRewinding) {
-            setIsRewinding(false);
+            setRewindingState(false);
         }
 
         // Save current question to history
@@ -672,7 +682,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         console.log('🔙 Backing up to field:', lastField, 'EntryIndex:', entryIndex);
 
         // Use the centralized navigation function
-        setIsRewinding(true);
+        setRewindingState(true);
 
         // Restore activeEntryIndex
         if (entryIndex !== undefined) {
