@@ -1,7 +1,7 @@
 "use client";
 
 import { CVData, Question } from '@/lib/types/cv-schema';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
@@ -14,6 +14,49 @@ interface StepProps {
     onBack: () => void;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SECTION DEFINITIONS for Checkpoints
+// ═══════════════════════════════════════════════════════════════
+interface SectionDef {
+    id: string;
+    label: string;
+    icon: string;
+    fields: string[]; // ordered fields in this section
+}
+
+const SECTIONS: SectionDef[] = [
+    {
+        id: 'personal', label: 'المعلومات الشخصية', icon: '👤',
+        fields: ['birthDate', 'targetJobTitle', 'email', 'photoUrl']
+    },
+    {
+        id: 'education', label: 'التعليم والشهادات', icon: '🎓',
+        fields: ['education_has', 'education_institution', 'education_degree', 'education_major', 'education_startYear', 'education_endYear', 'education_more']
+    },
+    {
+        id: 'experience', label: 'الخبرات العملية', icon: '💼',
+        fields: ['experience_has', 'experience_company', 'experience_position', 'experience_startDate', 'experience_endDate', 'experience_description', 'experience_more']
+    },
+    {
+        id: 'skills', label: 'المهارات', icon: '⚡',
+        fields: ['skills']
+    },
+    {
+        id: 'languages', label: 'اللغات', icon: '🌍',
+        fields: ['languages_has', 'languages_name', 'languages_level', 'languages_more']
+    },
+    {
+        id: 'hobbies', label: 'الهوايات', icon: '🎯',
+        fields: ['hobbies_has', 'hobbies_text']
+    }
+];
+
+// History entry for navigation
+interface HistoryEntry {
+    field: string;
+    entryIndex?: number; // For array fields like education, experience, languages
+}
+
 export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: StepProps) {
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
     const [response, setResponse] = useState<string>('');
@@ -23,41 +66,30 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [emailUsername, setEmailUsername] = useState<string>('');
     const [emailDomain, setEmailDomain] = useState<string>('gmail.com');
 
-    // History stack for internal navigation - stores field and entry index
-    interface HistoryEntry {
-        field: string;
-        entryIndex?: number; // For array fields like education, experience, languages
-    }
+    // History stack for internal navigation
     const [questionHistory, setQuestionHistory] = useState<HistoryEntry[]>([]);
     const [historyInitialized, setHistoryInitialized] = useState(false);
 
-    // Rewinding state - for handling "back" navigation correctly
-    const [rewindingField, setRewindingField] = useState<string | null>(null);
+    // Rewinding state
     const [isRewinding, setIsRewinding] = useState(false);
 
-    // State to track which entry index we are currently editing (for array fields)
+    // Active entry index for array fields
     const [activeEntryIndex, setActiveEntryIndex] = useState<number | null>(null);
 
     // Helper: Check if field was skipped
     const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
 
-    // Initialize history from existing data - allows back navigation to work correctly
-    const initializeHistoryFromData = (cvData: CVData): HistoryEntry[] => {
+    // ═══════════════════════════════════════════════════════════════
+    // HISTORY INITIALIZATION - build from existing data
+    // ═══════════════════════════════════════════════════════════════
+    const initializeHistoryFromData = useCallback((cvData: CVData): HistoryEntry[] => {
         const history: HistoryEntry[] = [];
 
         // Personal Info fields
-        if (cvData.personal.birthDate) {
-            history.push({ field: 'birthDate' });
-        }
-        if (cvData.personal.targetJobTitle) {
-            history.push({ field: 'targetJobTitle' });
-        }
-        if (cvData.personal.email) {
-            history.push({ field: 'email' });
-        }
-        if (cvData.personal.photoUrl) {
-            history.push({ field: 'photoUrl' });
-        }
+        if (cvData.personal.birthDate) history.push({ field: 'birthDate' });
+        if (cvData.personal.targetJobTitle) history.push({ field: 'targetJobTitle' });
+        if (cvData.personal.email) history.push({ field: 'email' });
+        if (cvData.personal.photoUrl) history.push({ field: 'photoUrl' });
 
         // Education fields
         if ((cvData.education && cvData.education.length > 0) || cvData._completedEducation) {
@@ -69,7 +101,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 if (edu.startYear) history.push({ field: 'education_startYear', entryIndex: index });
                 if (edu.endYear) history.push({ field: 'education_endYear', entryIndex: index });
             });
-            // If education is not completed, add education_more to history
             if (!cvData._completedEducation && cvData.education.length > 0) {
                 const lastEdu = cvData.education[cvData.education.length - 1];
                 if (lastEdu.institution && lastEdu.degree && lastEdu.major && lastEdu.startYear && lastEdu.endYear) {
@@ -88,7 +119,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 if (exp.endDate) history.push({ field: 'experience_endDate', entryIndex: index });
                 if (exp.description) history.push({ field: 'experience_description', entryIndex: index });
             });
-            // If experience is not completed, add experience_more to history
             if (!cvData._completedExperience && cvData.experience.length > 0) {
                 const lastExp = cvData.experience[cvData.experience.length - 1];
                 if (lastExp.company && lastExp.position && lastExp.startDate && lastExp.endDate && lastExp.description) {
@@ -98,9 +128,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
 
         // Skills
-        if (cvData.skills && cvData.skills.length > 0) {
-            history.push({ field: 'skills' });
-        }
+        if (cvData.skills && cvData.skills.length > 0) history.push({ field: 'skills' });
 
         // Languages fields
         if ((cvData.languages && cvData.languages.length > 0) || cvData._completedLanguages) {
@@ -109,7 +137,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 if (lang.name) history.push({ field: 'languages_name', entryIndex: index });
                 if (lang.level) history.push({ field: 'languages_level', entryIndex: index });
             });
-            // If languages is not completed, add languages_more to history
             if (!cvData._completedLanguages && cvData.languages.length > 0) {
                 const lastLang = cvData.languages[cvData.languages.length - 1];
                 if (lastLang.name && lastLang.level) {
@@ -127,9 +154,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
 
         return history;
-    };
+    }, []);
 
-    // Initialize history on first mount only
+    // Initialize history on first mount
     useEffect(() => {
         if (!historyInitialized) {
             const initialHistory = initializeHistoryFromData(data);
@@ -139,17 +166,58 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
             setHistoryInitialized(true);
         }
-    }, [historyInitialized, data]);
+    }, [historyInitialized, data, initializeHistoryFromData]);
 
-    // Calculate progress based on completed sections
-    const calculateProgress = (): { percentage: number; currentSection: string } => {
-        let completed = 0;
-        const totalSections = 7; // personal info, education, experience, skills, languages, hobbies (+1 for personal info)
-
-        // Helper to check if field was skipped
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION STATUS - determine which sections are complete/active
+    // ═══════════════════════════════════════════════════════════════
+    const getSectionStatus = useCallback((sectionId: string): 'completed' | 'active' | 'locked' => {
         const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
 
-        // 1. Personal Info (birthDate, targetJobTitle, email, photoUrl)
+        switch (sectionId) {
+            case 'personal': {
+                const allDone = (data.personal.birthDate || isSkippedField(data.personal.birthDate)) &&
+                    data.personal.targetJobTitle &&
+                    (data.personal.email || isSkippedField(data.personal.email)) &&
+                    (data.personal.photoUrl || isSkippedField(data.personal.photoUrl));
+                if (allDone) return 'completed';
+                return 'active';
+            }
+            case 'education': {
+                if (data._completedEducation) return 'completed';
+                const personalDone = getSectionStatus('personal') === 'completed';
+                return personalDone ? 'active' : 'locked';
+            }
+            case 'experience': {
+                if (data._completedExperience) return 'completed';
+                return getSectionStatus('education') === 'completed' ? 'active' : 'locked';
+            }
+            case 'skills': {
+                if (data.skills && data.skills.length > 0) return 'completed';
+                return getSectionStatus('experience') === 'completed' ? 'active' : 'locked';
+            }
+            case 'languages': {
+                if (data._completedLanguages) return 'completed';
+                return getSectionStatus('skills') === 'completed' ? 'active' : 'locked';
+            }
+            case 'hobbies': {
+                if (data._completedHobbies) return 'completed';
+                return getSectionStatus('languages') === 'completed' ? 'active' : 'locked';
+            }
+            default: return 'locked';
+        }
+    }, [data]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROGRESS CALCULATION
+    // ═══════════════════════════════════════════════════════════════
+    const calculateProgress = (): { percentage: number; currentSection: string } => {
+        let completed = 0;
+        const totalSections = 6;
+
+        const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
+
+        // 1. Personal Info
         const personalFields = [
             data.personal.birthDate && !isSkippedField(data.personal.birthDate),
             data.personal.targetJobTitle,
@@ -162,18 +230,15 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             isSkippedField(data.personal.email),
             isSkippedField(data.personal.photoUrl)
         ].filter(Boolean).length;
-        // Count as complete if filled or skipped
         completed += (personalFilled + personalSkipped) / 4;
 
         // 2. Education
         if (data._completedEducation) {
             completed += 1;
         } else if (data.education && data.education.length > 0) {
-            // Partial credit for education in progress
             const lastEdu = data.education[data.education.length - 1];
             const fields = [lastEdu.institution, lastEdu.degree, lastEdu.major, lastEdu.startYear, lastEdu.endYear];
-            const filledFields = fields.filter(f => f).length;
-            completed += 0.2 + (filledFields / fields.length) * 0.6; // 0.2 base + up to 0.6 for fields
+            completed += 0.2 + (fields.filter(f => f).length / fields.length) * 0.6;
         }
 
         // 3. Experience
@@ -182,8 +247,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         } else if (data.experience && data.experience.length > 0) {
             const lastExp = data.experience[data.experience.length - 1];
             const fields = [lastExp.company, lastExp.position, lastExp.startDate, lastExp.endDate, lastExp.description];
-            const filledFields = fields.filter(f => f).length;
-            completed += 0.2 + (filledFields / fields.length) * 0.6;
+            completed += 0.2 + (fields.filter(f => f).length / fields.length) * 0.6;
         }
 
         // 4. Skills
@@ -197,35 +261,14 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
         const percentage = Math.round((completed / totalSections) * 100);
 
-        // Determine current section for label
-        // Check personal info fields IN ORDER before moving to other sections
+        // Current section name
         let currentSection = 'المعلومات الشخصية';
-
-        // Personal info includes: birthDate, targetJobTitle, email, photoUrl
-        const hasBirthDate = data.personal.birthDate && !isSkippedField(data.personal.birthDate);
-        const hasTargetJobTitle = data.personal.targetJobTitle;
-        const hasEmail = data.personal.email && !isSkippedField(data.personal.email);
-        const hasPhoto = data.personal.photoUrl && !isSkippedField(data.personal.photoUrl);
-
-        // Only move to Education if ALL personal info fields are filled/skipped
-        const personalInfoComplete =
-            (data.personal.birthDate || isSkippedField(data.personal.birthDate)) &&
-            data.personal.targetJobTitle &&
-            (data.personal.email || isSkippedField(data.personal.email)) &&
-            (data.personal.photoUrl || isSkippedField(data.personal.photoUrl));
-
-        if (!personalInfoComplete) {
-            currentSection = 'المعلومات الشخصية';
-        } else if (!data._completedEducation) {
-            currentSection = 'التعليم والشهادات';
-        } else if (!data._completedExperience) {
-            currentSection = 'الخبرات العملية';
-        } else if (!data.skills || data.skills.length === 0) {
-            currentSection = 'المهارات';
-        } else if (!data._completedLanguages) {
-            currentSection = 'اللغات';
-        } else if (!data._completedHobbies) {
-            currentSection = 'الهوايات';
+        for (const section of SECTIONS) {
+            const status = getSectionStatus(section.id);
+            if (status !== 'completed') {
+                currentSection = section.label;
+                break;
+            }
         }
 
         return { percentage, currentSection };
@@ -233,63 +276,172 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
     const { percentage, currentSection } = calculateProgress();
 
-    // Get question for a specific field (used when rewinding)
-    const getQuestionForField = (field: string, cvData: CVData): Question | null => {
-        const fieldNameMap: Record<string, Omit<Question, 'id'>> = {
-            'birthDate': {
-                field: 'birthDate',
-                text: 'ما هو تاريخ ميلادك؟ (مثال: 1990/05/15)',
-                type: 'text',
-                skippable: true
-            },
-            'targetJobTitle': {
-                field: 'targetJobTitle',
-                text: 'ما هو المسمى الوظيفي الذي ترغب أن يظهر في أعلى السيرة الذاتية؟ (مثال: مبرمج واجهات أمامية، مدير مشاريع)',
-                type: 'text',
-                skippable: false
-            },
-            'email': {
-                field: 'email',
-                text: 'ما هو بريدك الإلكتروني؟',
-                type: 'email',
-                skippable: true,
-                placeholder: `${cvData.personal.firstName?.toLowerCase() || 'your.name'}@gmail.com`
-            },
-            'photoUrl': {
-                field: 'photoUrl',
-                text: 'هل تود إضافة صورة شخصية للسيرة الذاتية؟ يفضل صورة احترافية خلفية بيضاء.',
-                type: 'file',
-                skippable: true
+    // ═══════════════════════════════════════════════════════════════
+    // NAVIGATE TO QUESTION - Core navigation helper
+    // ═══════════════════════════════════════════════════════════════
+    const navigateToField = useCallback((field: string, entryIndex?: number) => {
+        const question = questionnaireAgent.getQuestionForFieldDirect(field, data, entryIndex);
+        if (!question) return;
+
+        setIsRewinding(true);
+        setActiveEntryIndex(entryIndex ?? null);
+        setCurrentQuestion(question);
+        setLoading(false);
+
+        // Pre-populate response with current value
+        populateResponseForField(field, entryIndex);
+    }, [data]);
+
+    // Helper: populate response field with current stored value
+    const populateResponseForField = (field: string, entryIndex?: number) => {
+        // Personal fields
+        if (field === 'birthDate') {
+            const v = data.personal.birthDate;
+            setResponse(v && v !== '__skipped__' ? v : '');
+        } else if (field === 'targetJobTitle') {
+            setResponse(data.personal.targetJobTitle || '');
+        } else if (field === 'email') {
+            const currentEmail = data.personal.email;
+            if (currentEmail && currentEmail !== '__skipped__') {
+                const parts = currentEmail.split('@');
+                if (parts.length === 2) {
+                    setEmailUsername(parts[0]);
+                    setEmailDomain(parts[1]);
+                    setResponse(currentEmail);
+                } else {
+                    setEmailUsername(''); setEmailDomain('gmail.com'); setResponse('');
+                }
+            } else {
+                setEmailUsername(''); setEmailDomain('gmail.com'); setResponse('');
             }
-        };
-
-        const questionData = fieldNameMap[field];
-        if (questionData) {
-            return { id: field, ...questionData } as Question;
+        } else if (field === 'photoUrl') {
+            setResponse('');
         }
-
-        // For array fields (education, experience, languages), return null to let normal flow handle it
-        // This is a simplified approach - for complex fields we'd need more logic
-        return null;
+        // Education array fields
+        else if (field.startsWith('education_') && entryIndex !== undefined) {
+            const edu = data.education?.[entryIndex];
+            if (edu) {
+                if (field === 'education_institution') setResponse(edu.institution || '');
+                else if (field === 'education_degree') setResponse(edu.degree || '');
+                else if (field === 'education_major') setResponse(edu.major || '');
+                else if (field === 'education_startYear') setResponse(edu.startYear || '');
+                else if (field === 'education_endYear') setResponse(edu.endYear || '');
+                else setResponse('');
+            } else {
+                setResponse('');
+            }
+        }
+        // Experience array fields
+        else if (field.startsWith('experience_') && entryIndex !== undefined) {
+            const exp = data.experience?.[entryIndex];
+            if (exp) {
+                if (field === 'experience_company') setResponse(exp.company || '');
+                else if (field === 'experience_position') setResponse(exp.position || '');
+                else if (field === 'experience_startDate') setResponse(exp.startDate || '');
+                else if (field === 'experience_endDate') setResponse(exp.endDate || '');
+                else if (field === 'experience_description') setResponse(exp.description || '');
+                else setResponse('');
+            } else {
+                setResponse('');
+            }
+        }
+        // Languages array fields
+        else if (field.startsWith('languages_') && entryIndex !== undefined) {
+            const lang = data.languages?.[entryIndex];
+            if (lang) {
+                if (field === 'languages_name') setResponse(lang.name || '');
+                else if (field === 'languages_level') setResponse(lang.level || '');
+                else setResponse('');
+            } else {
+                setResponse('');
+            }
+        }
+        // Skills
+        else if (field === 'skills') {
+            setResponse(data.skills?.join('، ') || '');
+        }
+        // Hobbies
+        else if (field === 'hobbies_text') {
+            const h = data.hobbies?.filter(h => h !== '__pending__');
+            setResponse(h?.join('، ') || '');
+        }
+        // yes/no fields - don't pre-populate
+        else {
+            setResponse('');
+        }
     };
 
-    // Load the next question when the component mounts or after an answer
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION NAVIGATION (Checkpoint click)
+    // ═══════════════════════════════════════════════════════════════
+    const navigateToSection = useCallback((sectionId: string) => {
+        const status = getSectionStatus(sectionId);
+        if (status === 'locked') return; // Can't navigate to locked sections
+
+        // Find the first field in this section
+        const section = SECTIONS.find(s => s.id === sectionId);
+        if (!section) return;
+
+        // Build history up to this section's start
+        const newHistory: HistoryEntry[] = [];
+        const sectionIndex = SECTIONS.findIndex(s => s.id === sectionId);
+
+        // Add all history entries from previous sections
+        for (let i = 0; i < sectionIndex; i++) {
+            const prevSection = SECTIONS[i];
+            const prevStatus = getSectionStatus(prevSection.id);
+            if (prevStatus === 'completed') {
+                const historyFromPrevSection = initializeHistoryFromData(data).filter(h => {
+                    return prevSection.fields.some(f => h.field === f || h.field.startsWith(f.replace('_more', '_')));
+                });
+                newHistory.push(...historyFromPrevSection);
+            }
+        }
+
+        setQuestionHistory(newHistory);
+
+        // For completed sections, navigate to the first field so user can review
+        // For active sections, let the normal flow determine the current question
+        if (status === 'completed') {
+            // Navigate to first field of this completed section
+            const firstField = section.fields[0];
+
+            // Handle special cases for _has fields with existing data
+            if (firstField === 'education_has' && data.education.length > 0) {
+                // Go to first education entry's first field
+                navigateToField('education_institution', 0);
+            } else if (firstField === 'experience_has' && data.experience.length > 0) {
+                navigateToField('experience_company', 0);
+            } else if (firstField === 'languages_has' && data.languages.length > 0) {
+                navigateToField('languages_name', 0);
+            } else {
+                navigateToField(firstField);
+            }
+        } else {
+            // Active section - clear rewinding and let normal flow take over
+            setIsRewinding(false);
+            setActiveEntryIndex(null);
+            setResponse('');
+        }
+    }, [data, getSectionStatus, initializeHistoryFromData, navigateToField]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // FETCH NEXT QUESTION (normal flow)
+    // ═══════════════════════════════════════════════════════════════
     useEffect(() => {
         const fetchQuestion = async () => {
-            // Skip fetching if we're in rewinding mode
-            if (isRewinding) {
-                return;
-            }
-
+            if (isRewinding) return;
             setLoading(true);
             const question = await questionnaireAgent.getNextQuestion(data);
             setCurrentQuestion(question);
             setLoading(false);
         };
-
         fetchQuestion();
-    }, [data, rewindingField, isRewinding]);
+    }, [data, isRewinding]);
 
+    // ═══════════════════════════════════════════════════════════════
+    // FILE UPLOAD HANDLER
+    // ═══════════════════════════════════════════════════════════════
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -301,56 +453,46 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
     };
 
+    // ═══════════════════════════════════════════════════════════════
+    // HANDLE ANSWER (forward navigation)
+    // ═══════════════════════════════════════════════════════════════
     const handleAnswer = async () => {
         if (!currentQuestion) return;
 
-        // Reset rewinding state so future updates will fetch the next question
+        // Reset rewinding state
         if (isRewinding) {
             setIsRewinding(false);
-            setRewindingField(null);
-            // Don't reset activeEntryIndex here - we need it for THIS update
         }
 
-        // Save current question to history before moving forward
-        // Include entry index for array fields
-        const historyEntry: { field: string; entryIndex?: number } = { field: currentQuestion.field };
-
+        // Save current question to history
+        const historyEntry: HistoryEntry = { field: currentQuestion.field };
         if (currentQuestion.field.startsWith('education_')) {
-            // Use activeEntryIndex if available, otherwise default to last item
             historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.education?.length ? data.education.length - 1 : 0);
         } else if (currentQuestion.field.startsWith('experience_')) {
             historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.experience?.length ? data.experience.length - 1 : 0);
         } else if (currentQuestion.field.startsWith('languages_')) {
             historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.languages?.length ? data.languages.length - 1 : 0);
         }
-
         setQuestionHistory(prev => [...prev, historyEntry]);
 
         const field = currentQuestion.field;
         const updatedData: Partial<CVData> = {};
 
-        // ═══════════════════════════════════════════════════════════════
-        // PERSONAL INFO
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ PERSONAL INFO ═══
         if (field === 'birthDate') {
-            // If response is empty (skip), set skip marker
             updatedData.personal = { ...data.personal, birthDate: response || '__skipped__' };
         }
         else if (field === 'targetJobTitle') {
             updatedData.personal = { ...data.personal, targetJobTitle: response };
         }
         else if (field === 'email') {
-            // If response is empty (skip), set skip marker
             updatedData.personal = { ...data.personal, email: response || '__skipped__' };
         }
         else if (field === 'photoUrl') {
-            // If response is empty (user clicked Skip), set marker to skip
             updatedData.personal = { ...data.personal, photoUrl: response || '__skipped__' };
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // EDUCATION HANDLERS (Same as before)
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ EDUCATION ═══
         else if (field === 'education_has') {
             if (response === 'yes') {
                 const list = [...(data.education || [])];
@@ -400,9 +542,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // EXPERIENCE HANDLERS (Same as before)
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ EXPERIENCE ═══
         else if (field === 'experience_has') {
             if (response === 'yes') {
                 const list = [...(data.experience || [])];
@@ -452,9 +592,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // SKILLS & HOBBIES
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ SKILLS & HOBBIES ═══
         else if (field === 'skills') {
             updatedData.skills = response.split(/[،,]+/).map(s => s.trim()).filter(s => s);
         }
@@ -471,9 +609,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             updatedData._completedHobbies = true;
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // LANGUAGES
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ LANGUAGES ═══
         else if (field === 'languages_has') {
             if (response === 'yes') {
                 const list = [...(data.languages || [])];
@@ -481,8 +617,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 updatedData.languages = list;
             } else {
                 updatedData._completedLanguages = true;
-                // Add default native language if empty? Maybe Arabic?
-                // For now, leave as is.
             }
         }
         else if (field === 'languages_name') {
@@ -507,14 +641,17 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
-        // Reset activeEntryIndex after processing answer
+        // Reset activeEntryIndex after processing
         setActiveEntryIndex(null);
 
-        // Update global state, trigger useEffect to fetch next question
+        // Update global state
         onUpdate(updatedData);
         setResponse('');
     };
 
+    // ═══════════════════════════════════════════════════════════════
+    // HANDLE BACK (backward navigation) - REBUILT
+    // ═══════════════════════════════════════════════════════════════
     const handleInternalBack = () => {
         // If history is empty, go back to previous step (Contact)
         if (questionHistory.length === 0) {
@@ -522,110 +659,42 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             return;
         }
 
-        // Pop the last question field to get the PREVIOUS question
+        // Pop the last entry
         const newHistory = [...questionHistory];
-        const lastEntry = newHistory.pop();
+        const lastEntry = newHistory.pop()!;
         setQuestionHistory(newHistory);
 
         if (!lastEntry) return;
 
         const lastField = lastEntry.field;
+        const entryIndex = lastEntry.entryIndex;
 
-        console.log('🔙 Backing up to field:', lastField, 'EntryIndex:', lastEntry.entryIndex);
+        console.log('🔙 Backing up to field:', lastField, 'EntryIndex:', entryIndex);
 
-        // Set rewinding state to prevent useEffect from overriding our question
+        // Use the centralized navigation function
         setIsRewinding(true);
-        setRewindingField(lastField);
 
-        // IMPORTANT: Restore the activeEntryIndex if we are backing into an array item
-        if (lastEntry.entryIndex !== undefined) {
-            setActiveEntryIndex(lastEntry.entryIndex);
+        // Restore activeEntryIndex
+        if (entryIndex !== undefined) {
+            setActiveEntryIndex(entryIndex);
         } else {
             setActiveEntryIndex(null);
         }
 
-        // Get the question for this field directly
-        const question = getQuestionForField(lastField, data);
+        // Get question using the agent's new method (supports ALL field types)
+        const question = questionnaireAgent.getQuestionForFieldDirect(lastField, data, entryIndex);
         if (question) {
             setCurrentQuestion(question);
             setLoading(false);
         }
 
-        // Pre-populate response with current value for single fields
-        if (lastField === 'birthDate') {
-            const currentValue = data.personal.birthDate;
-            if (currentValue && currentValue !== '__skipped__') {
-                setResponse(currentValue);
-            } else {
-                setResponse('');
-            }
-        } else if (lastField === 'targetJobTitle') {
-            setResponse(data.personal.targetJobTitle || '');
-        } else if (lastField === 'email') {
-            const currentEmail = data.personal.email;
-            if (currentEmail && currentEmail !== '__skipped__') {
-                // Parse email for username and domain
-                const parts = currentEmail.split('@');
-                if (parts.length === 2) {
-                    setEmailUsername(parts[0]);
-                    setEmailDomain(parts[1]);
-                    setResponse(currentEmail);
-                } else {
-                    setEmailUsername('');
-                    setEmailDomain('gmail.com');
-                    setResponse('');
-                }
-            } else {
-                setEmailUsername('');
-                setEmailDomain('gmail.com');
-                setResponse('');
-            }
-        } else if (lastField === 'photoUrl') {
-            // لا نعيد تعيين response بقيمة قديمة - نريد عرض واجهة رفع الصورة فارغة
-            // لأن المستخدم يضغط رجوع ليعيد اختيار صورة أو يتخطى
-            setResponse('');
-        }
+        // Pre-populate response with current value
+        populateResponseForField(lastField, entryIndex);
 
-        // For array fields (education, experience, languages), keep the history logic
-        // but don't clear data - just allow re-entry
-        const entryIndex = lastEntry.entryIndex;
+        // Handle data cleanup for special cases (undo operations)
         const clearData: Partial<CVData> = {};
 
-        // Pre-populate response with current value for array fields BEFORE clearing
-        if (lastField.startsWith('education_') && entryIndex !== undefined) {
-            const list = data.education || [];
-            const idx = entryIndex;
-            if (idx >= 0 && idx < list.length) {
-                const edu = list[idx];
-                if (lastField === 'education_institution') setResponse(edu.institution || '');
-                else if (lastField === 'education_degree') setResponse(edu.degree || '');
-                else if (lastField === 'education_major') setResponse(edu.major || '');
-                else if (lastField === 'education_startYear') setResponse(edu.startYear || '');
-                else if (lastField === 'education_endYear') setResponse(edu.endYear || '');
-            }
-            // Don't clear data - keep it for editing
-        } else if (lastField.startsWith('experience_') && entryIndex !== undefined) {
-            const list = data.experience || [];
-            const idx = entryIndex;
-            if (idx >= 0 && idx < list.length) {
-                const exp = list[idx];
-                if (lastField === 'experience_company') setResponse(exp.company || '');
-                else if (lastField === 'experience_position') setResponse(exp.position || '');
-                else if (lastField === 'experience_startDate') setResponse(exp.startDate || '');
-                else if (lastField === 'experience_endDate') setResponse(exp.endDate || '');
-                else if (lastField === 'experience_description') setResponse(exp.description || '');
-            }
-            // Don't clear data - keep it for editing
-        } else if (lastField.startsWith('languages_') && entryIndex !== undefined) {
-            const list = data.languages || [];
-            const idx = entryIndex;
-            if (idx >= 0 && idx < list.length) {
-                const lang = list[idx];
-                if (lastField === 'languages_name') setResponse(lang.name || '');
-                else if (lastField === 'languages_level') setResponse(lang.level || '');
-            }
-            // Don't clear data - keep it for editing
-        } else if (lastField === 'education_has') {
+        if (lastField === 'education_has') {
             clearData._completedEducation = undefined;
             if (data.education && data.education.length > 0) {
                 const lastEdu = data.education[data.education.length - 1];
@@ -683,12 +752,15 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
-        // Update data only if we have clearData (for array fields or special cases)
+        // Update data only if we have cleanup to do
         if (Object.keys(clearData).length > 0) {
             onUpdate(clearData);
         }
     };
 
+    // ═══════════════════════════════════════════════════════════════
+    // RENDER: Loading state
+    // ═══════════════════════════════════════════════════════════════
     if (loading) return (
         <div className="text-center p-10">
             <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
@@ -696,11 +768,38 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         </div>
     );
 
+    // ═══════════════════════════════════════════════════════════════
+    // RENDER: All questions done
+    // ═══════════════════════════════════════════════════════════════
     if (!currentQuestion) return (
         <div className="text-center p-10 space-y-6">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-2xl font-black text-gray-900">تم الانتهاء من جميع الأسئلة بنجاح!</h2>
             <p className="text-gray-500">لقد جمعنا معلومات كافية لبناء سيرة ذاتية احترافية.</p>
+
+            {/* Checkpoints - still visible for back navigation */}
+            <div className="flex flex-wrap justify-center gap-2 my-6">
+                {SECTIONS.map((section) => {
+                    const status = getSectionStatus(section.id);
+                    return (
+                        <button
+                            key={section.id}
+                            onClick={() => navigateToSection(section.id)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all
+                                ${status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 cursor-pointer' : ''}
+                                ${status === 'active' ? 'bg-primary/10 text-primary border border-primary/30 cursor-pointer' : ''}
+                                ${status === 'locked' ? 'bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed' : ''}
+                            `}
+                            disabled={status === 'locked'}
+                        >
+                            <span>{section.icon}</span>
+                            <span>{section.label}</span>
+                            {status === 'completed' && <span className="text-green-500">✓</span>}
+                        </button>
+                    );
+                })}
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                 <button
                     onClick={handleInternalBack}
@@ -715,9 +814,38 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         </div>
     );
 
+    // ═══════════════════════════════════════════════════════════════
+    // RENDER: Main questionnaire view
+    // ═══════════════════════════════════════════════════════════════
     return (
         <div className="w-full max-w-xl mx-auto py-4">
-            {/* Progress Bar */}
+            {/* ═══ Checkpoints Bar ═══ */}
+            <div className="flex flex-wrap justify-center gap-1.5 mb-6">
+                {SECTIONS.map((section) => {
+                    const status = getSectionStatus(section.id);
+                    const isCurrentSection = section.label === currentSection;
+                    return (
+                        <button
+                            key={section.id}
+                            onClick={() => navigateToSection(section.id)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 border
+                                ${status === 'completed' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:shadow-sm cursor-pointer' : ''}
+                                ${status === 'active' && isCurrentSection ? 'bg-primary/10 text-primary border-primary/40 ring-2 ring-primary/20 cursor-pointer' : ''}
+                                ${status === 'active' && !isCurrentSection ? 'bg-primary/5 text-primary/70 border-primary/20 cursor-pointer' : ''}
+                                ${status === 'locked' ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-60' : ''}
+                            `}
+                            disabled={status === 'locked'}
+                            title={section.label}
+                        >
+                            <span className="text-sm">{section.icon}</span>
+                            <span className="hidden sm:inline">{section.label}</span>
+                            {status === 'completed' && <span className="text-green-500 text-[10px]">✓</span>}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ═══ Progress Bar ═══ */}
             <div className="mb-8">
                 <div className="flex justify-between text-sm font-bold text-gray-500 mb-2">
                     <span>{currentSection}</span>
@@ -732,7 +860,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             </div>
 
             <div
-                key={currentQuestion.id}
+                key={currentQuestion.id + '-' + (activeEntryIndex ?? 'null')}
                 className="space-y-8 animate-in fade-in duration-300"
             >
                 <div className="space-y-2">
@@ -848,7 +976,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'email' && (
                         <div className="space-y-4" dir="ltr">
-                            {/* Username input - separate box */}
                             <input
                                 type="email"
                                 value={emailUsername}
@@ -874,8 +1001,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     }
                                 }}
                             />
-
-                            {/* @ + Domain - separate box */}
                             <div className="flex items-center gap-2">
                                 <span className="text-2xl font-bold text-primary">@</span>
                                 <select
@@ -894,8 +1019,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     <option value="hotmail.com">hotmail.com</option>
                                 </select>
                             </div>
-
-                            {/* Preview - always visible */}
                             {emailUsername && (
                                 <div className="text-center py-3 bg-primary/5 rounded-xl">
                                     <span className="text-sm text-gray-500" dir="rtl">البريد الإلكتروني: </span>
@@ -904,8 +1027,23 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             )}
                         </div>
                     )}
+
+                    {currentQuestion.type === 'select' && currentQuestion.options && (
+                        <div className="grid grid-cols-2 gap-3">
+                            {currentQuestion.options.map((option) => (
+                                <button
+                                    key={option}
+                                    onClick={() => setResponse(option)}
+                                    className={`p-4 rounded-2xl border-2 font-bold text-sm transition-all duration-300 ${response === option ? 'border-primary bg-primary/5 text-primary shadow-md' : 'border-gray-100 hover:border-primary/50 bg-white text-gray-600'}`}
+                                >
+                                    {option}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
+                {/* ═══ Navigation Buttons ═══ */}
                 <div className="flex items-center justify-between pt-6 border-t border-gray-100">
                     <button
                         onClick={handleInternalBack}
@@ -916,7 +1054,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     </button>
 
                     <div className="flex gap-3">
-                        {/* Skip button for skippable questions */}
                         {currentQuestion.skippable && !response && (
                             <button
                                 onClick={handleAnswer}
@@ -926,7 +1063,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             </button>
                         )}
 
-                        {/* Main continue button */}
                         <button
                             onClick={handleAnswer}
                             disabled={!response && !currentQuestion.skippable}

@@ -322,6 +322,180 @@ class QuestionnaireAgent {
         return commonSkills;
     }
 
+    // Get question for a specific field directly (used for back navigation & checkpoints)
+    getQuestionForFieldDirect(field: string, data: CVData, entryIndex?: number): Question | null {
+        const idx = entryIndex ?? 0;
+
+        // Personal info fields
+        const personalMap: Record<string, Question> = {
+            'birthDate': {
+                id: 'birthDate', field: 'birthDate',
+                text: 'ما هو تاريخ ميلادك؟ (مثال: 1990/05/15)',
+                type: 'text', skippable: true
+            },
+            'targetJobTitle': {
+                id: 'targetJobTitle', field: 'targetJobTitle',
+                text: 'ما هو المسمى الوظيفي الذي ترغب أن يظهر في أعلى السيرة الذاتية؟ (مثال: مبرمج واجهات أمامية، مدير مشاريع)',
+                type: 'text', skippable: false
+            },
+            'email': {
+                id: 'email', field: 'email',
+                text: 'ما هو بريدك الإلكتروني؟',
+                type: 'email', skippable: true,
+                placeholder: `${data.personal.firstName?.toLowerCase() || 'your.name'}@gmail.com`
+            },
+            'photoUrl': {
+                id: 'photoUrl', field: 'photoUrl',
+                text: 'هل تود إضافة صورة شخصية للسيرة الذاتية؟ يفضل صورة احترافية خلفية بيضاء.',
+                type: 'file', skippable: true
+            }
+        };
+
+        if (personalMap[field]) return personalMap[field];
+
+        // Education fields
+        const edu = data.education?.[idx];
+        const eduName = edu?.institution || 'المؤسسة التعليمية';
+        const educationMap: Record<string, Question> = {
+            'education_has': {
+                id: 'hasEducation', field: 'education_has',
+                text: 'هل لديك شهادات تعليمية (جامعة، معهد، دورات تدريبية)؟',
+                type: 'yesno'
+            },
+            'education_institution': {
+                id: 'edu_institution', field: 'education_institution',
+                text: 'ما هو اسم الجامعة أو المؤسسة التعليمية؟',
+                type: 'text'
+            },
+            'education_degree': {
+                id: 'edu_degree', field: 'education_degree',
+                text: `ما هي الدرجة العلمية التي حصلت عليها من ${eduName}؟ (مثال: بكالوريوس، ماجستير، دبلوم)`,
+                type: 'text'
+            },
+            'education_major': {
+                id: 'edu_major', field: 'education_major',
+                text: `ما هو التخصص الذي درسته في ${eduName}؟`,
+                type: 'text'
+            },
+            'education_startYear': {
+                id: 'edu_startYear', field: 'education_startYear',
+                text: `متى بدأت الدراسة في ${eduName}؟ (مثال: 2015)`,
+                type: 'text'
+            },
+            'education_endYear': {
+                id: 'edu_endYear', field: 'education_endYear',
+                text: `متى تخرجت من ${eduName} أو متى تتوقع التخرج؟ (مثال: 2019 أو "حالياً")`,
+                type: 'text'
+            },
+            'education_more': {
+                id: 'moreEducation', field: 'education_more',
+                text: 'ممتاز! هل لديك شهادات أو دراسات أخرى تريد إضافتها؟',
+                type: 'yesno'
+            }
+        };
+
+        if (educationMap[field]) return educationMap[field];
+
+        // Experience fields
+        const exp = data.experience?.[idx];
+        const expName = exp?.company || 'جهة العمل';
+        const experienceMap: Record<string, Question> = {
+            'experience_has': {
+                id: 'hasExperience', field: 'experience_has',
+                text: 'هل لديك خبرات عمل سابقة (وظائف، تدريب، عمل حر، تطوع)؟',
+                type: 'yesno'
+            },
+            'experience_company': {
+                id: 'exp_company', field: 'experience_company',
+                text: 'ما هو اسم الشركة أو جهة العمل؟',
+                type: 'text'
+            },
+            'experience_position': {
+                id: 'exp_position', field: 'experience_position',
+                text: `ما هو المسمى الوظيفي أو الدور الذي شغلته في ${expName}؟`,
+                type: 'text'
+            },
+            'experience_startDate': {
+                id: 'exp_startDate', field: 'experience_startDate',
+                text: `متى بدأت العمل في ${expName}؟ (مثال: 2020/01)`,
+                type: 'text'
+            },
+            'experience_endDate': {
+                id: 'exp_endDate', field: 'experience_endDate',
+                text: `متى انتهت عملك في ${expName}؟ (أو اكتب "حتى الآن" إذا كنت لا تزال تعمل بها)`,
+                type: 'text'
+            },
+            'experience_description': {
+                id: 'exp_description', field: 'experience_description',
+                text: `صف مهامك ومسؤولياتك الرئيسية في ${expName} بجملتين أو أكثر:`,
+                type: 'textarea'
+            },
+            'experience_more': {
+                id: 'moreExperience', field: 'experience_more',
+                text: 'رائع! هل لديك خبرات عمل أخرى تود إضافتها؟',
+                type: 'yesno'
+            }
+        };
+
+        if (experienceMap[field]) return experienceMap[field];
+
+        // Skills
+        if (field === 'skills') {
+            return {
+                id: 'skills', field: 'skills',
+                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل (مثال: Word, Excel, إدارة المشاريع, اللغة الإنجليزية)',
+                type: 'textarea'
+            };
+        }
+
+        // Languages fields
+        const lang = data.languages?.[idx];
+        const langName = lang?.name || 'اللغة';
+        const languagesMap: Record<string, Question> = {
+            'languages_has': {
+                id: 'hasLanguages', field: 'languages_has',
+                text: 'هل تتقن لغات أخرى غير لغتك الأم؟',
+                type: 'yesno'
+            },
+            'languages_name': {
+                id: 'lang_name', field: 'languages_name',
+                text: 'ما هي اللغة؟ (مثال: الإنجليزية، الفرنسية، الألمانية)',
+                type: 'text'
+            },
+            'languages_level': {
+                id: 'lang_level', field: 'languages_level',
+                text: `ما هو مستواك في اللغة ${langName}؟`,
+                type: 'select',
+                options: ['مبتدئ', 'متوسط', 'جيد', 'جيد جداً', 'ممتاز', 'لغة أم/طلاقة تامة']
+            },
+            'languages_more': {
+                id: 'moreLanguages', field: 'languages_more',
+                text: 'هل تود إضافة لغة أخرى؟',
+                type: 'yesno'
+            }
+        };
+
+        if (languagesMap[field]) return languagesMap[field];
+
+        // Hobbies fields
+        if (field === 'hobbies_has') {
+            return {
+                id: 'hasHobbies', field: 'hobbies_has',
+                text: 'هل تود إضافة هوايات أو اهتمامات شخصية للسيرة الذاتية؟',
+                type: 'yesno'
+            };
+        }
+        if (field === 'hobbies_text') {
+            return {
+                id: 'hobbiesText', field: 'hobbies_text',
+                text: 'اكتب هواياتك واهتماماتك مفصولة بفواصل (مثال: القراءة، السباحة، البرمجة، الرياضة)',
+                type: 'textarea'
+            };
+        }
+
+        return null;
+    }
+
     async generateFollowUp(_context: CVData, _lastResponse: string): Promise<Question | null> {
         // Disabled AI follow-up for now to ensure deterministic flow
         return null;
