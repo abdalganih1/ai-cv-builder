@@ -51,10 +51,10 @@ const SECTIONS: SectionDef[] = [
     }
 ];
 
-// History entry for navigation
-interface HistoryEntry {
+// Sequence item — represents one step in the questionnaire
+interface SequenceItem {
     field: string;
-    entryIndex?: number; // For array fields like education, experience, languages
+    entryIndex?: number;
 }
 
 export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: StepProps) {
@@ -66,248 +66,138 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [emailUsername, setEmailUsername] = useState<string>('');
     const [emailDomain, setEmailDomain] = useState<string>('gmail.com');
 
-    // History stack for internal navigation
-    const [questionHistory, setQuestionHistory] = useState<HistoryEntry[]>([]);
-    const [historyInitialized, setHistoryInitialized] = useState(false);
+    // ═══════════════════════════════════════════════════════════════
+    // CURSOR-BASED NAVIGATION — the new core
+    // ═══════════════════════════════════════════════════════════════
+    const [sequence, setSequence] = useState<SequenceItem[]>([]);
+    const [cursorIndex, setCursorIndex] = useState<number>(0);
+    const [initialized, setInitialized] = useState(false);
 
-    // Rewinding state - use BOTH state + ref to prevent race condition
-    // The ref is read synchronously by useEffect to prevent stale closure issues
-    const [isRewinding, setIsRewinding] = useState(false);
-    const isRewindingRef = useRef(false);
-    const setRewindingState = (val: boolean) => {
-        isRewindingRef.current = val;
-        setIsRewinding(val);
-    };
+    // Active entry index for array fields (derived from sequence)
+    const activeEntryIndex = sequence[cursorIndex]?.entryIndex ?? null;
 
-    // Active entry index for array fields
-    const [activeEntryIndex, setActiveEntryIndex] = useState<number | null>(null);
-
-    // Helper: Check if field was skipped
-    const isSkipped = (val: string | undefined | null): boolean => val === '__skipped__';
+    // Ref to latest data to avoid stale closures
+    const dataRef = useRef(data);
+    dataRef.current = data;
 
     // ═══════════════════════════════════════════════════════════════
-    // HISTORY INITIALIZATION - build from existing data
+    // BUILD SEQUENCE — deterministic question order from data
     // ═══════════════════════════════════════════════════════════════
-    const initializeHistoryFromData = useCallback((cvData: CVData): HistoryEntry[] => {
-        const history: HistoryEntry[] = [];
+    const buildSequence = useCallback((d: CVData): SequenceItem[] => {
+        const seq: SequenceItem[] = [];
 
-        // Personal Info fields
-        if (cvData.personal.birthDate) history.push({ field: 'birthDate' });
-        if (cvData.personal.targetJobTitle) history.push({ field: 'targetJobTitle' });
-        if (cvData.personal.email) history.push({ field: 'email' });
-        if (cvData.personal.photoUrl) history.push({ field: 'photoUrl' });
+        // === PERSONAL INFO (always present) ===
+        seq.push({ field: 'birthDate' });
+        seq.push({ field: 'targetJobTitle' });
+        seq.push({ field: 'email' });
+        seq.push({ field: 'photoUrl' });
 
-        // Education fields
-        if ((cvData.education && cvData.education.length > 0) || cvData._completedEducation) {
-            history.push({ field: 'education_has' });
-            cvData.education.forEach((edu, index) => {
-                if (edu.institution) history.push({ field: 'education_institution', entryIndex: index });
-                if (edu.degree) history.push({ field: 'education_degree', entryIndex: index });
-                if (edu.major) history.push({ field: 'education_major', entryIndex: index });
-                if (edu.startYear) history.push({ field: 'education_startYear', entryIndex: index });
-                if (edu.endYear) history.push({ field: 'education_endYear', entryIndex: index });
+        // === EDUCATION ===
+        seq.push({ field: 'education_has' });
+        if (d.education && d.education.length > 0) {
+            d.education.forEach((edu, i) => {
+                seq.push({ field: 'education_institution', entryIndex: i });
+                seq.push({ field: 'education_degree', entryIndex: i });
+                seq.push({ field: 'education_major', entryIndex: i });
+                seq.push({ field: 'education_startYear', entryIndex: i });
+                seq.push({ field: 'education_endYear', entryIndex: i });
             });
-            if (!cvData._completedEducation && cvData.education.length > 0) {
-                const lastEdu = cvData.education[cvData.education.length - 1];
-                if (lastEdu.institution && lastEdu.degree && lastEdu.major && lastEdu.startYear && lastEdu.endYear) {
-                    history.push({ field: 'education_more' });
-                }
+            // Add education_more if last entry is complete OR section is completed
+            const lastEdu = d.education[d.education.length - 1];
+            const lastComplete = !!(lastEdu?.institution && lastEdu?.degree && lastEdu?.major && lastEdu?.startYear && lastEdu?.endYear);
+            if (d._completedEducation || lastComplete) {
+                seq.push({ field: 'education_more' });
             }
         }
 
-        // Experience fields
-        if ((cvData.experience && cvData.experience.length > 0) || cvData._completedExperience) {
-            history.push({ field: 'experience_has' });
-            cvData.experience.forEach((exp, index) => {
-                if (exp.company) history.push({ field: 'experience_company', entryIndex: index });
-                if (exp.position) history.push({ field: 'experience_position', entryIndex: index });
-                if (exp.startDate) history.push({ field: 'experience_startDate', entryIndex: index });
-                if (exp.endDate) history.push({ field: 'experience_endDate', entryIndex: index });
-                if (exp.description) history.push({ field: 'experience_description', entryIndex: index });
+        // === EXPERIENCE ===
+        seq.push({ field: 'experience_has' });
+        if (d.experience && d.experience.length > 0) {
+            d.experience.forEach((exp, i) => {
+                seq.push({ field: 'experience_company', entryIndex: i });
+                seq.push({ field: 'experience_position', entryIndex: i });
+                seq.push({ field: 'experience_startDate', entryIndex: i });
+                seq.push({ field: 'experience_endDate', entryIndex: i });
+                seq.push({ field: 'experience_description', entryIndex: i });
             });
-            if (!cvData._completedExperience && cvData.experience.length > 0) {
-                const lastExp = cvData.experience[cvData.experience.length - 1];
-                if (lastExp.company && lastExp.position && lastExp.startDate && lastExp.endDate && lastExp.description) {
-                    history.push({ field: 'experience_more' });
-                }
+            const lastExp = d.experience[d.experience.length - 1];
+            const lastComplete = !!(lastExp?.company && lastExp?.position && lastExp?.startDate && lastExp?.endDate && lastExp?.description);
+            if (d._completedExperience || lastComplete) {
+                seq.push({ field: 'experience_more' });
             }
         }
 
-        // Skills
-        if (cvData.skills && cvData.skills.length > 0) history.push({ field: 'skills' });
+        // === SKILLS (always present) ===
+        seq.push({ field: 'skills' });
 
-        // Languages fields
-        if ((cvData.languages && cvData.languages.length > 0) || cvData._completedLanguages) {
-            history.push({ field: 'languages_has' });
-            cvData.languages.forEach((lang, index) => {
-                if (lang.name) history.push({ field: 'languages_name', entryIndex: index });
-                if (lang.level) history.push({ field: 'languages_level', entryIndex: index });
+        // === LANGUAGES ===
+        seq.push({ field: 'languages_has' });
+        if (d.languages && d.languages.length > 0) {
+            d.languages.forEach((lang, i) => {
+                seq.push({ field: 'languages_name', entryIndex: i });
+                seq.push({ field: 'languages_level', entryIndex: i });
             });
-            if (!cvData._completedLanguages && cvData.languages.length > 0) {
-                const lastLang = cvData.languages[cvData.languages.length - 1];
-                if (lastLang.name && lastLang.level) {
-                    history.push({ field: 'languages_more' });
-                }
+            const lastLang = d.languages[d.languages.length - 1];
+            const lastComplete = !!(lastLang?.name && lastLang?.level);
+            if (d._completedLanguages || lastComplete) {
+                seq.push({ field: 'languages_more' });
             }
         }
 
-        // Hobbies
-        if ((cvData.hobbies && cvData.hobbies.length > 0) || cvData._completedHobbies) {
-            history.push({ field: 'hobbies_has' });
-            if (cvData.hobbies[0] !== '__pending__') {
-                history.push({ field: 'hobbies_text' });
-            }
+        // === HOBBIES ===
+        seq.push({ field: 'hobbies_has' });
+        if (d.hobbies && d.hobbies.length > 0) {
+            seq.push({ field: 'hobbies_text' });
         }
 
-        return history;
+        return seq;
     }, []);
 
-    // Initialize history on first mount
-    useEffect(() => {
-        if (!historyInitialized) {
-            const initialHistory = initializeHistoryFromData(data);
-            if (initialHistory.length > 0) {
-                console.log('📜 Initialized question history:', initialHistory);
-                setQuestionHistory(initialHistory);
-            }
-            setHistoryInitialized(true);
-        }
-    }, [historyInitialized, data, initializeHistoryFromData]);
+    // ═══════════════════════════════════════════════════════════════
+    // CHECK IF FIELD HAS STORED VALUE
+    // ═══════════════════════════════════════════════════════════════
+    const hasStoredValue = useCallback((item: SequenceItem, d: CVData): boolean => {
+        const { field, entryIndex } = item;
+        if (field === 'birthDate') return !!(d.personal.birthDate);
+        if (field === 'targetJobTitle') return !!(d.personal.targetJobTitle);
+        if (field === 'email') return !!(d.personal.email);
+        if (field === 'photoUrl') return !!(d.personal.photoUrl);
+        if (field === 'education_has') return d.education.length > 0 || !!d._completedEducation;
+        if (field === 'education_institution') return !!(d.education?.[entryIndex!]?.institution);
+        if (field === 'education_degree') return !!(d.education?.[entryIndex!]?.degree);
+        if (field === 'education_major') return !!(d.education?.[entryIndex!]?.major);
+        if (field === 'education_startYear') return !!(d.education?.[entryIndex!]?.startYear);
+        if (field === 'education_endYear') return !!(d.education?.[entryIndex!]?.endYear);
+        if (field === 'education_more') return !!d._completedEducation;
+        if (field === 'experience_has') return d.experience.length > 0 || !!d._completedExperience;
+        if (field === 'experience_company') return !!(d.experience?.[entryIndex!]?.company);
+        if (field === 'experience_position') return !!(d.experience?.[entryIndex!]?.position);
+        if (field === 'experience_startDate') return !!(d.experience?.[entryIndex!]?.startDate);
+        if (field === 'experience_endDate') return !!(d.experience?.[entryIndex!]?.endDate);
+        if (field === 'experience_description') return !!(d.experience?.[entryIndex!]?.description);
+        if (field === 'experience_more') return !!d._completedExperience;
+        if (field === 'skills') return !!(d.skills && d.skills.length > 0);
+        if (field === 'languages_has') return d.languages.length > 0 || !!d._completedLanguages;
+        if (field === 'languages_name') return !!(d.languages?.[entryIndex!]?.name);
+        if (field === 'languages_level') return !!(d.languages?.[entryIndex!]?.level);
+        if (field === 'languages_more') return !!d._completedLanguages;
+        if (field === 'hobbies_has') return (d.hobbies && d.hobbies.length > 0) || !!d._completedHobbies;
+        if (field === 'hobbies_text') return !!(d.hobbies && d.hobbies.length > 0 && d.hobbies[0] !== '__pending__');
+        return false;
+    }, []);
 
     // ═══════════════════════════════════════════════════════════════
-    // SECTION STATUS - determine which sections are complete/active
+    // POPULATE RESPONSE — fill input with stored value
     // ═══════════════════════════════════════════════════════════════
-    const getSectionStatus = useCallback((sectionId: string): 'completed' | 'active' | 'locked' => {
-        const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
-
-        switch (sectionId) {
-            case 'personal': {
-                const allDone = (data.personal.birthDate || isSkippedField(data.personal.birthDate)) &&
-                    data.personal.targetJobTitle &&
-                    (data.personal.email || isSkippedField(data.personal.email)) &&
-                    (data.personal.photoUrl || isSkippedField(data.personal.photoUrl));
-                if (allDone) return 'completed';
-                return 'active';
-            }
-            case 'education': {
-                if (data._completedEducation) return 'completed';
-                const personalDone = getSectionStatus('personal') === 'completed';
-                return personalDone ? 'active' : 'locked';
-            }
-            case 'experience': {
-                if (data._completedExperience) return 'completed';
-                return getSectionStatus('education') === 'completed' ? 'active' : 'locked';
-            }
-            case 'skills': {
-                if (data.skills && data.skills.length > 0) return 'completed';
-                return getSectionStatus('experience') === 'completed' ? 'active' : 'locked';
-            }
-            case 'languages': {
-                if (data._completedLanguages) return 'completed';
-                return getSectionStatus('skills') === 'completed' ? 'active' : 'locked';
-            }
-            case 'hobbies': {
-                if (data._completedHobbies) return 'completed';
-                return getSectionStatus('languages') === 'completed' ? 'active' : 'locked';
-            }
-            default: return 'locked';
-        }
-    }, [data]);
-
-    // ═══════════════════════════════════════════════════════════════
-    // PROGRESS CALCULATION
-    // ═══════════════════════════════════════════════════════════════
-    const calculateProgress = (): { percentage: number; currentSection: string } => {
-        let completed = 0;
-        const totalSections = 6;
-
-        const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
-
-        // 1. Personal Info
-        const personalFields = [
-            data.personal.birthDate && !isSkippedField(data.personal.birthDate),
-            data.personal.targetJobTitle,
-            data.personal.email && !isSkippedField(data.personal.email),
-            data.personal.photoUrl && !isSkippedField(data.personal.photoUrl)
-        ];
-        const personalFilled = personalFields.filter(Boolean).length;
-        const personalSkipped = [
-            isSkippedField(data.personal.birthDate),
-            isSkippedField(data.personal.email),
-            isSkippedField(data.personal.photoUrl)
-        ].filter(Boolean).length;
-        completed += (personalFilled + personalSkipped) / 4;
-
-        // 2. Education
-        if (data._completedEducation) {
-            completed += 1;
-        } else if (data.education && data.education.length > 0) {
-            const lastEdu = data.education[data.education.length - 1];
-            const fields = [lastEdu.institution, lastEdu.degree, lastEdu.major, lastEdu.startYear, lastEdu.endYear];
-            completed += 0.2 + (fields.filter(f => f).length / fields.length) * 0.6;
-        }
-
-        // 3. Experience
-        if (data._completedExperience) {
-            completed += 1;
-        } else if (data.experience && data.experience.length > 0) {
-            const lastExp = data.experience[data.experience.length - 1];
-            const fields = [lastExp.company, lastExp.position, lastExp.startDate, lastExp.endDate, lastExp.description];
-            completed += 0.2 + (fields.filter(f => f).length / fields.length) * 0.6;
-        }
-
-        // 4. Skills
-        if (data.skills && data.skills.length > 0) completed += 1;
-
-        // 5. Languages
-        if (data._completedLanguages) completed += 1;
-
-        // 6. Hobbies
-        if (data._completedHobbies) completed += 1;
-
-        const percentage = Math.round((completed / totalSections) * 100);
-
-        // Current section name
-        let currentSection = 'المعلومات الشخصية';
-        for (const section of SECTIONS) {
-            const status = getSectionStatus(section.id);
-            if (status !== 'completed') {
-                currentSection = section.label;
-                break;
-            }
-        }
-
-        return { percentage, currentSection };
-    };
-
-    const { percentage, currentSection } = calculateProgress();
-
-    // ═══════════════════════════════════════════════════════════════
-    // NAVIGATE TO QUESTION - Core navigation helper
-    // ═══════════════════════════════════════════════════════════════
-    const navigateToField = useCallback((field: string, entryIndex?: number) => {
-        const question = questionnaireAgent.getQuestionForFieldDirect(field, data, entryIndex);
-        if (!question) return;
-
-        setRewindingState(true);
-        setActiveEntryIndex(entryIndex ?? null);
-        setCurrentQuestion(question);
-        setLoading(false);
-
-        // Pre-populate response with current value
-        populateResponseForField(field, entryIndex);
-    }, [data]);
-
-    // Helper: populate response field with current stored value
-    const populateResponseForField = (field: string, entryIndex?: number) => {
+    const populateResponse = useCallback((field: string, entryIndex: number | undefined, d: CVData) => {
         // Personal fields
         if (field === 'birthDate') {
-            const v = data.personal.birthDate;
+            const v = d.personal.birthDate;
             setResponse(v && v !== '__skipped__' ? v : '');
         } else if (field === 'targetJobTitle') {
-            setResponse(data.personal.targetJobTitle || '');
+            setResponse(d.personal.targetJobTitle || '');
         } else if (field === 'email') {
-            const currentEmail = data.personal.email;
+            const currentEmail = d.personal.email;
             if (currentEmail && currentEmail !== '__skipped__') {
                 const parts = currentEmail.split('@');
                 if (parts.length === 2) {
@@ -325,7 +215,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         // Education array fields
         else if (field.startsWith('education_') && entryIndex !== undefined) {
-            const edu = data.education?.[entryIndex];
+            const edu = d.education?.[entryIndex];
             if (edu) {
                 if (field === 'education_institution') setResponse(edu.institution || '');
                 else if (field === 'education_degree') setResponse(edu.degree || '');
@@ -339,7 +229,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         // Experience array fields
         else if (field.startsWith('experience_') && entryIndex !== undefined) {
-            const exp = data.experience?.[entryIndex];
+            const exp = d.experience?.[entryIndex];
             if (exp) {
                 if (field === 'experience_company') setResponse(exp.company || '');
                 else if (field === 'experience_position') setResponse(exp.position || '');
@@ -353,7 +243,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         // Languages array fields
         else if (field.startsWith('languages_') && entryIndex !== undefined) {
-            const lang = data.languages?.[entryIndex];
+            const lang = d.languages?.[entryIndex];
             if (lang) {
                 if (field === 'languages_name') setResponse(lang.name || '');
                 else if (field === 'languages_level') setResponse(lang.level || '');
@@ -364,111 +254,198 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         // Skills
         else if (field === 'skills') {
-            setResponse(data.skills?.join('، ') || '');
+            setResponse(d.skills?.join('، ') || '');
         }
         // Hobbies
         else if (field === 'hobbies_text') {
-            const h = data.hobbies?.filter(h => h !== '__pending__');
+            const h = d.hobbies?.filter(h => h !== '__pending__');
             setResponse(h?.join('، ') || '');
         }
-        // yes/no fields - don't pre-populate
+        // yes/no fields — check stored answer
+        else if (field === 'education_has') {
+            if (d.education.length > 0) setResponse('yes');
+            else if (d._completedEducation) setResponse('no');
+            else setResponse('');
+        } else if (field === 'education_more') {
+            if (d._completedEducation) setResponse('no');
+            else setResponse('');
+        } else if (field === 'experience_has') {
+            if (d.experience.length > 0) setResponse('yes');
+            else if (d._completedExperience) setResponse('no');
+            else setResponse('');
+        } else if (field === 'experience_more') {
+            if (d._completedExperience) setResponse('no');
+            else setResponse('');
+        } else if (field === 'languages_has') {
+            if (d.languages.length > 0) setResponse('yes');
+            else if (d._completedLanguages) setResponse('no');
+            else setResponse('');
+        } else if (field === 'languages_more') {
+            if (d._completedLanguages) setResponse('no');
+            else setResponse('');
+        } else if (field === 'hobbies_has') {
+            if (d.hobbies && d.hobbies.length > 0) setResponse('yes');
+            else if (d._completedHobbies) setResponse('no');
+            else setResponse('');
+        }
         else {
             setResponse('');
         }
+    }, []);
+
+    // ═══════════════════════════════════════════════════════════════
+    // SHOW QUESTION AT CURSOR — display question + populate response
+    // ═══════════════════════════════════════════════════════════════
+    const showQuestionAtCursor = useCallback((seq: SequenceItem[], index: number, d: CVData) => {
+        if (index >= seq.length) {
+            // All done
+            setCurrentQuestion(null);
+            setLoading(false);
+            return;
+        }
+
+        const item = seq[index];
+        const question = questionnaireAgent.getQuestionForFieldDirect(item.field, d, item.entryIndex);
+        if (question) {
+            setCurrentQuestion(question);
+            populateResponse(item.field, item.entryIndex, d);
+        } else {
+            setCurrentQuestion(null);
+        }
+        setLoading(false);
+    }, [populateResponse]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // INITIALIZATION — build sequence and find starting cursor
+    // ═══════════════════════════════════════════════════════════════
+    useEffect(() => {
+        if (!initialized) {
+            const seq = buildSequence(data);
+            setSequence(seq);
+
+            // Find first unanswered question
+            let startCursor = seq.length; // default: all done
+            for (let i = 0; i < seq.length; i++) {
+                if (!hasStoredValue(seq[i], data)) {
+                    startCursor = i;
+                    break;
+                }
+            }
+
+            setCursorIndex(startCursor);
+            showQuestionAtCursor(seq, startCursor, data);
+            setInitialized(true);
+            console.log('📜 Sequence built:', seq.length, 'items, starting at cursor:', startCursor);
+        }
+    }, [initialized, data, buildSequence, hasStoredValue, showQuestionAtCursor]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION STATUS — determine which sections are complete/active
+    // ═══════════════════════════════════════════════════════════════
+    const getSectionStatus = useCallback((sectionId: string): 'completed' | 'active' | 'locked' => {
+        const isSkippedField = (val: string | undefined | null): boolean => val === '__skipped__';
+
+        if (sectionId === 'personal') {
+            const p = data.personal;
+            const allDone = (!!p.birthDate || isSkippedField(p.birthDate)) &&
+                !!p.targetJobTitle &&
+                (!!p.email || isSkippedField(p.email)) &&
+                (!!p.photoUrl || isSkippedField(p.photoUrl));
+            if (allDone) return 'completed';
+            if (p.birthDate || p.targetJobTitle) return 'active';
+            return 'active'; // First section always accessible
+        }
+
+        if (sectionId === 'education') {
+            if (data._completedEducation) return 'completed';
+            if (data.education.length > 0) return 'active';
+            // Check personal is done
+            const p = data.personal;
+            const personalDone = (!!p.birthDate || isSkippedField(p.birthDate)) &&
+                !!p.targetJobTitle &&
+                (!!p.email || isSkippedField(p.email)) &&
+                (!!p.photoUrl || isSkippedField(p.photoUrl));
+            return personalDone ? 'active' : 'locked';
+        }
+
+        if (sectionId === 'experience') {
+            if (data._completedExperience) return 'completed';
+            if (data.experience.length > 0) return 'active';
+            return data._completedEducation || data.education.length > 0 ? 'active' : 'locked';
+        }
+
+        if (sectionId === 'skills') {
+            if (data.skills && data.skills.length > 0) return 'completed';
+            return data._completedExperience || data.experience.length > 0 ? 'active' : 'locked';
+        }
+
+        if (sectionId === 'languages') {
+            if (data._completedLanguages) return 'completed';
+            if (data.languages.length > 0) return 'active';
+            return data.skills && data.skills.length > 0 ? 'active' : 'locked';
+        }
+
+        if (sectionId === 'hobbies') {
+            if (data._completedHobbies) return 'completed';
+            if (data.hobbies && data.hobbies.length > 0) return 'active';
+            return data._completedLanguages || data.languages.length > 0 ? 'active' : 'locked';
+        }
+
+        return 'locked';
+    }, [data]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROGRESS CALCULATION
+    // ═══════════════════════════════════════════════════════════════
+    const calculateProgress = (): { percentage: number; currentSection: string } => {
+        if (sequence.length === 0) return { percentage: 0, currentSection: 'المعلومات الشخصية' };
+
+        // Percentage based on cursor position
+        const percentage = Math.min(100, Math.round((cursorIndex / sequence.length) * 100));
+
+        // Current section label from current field
+        const currentItem = sequence[cursorIndex];
+        let currentSection = 'المعلومات الشخصية';
+        if (currentItem) {
+            for (const section of SECTIONS) {
+                if (section.fields.some(f => currentItem.field.startsWith(f.replace(/_.*/, '')) || currentItem.field === f)) {
+                    // More precise matching
+                    const fieldBase = currentItem.field.split('_')[0] || currentItem.field;
+                    if (section.fields.some(f => f === currentItem.field || f.startsWith(fieldBase + '_') || f === fieldBase)) {
+                        currentSection = section.label;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return { percentage, currentSection };
     };
+
+    const { percentage, currentSection } = calculateProgress();
 
     // ═══════════════════════════════════════════════════════════════
     // SECTION NAVIGATION (Checkpoint click)
     // ═══════════════════════════════════════════════════════════════
     const navigateToSection = useCallback((sectionId: string) => {
         const status = getSectionStatus(sectionId);
-        if (status === 'locked') return; // Can't navigate to locked sections
+        if (status === 'locked') return;
 
-        // Find the first field in this section
         const section = SECTIONS.find(s => s.id === sectionId);
         if (!section) return;
 
-        // Build history up to this section's start
-        const newHistory: HistoryEntry[] = [];
-        const sectionIndex = SECTIONS.findIndex(s => s.id === sectionId);
+        // Find the first item in the sequence that belongs to this section
+        const sectionFieldPrefixes = section.fields.map(f => f);
+        const targetIndex = sequence.findIndex(item =>
+            sectionFieldPrefixes.includes(item.field) ||
+            sectionFieldPrefixes.some(f => item.field.startsWith(f.split('_')[0] + '_') && section.fields.includes(item.field))
+        );
 
-        // Add all history entries from previous sections
-        for (let i = 0; i < sectionIndex; i++) {
-            const prevSection = SECTIONS[i];
-            const prevStatus = getSectionStatus(prevSection.id);
-            if (prevStatus === 'completed') {
-                const historyFromPrevSection = initializeHistoryFromData(data).filter(h => {
-                    return prevSection.fields.some(f => h.field === f || h.field.startsWith(f.replace('_more', '_')));
-                });
-                newHistory.push(...historyFromPrevSection);
-            }
+        if (targetIndex >= 0) {
+            setCursorIndex(targetIndex);
+            showQuestionAtCursor(sequence, targetIndex, data);
         }
-
-        setQuestionHistory(newHistory);
-
-        // For completed sections, navigate to the first field so user can review
-        // For active sections, let the normal flow determine the current question
-        if (status === 'completed') {
-            // Navigate to first field of this completed section
-            const firstField = section.fields[0];
-
-            // Handle special cases for _has fields with existing data
-            if (firstField === 'education_has' && data.education.length > 0) {
-                // Go to first education entry's first field
-                navigateToField('education_institution', 0);
-            } else if (firstField === 'experience_has' && data.experience.length > 0) {
-                navigateToField('experience_company', 0);
-            } else if (firstField === 'languages_has' && data.languages.length > 0) {
-                navigateToField('languages_name', 0);
-            } else {
-                navigateToField(firstField);
-            }
-        } else {
-            // Active section - clear rewinding and let normal flow take over
-            setRewindingState(false);
-            setActiveEntryIndex(null);
-            setResponse('');
-        }
-    }, [data, getSectionStatus, initializeHistoryFromData, navigateToField]);
-
-    // Helper: determine the active entry index for a field from data
-    const getEntryIndexForField = useCallback((field: string): number | undefined => {
-        if (field.startsWith('education_') && field !== 'education_has' && field !== 'education_more') {
-            return data.education?.length ? data.education.length - 1 : 0;
-        }
-        if (field.startsWith('experience_') && field !== 'experience_has' && field !== 'experience_more') {
-            return data.experience?.length ? data.experience.length - 1 : 0;
-        }
-        if (field.startsWith('languages_') && field !== 'languages_has' && field !== 'languages_more') {
-            return data.languages?.length ? data.languages.length - 1 : 0;
-        }
-        return undefined;
-    }, [data]);
-
-    // ═══════════════════════════════════════════════════════════════
-    // FETCH NEXT QUESTION (normal flow)
-    // ═══════════════════════════════════════════════════════════════
-    useEffect(() => {
-        const fetchQuestion = async () => {
-            // Use ref for SYNCHRONOUS check - prevents race condition where
-            // setState(true) hasn't been committed yet but useEffect already fired
-            if (isRewindingRef.current || isRewinding) return;
-            setLoading(true);
-            const question = await questionnaireAgent.getNextQuestion(data);
-            // Double-check after async operation - user may have pressed back during fetch
-            if (isRewindingRef.current) return;
-            setCurrentQuestion(question);
-            setLoading(false);
-
-            // Auto-populate response if the field already has stored data
-            // This prevents data loss when navigating forward after going back
-            if (question) {
-                const entryIdx = getEntryIndexForField(question.field);
-                populateResponseForField(question.field, entryIdx);
-            }
-        };
-        fetchQuestion();
-    }, [data, isRewinding, getEntryIndexForField]);
+    }, [sequence, data, getSectionStatus, showQuestionAtCursor]);
 
     // ═══════════════════════════════════════════════════════════════
     // FILE UPLOAD HANDLER
@@ -485,29 +462,14 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // HANDLE ANSWER (forward navigation)
+    // HANDLE ANSWER (forward navigation) — cursor++
     // ═══════════════════════════════════════════════════════════════
     const handleAnswer = async () => {
         if (!currentQuestion) return;
 
-        // Reset rewinding state
-        if (isRewinding) {
-            setRewindingState(false);
-        }
-
-        // Save current question to history
-        const historyEntry: HistoryEntry = { field: currentQuestion.field };
-        if (currentQuestion.field.startsWith('education_')) {
-            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.education?.length ? data.education.length - 1 : 0);
-        } else if (currentQuestion.field.startsWith('experience_')) {
-            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.experience?.length ? data.experience.length - 1 : 0);
-        } else if (currentQuestion.field.startsWith('languages_')) {
-            historyEntry.entryIndex = activeEntryIndex !== null ? activeEntryIndex : (data.languages?.length ? data.languages.length - 1 : 0);
-        }
-        setQuestionHistory(prev => [...prev, historyEntry]);
-
         const field = currentQuestion.field;
         const updatedData: Partial<CVData> = {};
+        const idx = activeEntryIndex !== null ? activeEntryIndex : 0;
 
         // ═══ PERSONAL INFO ═══
         if (field === 'birthDate') {
@@ -526,42 +488,45 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         // ═══ EDUCATION ═══
         else if (field === 'education_has') {
             if (response === 'yes') {
-                const list = [...(data.education || [])];
-                list.push({ id: Date.now().toString(), institution: '', degree: '', major: '', startYear: '', endYear: '' });
-                updatedData.education = list;
+                // Only add new entry if there are none
+                if (!data.education || data.education.length === 0) {
+                    const list = [...(data.education || [])];
+                    list.push({ id: Date.now().toString(), institution: '', degree: '', major: '', startYear: '', endYear: '' });
+                    updatedData.education = list;
+                }
+                updatedData._completedEducation = undefined;
             } else {
                 updatedData._completedEducation = true;
             }
         }
         else if (field === 'education_institution') {
             const list = [...(data.education || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            // Protect existing data: don't overwrite with empty string
-            if (list.length > idx && response) list[idx].institution = translateAbbreviation(response, 'university');
+            const eduIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > eduIdx && response) list[eduIdx].institution = translateAbbreviation(response, 'university');
             updatedData.education = list;
         }
         else if (field === 'education_degree') {
             const list = [...(data.education || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].degree = response;
+            const eduIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > eduIdx && response) list[eduIdx].degree = response;
             updatedData.education = list;
         }
         else if (field === 'education_major') {
             const list = [...(data.education || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].major = translateAbbreviation(response, 'major');
+            const eduIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > eduIdx && response) list[eduIdx].major = translateAbbreviation(response, 'major');
             updatedData.education = list;
         }
         else if (field === 'education_startYear') {
             const list = [...(data.education || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].startYear = response;
+            const eduIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > eduIdx && response) list[eduIdx].startYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_endYear') {
             const list = [...(data.education || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].endYear = response;
+            const eduIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > eduIdx && response) list[eduIdx].endYear = response;
             updatedData.education = list;
         }
         else if (field === 'education_more') {
@@ -569,6 +534,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 const list = [...(data.education || [])];
                 list.push({ id: Date.now().toString(), institution: '', degree: '', major: '', startYear: '', endYear: '' });
                 updatedData.education = list;
+                updatedData._completedEducation = undefined;
             } else {
                 updatedData._completedEducation = true;
             }
@@ -577,41 +543,44 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         // ═══ EXPERIENCE ═══
         else if (field === 'experience_has') {
             if (response === 'yes') {
-                const list = [...(data.experience || [])];
-                list.push({ id: Date.now().toString(), company: '', position: '', startDate: '', endDate: '', description: '' });
-                updatedData.experience = list;
+                if (!data.experience || data.experience.length === 0) {
+                    const list = [...(data.experience || [])];
+                    list.push({ id: Date.now().toString(), company: '', position: '', startDate: '', endDate: '', description: '' });
+                    updatedData.experience = list;
+                }
+                updatedData._completedExperience = undefined;
             } else {
                 updatedData._completedExperience = true;
             }
         }
         else if (field === 'experience_company') {
             const list = [...(data.experience || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].company = response;
+            const expIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > expIdx && response) list[expIdx].company = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_position') {
             const list = [...(data.experience || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].position = response;
+            const expIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > expIdx && response) list[expIdx].position = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_startDate') {
             const list = [...(data.experience || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].startDate = response;
+            const expIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > expIdx && response) list[expIdx].startDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_endDate') {
             const list = [...(data.experience || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].endDate = response;
+            const expIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > expIdx && response) list[expIdx].endDate = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_description') {
             const list = [...(data.experience || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].description = response;
+            const expIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > expIdx && response) list[expIdx].description = response;
             updatedData.experience = list;
         }
         else if (field === 'experience_more') {
@@ -619,6 +588,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 const list = [...(data.experience || [])];
                 list.push({ id: Date.now().toString(), company: '', position: '', startDate: '', endDate: '', description: '' });
                 updatedData.experience = list;
+                updatedData._completedExperience = undefined;
             } else {
                 updatedData._completedExperience = true;
             }
@@ -644,23 +614,26 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         // ═══ LANGUAGES ═══
         else if (field === 'languages_has') {
             if (response === 'yes') {
-                const list = [...(data.languages || [])];
-                list.push({ name: '', level: '' });
-                updatedData.languages = list;
+                if (!data.languages || data.languages.length === 0) {
+                    const list = [...(data.languages || [])];
+                    list.push({ name: '', level: '' });
+                    updatedData.languages = list;
+                }
+                updatedData._completedLanguages = undefined;
             } else {
                 updatedData._completedLanguages = true;
             }
         }
         else if (field === 'languages_name') {
             const list = [...(data.languages || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].name = response;
+            const langIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > langIdx && response) list[langIdx].name = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_level') {
             const list = [...(data.languages || [])];
-            const idx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
-            if (list.length > idx && response) list[idx].level = response;
+            const langIdx = activeEntryIndex !== null ? activeEntryIndex : list.length - 1;
+            if (list.length > langIdx && response) list[langIdx].level = response;
             updatedData.languages = list;
         }
         else if (field === 'languages_more') {
@@ -668,126 +641,93 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 const list = [...(data.languages || [])];
                 list.push({ name: '', level: '' });
                 updatedData.languages = list;
+                updatedData._completedLanguages = undefined;
             } else {
                 updatedData._completedLanguages = true;
             }
         }
 
-        // Reset activeEntryIndex after processing
-        setActiveEntryIndex(null);
-
         // Update global state
         onUpdate(updatedData);
+
+        // Merge updated data with current data to rebuild sequence
+        const mergedData = { ...data, ...updatedData } as CVData;
+        if (updatedData.personal) {
+            mergedData.personal = { ...data.personal, ...updatedData.personal };
+        }
+
+        // Rebuild sequence from updated data
+        const newSeq = buildSequence(mergedData);
+        setSequence(newSeq);
+
+        // Find current field in new sequence and advance cursor
+        const currentItem = sequence[cursorIndex];
+        let newIndex = newSeq.findIndex(item =>
+            item.field === currentItem.field && item.entryIndex === currentItem.entryIndex
+        );
+
+        // If field not found (shouldn't happen), try to move forward
+        if (newIndex < 0) newIndex = Math.min(cursorIndex, newSeq.length - 1);
+
+        const nextCursor = newIndex + 1;
+
+        // If "no" to a _has field, skip to next section's start
+        if ((field === 'education_has' || field === 'experience_has' || field === 'languages_has' || field === 'hobbies_has') && response === 'no') {
+            // Find next non-skipped section item in new sequence
+            const nextSectionIndex = newSeq.findIndex((item, i) => {
+                if (i <= newIndex) return false;
+                // Find items that don't belong to the current section
+                return !item.field.startsWith(field.replace('_has', '_'));
+            });
+            if (nextSectionIndex >= 0) {
+                setCursorIndex(nextSectionIndex);
+                showQuestionAtCursor(newSeq, nextSectionIndex, mergedData);
+                setResponse('');
+                return;
+            }
+        }
+
+        // If "no" to a _more field, skip to next section
+        if ((field === 'education_more' || field === 'experience_more' || field === 'languages_more') && response === 'no') {
+            const sectionPrefix = field.replace('_more', '_');
+            const nextSectionIndex = newSeq.findIndex((item, i) => {
+                if (i <= newIndex) return false;
+                return !item.field.startsWith(sectionPrefix);
+            });
+            if (nextSectionIndex >= 0) {
+                setCursorIndex(nextSectionIndex);
+                showQuestionAtCursor(newSeq, nextSectionIndex, mergedData);
+                setResponse('');
+                return;
+            }
+        }
+
+        if (nextCursor >= newSeq.length) {
+            // All questions answered!
+            setCursorIndex(nextCursor);
+            setCurrentQuestion(null);
+            setLoading(false);
+        } else {
+            setCursorIndex(nextCursor);
+            showQuestionAtCursor(newSeq, nextCursor, mergedData);
+        }
+
         setResponse('');
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // HANDLE BACK (backward navigation) - REBUILT
+    // HANDLE BACK — cursor--
     // ═══════════════════════════════════════════════════════════════
     const handleInternalBack = () => {
-        // If history is empty, go back to previous step (Contact)
-        if (questionHistory.length === 0) {
+        if (cursorIndex <= 0) {
             onBack();
             return;
         }
 
-        // Pop the last entry
-        const newHistory = [...questionHistory];
-        const lastEntry = newHistory.pop()!;
-        setQuestionHistory(newHistory);
-
-        if (!lastEntry) return;
-
-        const lastField = lastEntry.field;
-        const entryIndex = lastEntry.entryIndex;
-
-        console.log('🔙 Backing up to field:', lastField, 'EntryIndex:', entryIndex);
-
-        // Use the centralized navigation function
-        setRewindingState(true);
-
-        // Restore activeEntryIndex
-        if (entryIndex !== undefined) {
-            setActiveEntryIndex(entryIndex);
-        } else {
-            setActiveEntryIndex(null);
-        }
-
-        // Get question using the agent's new method (supports ALL field types)
-        const question = questionnaireAgent.getQuestionForFieldDirect(lastField, data, entryIndex);
-        if (question) {
-            setCurrentQuestion(question);
-            setLoading(false);
-        }
-
-        // Pre-populate response with current value
-        populateResponseForField(lastField, entryIndex);
-
-        // Handle data cleanup for special cases (undo operations)
-        const clearData: Partial<CVData> = {};
-
-        if (lastField === 'education_has') {
-            clearData._completedEducation = undefined;
-            if (data.education && data.education.length > 0) {
-                const lastEdu = data.education[data.education.length - 1];
-                if (!lastEdu.institution && !lastEdu.degree) {
-                    clearData.education = data.education.slice(0, -1);
-                }
-            }
-        } else if (lastField === 'education_more') {
-            clearData._completedEducation = undefined;
-            if (data.education && data.education.length > 0) {
-                const lastEdu = data.education[data.education.length - 1];
-                if (!lastEdu.institution && !lastEdu.degree && !lastEdu.major && !lastEdu.startYear && !lastEdu.endYear) {
-                    clearData.education = data.education.slice(0, -1);
-                }
-            }
-        } else if (lastField === 'experience_has') {
-            clearData._completedExperience = undefined;
-            if (data.experience && data.experience.length > 0) {
-                const lastExp = data.experience[data.experience.length - 1];
-                if (!lastExp.company && !lastExp.position) {
-                    clearData.experience = data.experience.slice(0, -1);
-                }
-            }
-        } else if (lastField === 'experience_more') {
-            clearData._completedExperience = undefined;
-            if (data.experience && data.experience.length > 0) {
-                const lastExp = data.experience[data.experience.length - 1];
-                if (!lastExp.company && !lastExp.position && !lastExp.startDate && !lastExp.endDate && !lastExp.description) {
-                    clearData.experience = data.experience.slice(0, -1);
-                }
-            }
-        } else if (lastField === 'skills') {
-            clearData.skills = [];
-        } else if (lastField === 'hobbies_has') {
-            clearData._completedHobbies = undefined;
-            clearData.hobbies = [];
-        } else if (lastField === 'hobbies_text') {
-            clearData._completedHobbies = undefined;
-            clearData.hobbies = ['__pending__'];
-        } else if (lastField === 'languages_has') {
-            clearData._completedLanguages = undefined;
-            if (data.languages && data.languages.length > 0) {
-                const lastLang = data.languages[data.languages.length - 1];
-                if (!lastLang.name) {
-                    clearData.languages = data.languages.slice(0, -1);
-                }
-            }
-        } else if (lastField === 'languages_more') {
-            clearData._completedLanguages = undefined;
-            if (data.languages && data.languages.length > 0) {
-                const lastLang = data.languages[data.languages.length - 1];
-                if (!lastLang.name && !lastLang.level) {
-                    clearData.languages = data.languages.slice(0, -1);
-                }
-            }
-        }
-
-        // Update data only if we have cleanup to do
-        if (Object.keys(clearData).length > 0) {
-            onUpdate(clearData);
-        }
+        const newCursor = cursorIndex - 1;
+        setCursorIndex(newCursor);
+        showQuestionAtCursor(sequence, newCursor, data);
+        console.log('🔙 Back to cursor:', newCursor, 'field:', sequence[newCursor]?.field);
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -892,7 +832,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             </div>
 
             <div
-                key={currentQuestion.id + '-' + (activeEntryIndex ?? 'null')}
+                key={currentQuestion.id + '-' + (activeEntryIndex ?? 'null') + '-' + cursorIndex}
                 className="space-y-8 animate-in fade-in duration-300"
             >
                 <div className="space-y-2">
