@@ -1064,40 +1064,40 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'email' && (
                         <div className="space-y-4" dir="ltr">
-                            <input
-                                type="email"
-                                value={emailUsername}
-                                onChange={(e) => {
-                                    const val = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
-                                    setEmailUsername(val);
-                                    setResponse(`${val}@${emailDomain}`);
-                                }}
-                                className="w-full p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-800 placeholder:text-gray-400"
-                                placeholder="your.name"
-                                dir="ltr"
-                                autoFocus
-                                inputMode="email"
-                                autoCapitalize="none"
-                                autoCorrect="off"
-                                autoComplete="username"
-                                enterKeyHint="next"
-                                style={{ fontSize: '16px' }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleAnswer();
-                                    }
-                                }}
-                            />
                             <div className="flex items-center gap-2">
+                                <input
+                                    type="email"
+                                    value={emailUsername}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+                                        setEmailUsername(val);
+                                        setResponse(val ? `${val}@${emailDomain}` : '');
+                                    }}
+                                    className="flex-1 p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-800 placeholder:text-gray-400"
+                                    placeholder="your.name"
+                                    dir="ltr"
+                                    autoFocus
+                                    inputMode="email"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    autoComplete="username"
+                                    enterKeyHint="next"
+                                    style={{ fontSize: '16px' }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAnswer();
+                                        }
+                                    }}
+                                />
                                 <span className="text-2xl font-bold text-primary">@</span>
                                 <select
                                     value={emailDomain}
                                     onChange={(e) => {
                                         setEmailDomain(e.target.value);
-                                        setResponse(`${emailUsername}@${e.target.value}`);
+                                        setResponse(emailUsername ? `${emailUsername}@${e.target.value}` : '');
                                     }}
-                                    className="flex-1 p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-700 font-medium"
+                                    className="p-4 text-lg border-2 border-gray-200 rounded-xl outline-none focus:border-primary bg-white text-gray-700 font-medium min-w-[150px]"
                                     dir="ltr"
                                     style={{ fontSize: '16px', WebkitAppearance: 'menulist', appearance: 'menulist' }}
                                 >

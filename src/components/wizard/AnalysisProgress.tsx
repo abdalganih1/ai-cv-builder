@@ -17,7 +17,7 @@ const STATUS_MESSAGES = [
 ];
 
 export default function AnalysisProgress({
-    estimatedDuration = 70,
+    estimatedDuration = 200,
     onComplete
 }: AnalysisProgressProps) {
     const [progress, setProgress] = useState(0);

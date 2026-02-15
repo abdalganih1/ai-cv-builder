@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 
 interface AISuggestButtonProps {
     fieldType: string;
@@ -9,86 +9,108 @@ interface AISuggestButtonProps {
     onSelect: (value: string) => void;
 }
 
-export default function AISuggestButton({ fieldType, context, currentValue, onSelect }: AISuggestButtonProps) {
-    const [suggestions, setSuggestions] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(false);
+const STATIC_SUGGESTIONS: Record<string, string[]> = {
+    university: [
+        'جامعة دمشق',
+        'جامعة حلب',
+        'جامعة تشرين',
+        'جامعة البعث',
+        'الجامعة الوطنية الخاصة',
+        'الجامعة العربية الدولية',
+        'جامعة القلمون',
+        'جامعة الفرات',
+        'الجامعة السورية الخاصة',
+        'جامعة حماة',
+    ],
+    language: [
+        'الإنجليزية',
+        'الفرنسية',
+        'الألمانية',
+        'التركية',
+        'الروسية',
+        'الإسبانية',
+        'الإيطالية',
+        'الفارسية',
+    ],
+    degree: [
+        'بكالوريوس',
+        'ماجستير',
+        'دبلوم',
+        'دكتوراه',
+        'شهادة مهنية',
+    ],
+    major: [
+        'هندسة برمجيات',
+        'طب عام',
+        'إدارة أعمال',
+        'حقوق',
+        'صيدلة',
+        'هندسة مدنية',
+        'هندسة كهربائية',
+        'محاسبة',
+        'تقانة المعلومات',
+        'علوم الحاسوب',
+    ],
+    company: [
+        'شركة سيريتل',
+        'MTN سوريا',
+        'بنك سورية والخليج',
+        'بنك البركة',
+        'شركة سيرياتل',
+    ],
+    position: [
+        'مطور برمجي',
+        'مهندس شبكات',
+        'مدير مبيعات',
+        'محاسب',
+        'مصمم جرافيك',
+        'مهندس ميكانيكي',
+        'طبيب',
+        'ممرض',
+    ],
+    description: [
+        'إدارة وتطوير التطبيقات',
+        'متابعة المشاريع',
+        'كتابة التقارير',
+    ],
+    jobTitle: [
+        'مطور Full-Stack',
+        'مهندس DevOps',
+        'مدير منتج',
+        'محلل بيانات',
+        'مصمم UX',
+    ],
+    skills: [
+        'JavaScript',
+        'Python',
+        'تواصل فعّال',
+        'إدارة وقت',
+        'تفكير ناقد',
+        'React',
+        'Node.js',
+    ],
+};
 
-    // Auto-fetch suggestions on mount
-    useEffect(() => {
-        fetchSuggestions();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Only run once on mount
-
-    const fetchSuggestions = async () => {
-        setLoading(true);
-        setError(false);
-
-        try {
-            const res = await fetch('/api/ai/suggest', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fieldType, context, currentValue }),
-            });
-
-            if (!res.ok) {
-                throw new Error('Failed to fetch');
-            }
-
-            const data = await res.json();
-            setSuggestions(data.suggestions || []);
-        } catch (err) {
-            console.error('Suggestions error:', err);
-            setError(true);
-        } finally {
-            setLoading(false);
+export default function AISuggestButton({ fieldType, currentValue, onSelect }: AISuggestButtonProps) {
+    const suggestions = useMemo(() => {
+        const staticList = STATIC_SUGGESTIONS[fieldType] || [];
+        if (!currentValue || currentValue.trim() === '') {
+            return staticList.slice(0, 6);
         }
-    };
+        const search = currentValue.toLowerCase();
+        const filtered = staticList.filter(s => 
+            s.toLowerCase().includes(search) || 
+            s.includes(currentValue)
+        );
+        return filtered.length > 0 ? filtered.slice(0, 6) : staticList.slice(0, 6);
+    }, [fieldType, currentValue]);
 
     const handleSelect = (value: string) => {
         onSelect(value);
-        // Don't clear suggestions - keep them visible
     };
 
-    // Don't render if loading or error
-    if (loading) {
-        return (
-            <div className="ai-suggest-container">
-                <div className="ai-suggest-loading">
-                    <span className="ai-suggest-spinner" />
-                    <span className="text-xs text-gray-500">جاري تحميل الاقتراحات...</span>
-                </div>
-                {/* Styles */}
-                <style jsx>{`
-                    .ai-suggest-container {
-                        margin-top: 12px;
-                        direction: rtl;
-                    }
-                    .ai-suggest-loading {
-                        display: flex;
-                        align-items: center;
-                        gap: 8px;
-                        padding: 8px;
-                    }
-                    .ai-suggest-spinner {
-                        display: inline-block;
-                        width: 16px;
-                        height: 16px;
-                        border: 2px solid #e5e7eb;
-                        border-top-color: #6366f1;
-                        border-radius: 50%;
-                        animation: spin 0.6s linear infinite;
-                    }
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
-                    }
-                `}</style>
-            </div>
-        );
-    }
-
-    if (error || suggestions.length === 0) {
-        return null; // Don't show anything if error or no suggestions
+    if (suggestions.length === 0) {
+        return null;
     }
 
     return (

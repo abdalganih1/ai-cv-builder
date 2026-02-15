@@ -72,13 +72,10 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [englishCV, setEnglishCV] = useState<CVData | null>(null);
     const [activeLanguage, setActiveLanguage] = useState<'ar' | 'en'>('ar');
     const [showExportModal, setShowExportModal] = useState(false);
-    // Image cropper state
     const [pendingCropImage, setPendingCropImage] = useState<string | null>(null);
-    // Translation timer state
     const [translationProgress, setTranslationProgress] = useState(0);
     const [translationTimer, setTranslationTimer] = useState(100);
 
-    // Payment state
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(DEFAULT_SETTINGS);
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
@@ -93,8 +90,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { trackFileUpload, sessionId } = useAnalytics();
 
-    // Selected export option (to remember what user selected)
     const [selectedExportOption, setSelectedExportOption] = useState<'ar' | 'en' | 'both' | null>(null);
+
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisDone, setAnalysisDone] = useState(false);
+    const [editingSection, setEditingSection] = useState<string | null>(null);
 
     // Handle file upload - open cropper instead of directly setting photo
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,6 +130,24 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             console.warn('Failed to load cached English CV:', error);
         }
     }, []);
+
+    useEffect(() => {
+        if (analysisDone) return;
+        const analyzeCV = async () => {
+            setIsAnalyzing(true);
+            try {
+                const enhancedData = await generateProfessionalCV(data);
+                onUpdate(enhancedData);
+                setAnalysisDone(true);
+            } catch (error) {
+                console.error('Auto-analysis failed:', error);
+                setAnalysisDone(true);
+            } finally {
+                setIsAnalyzing(false);
+            }
+        };
+        analyzeCV();
+    }, [analysisDone, data, onUpdate]);
 
     // Fetch payment settings from API
     useEffect(() => {
@@ -296,13 +314,6 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     };
 
     const handleExport = async (option: 'ar' | 'en' | 'both') => {
-        // Check if payment is required before export
-        if (paymentSettings.paymentType !== 'disabled' && data.metadata.paymentStatus !== 'completed') {
-            setSelectedExportOption(option);
-            setShowPaymentModal(true);
-            return;
-        }
-
         await performExport(option);
     };
 
@@ -499,6 +510,13 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
 
     return (
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 min-h-[100dvh] md:h-[850px] w-full">
+            {isAnalyzing && (
+                <div className="fixed inset-0 bg-white/90 z-50 flex items-center justify-center">
+                    <div className="w-full max-w-2xl mx-auto p-8">
+                        <AnalysisProgress estimatedDuration={200} />
+                    </div>
+                </div>
+            )}
             {/* Sidebar / Chat Interface */}
             <div className="w-full md:w-1/3 order-2 md:order-1 flex flex-col gap-3 md:gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-1 flex flex-col">
@@ -664,7 +682,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         {/* Summary */}
                         {previewData.personal.summary && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-bold text-primary mb-3 border-b border-gray-100 pb-2">{labels.summary}</h2>
+                                <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                    <h2 className="text-xl font-bold text-primary">{labels.summary}</h2>
+                                    <button
+                                        onClick={() => setEditingSection('summary')}
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                        title="تعديل"
+                                    >
+                                        ✏️
+                                    </button>
+                                </div>
                                 <p className="text-gray-700 leading-relaxed text-base">{previewData.personal.summary}</p>
                             </div>
                         )}
@@ -672,7 +699,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         {/* Experience */}
                         {previewData.experience && previewData.experience.length > 0 && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-bold text-primary mb-4 border-b border-gray-100 pb-2">{labels.experience}</h2>
+                                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                    <h2 className="text-xl font-bold text-primary">{labels.experience}</h2>
+                                    <button
+                                        onClick={() => setEditingSection('experience')}
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                        title="تعديل"
+                                    >
+                                        ✏️
+                                    </button>
+                                </div>
                                 <div className="flex flex-col gap-6">
                                     {previewData.experience.map((exp) => (
                                         <div key={exp.id}>
@@ -691,7 +727,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         {/* Education */}
                         {previewData.education && previewData.education.length > 0 && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-bold text-primary mb-4 border-b border-gray-100 pb-2">{labels.education}</h2>
+                                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                    <h2 className="text-xl font-bold text-primary">{labels.education}</h2>
+                                    <button
+                                        onClick={() => setEditingSection('education')}
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                        title="تعديل"
+                                    >
+                                        ✏️
+                                    </button>
+                                </div>
                                 <div className="flex flex-col gap-4">
                                     {previewData.education.map((edu) => (
                                         <div key={edu.id}>
@@ -707,7 +752,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         {/* Skills */}
                         {previewData.skills && previewData.skills.length > 0 && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-bold text-primary mb-4 border-b border-gray-100 pb-2">{labels.skills}</h2>
+                                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                    <h2 className="text-xl font-bold text-primary">{labels.skills}</h2>
+                                    <button
+                                        onClick={() => setEditingSection('skills')}
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                        title="تعديل"
+                                    >
+                                        ✏️
+                                    </button>
+                                </div>
                                 <div className="flex flex-wrap gap-2">
                                     {previewData.skills.map((skill, idx) => (
                                         <span key={idx} className="bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg text-sm text-gray-700 font-medium">
@@ -721,7 +775,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         {/* Languages */}
                         {previewData.languages && previewData.languages.length > 0 && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-bold text-primary mb-4 border-b border-gray-100 pb-2">{labels.languages}</h2>
+                                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                    <h2 className="text-xl font-bold text-primary">{labels.languages}</h2>
+                                    <button
+                                        onClick={() => setEditingSection('languages')}
+                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                        title="تعديل"
+                                    >
+                                        ✏️
+                                    </button>
+                                </div>
                                 <div className="flex flex-col gap-2">
                                     {previewData.languages.map((lang, idx) => (
                                         <div key={idx} className="flex justify-between items-center bg-gray-50 border border-gray-200 px-4 py-2 rounded-lg">
@@ -1021,6 +1084,22 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                     onCropComplete={handleCropComplete}
                     onCancel={() => setPendingCropImage(null)}
                 />
+            )}
+
+            {/* Section Edit Modal */}
+            {editingSection && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingSection(null)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-900">✏️ تعديل {LABELS.ar[editingSection as keyof typeof LABELS.ar] || editingSection}</h3>
+                            <button onClick={() => setEditingSection(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-4">اكتب التعديل المطلوب في الشريط الجانبي (مساعد التعديل الذكي)</p>
+                        <button onClick={() => setEditingSection(null)} className="w-full py-3 bg-primary text-white rounded-xl font-bold">
+                            حسناً، سأستخدم المساعد
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );
