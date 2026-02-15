@@ -1176,6 +1176,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         education: data.education,
                                         targetJobTitle: data.personal.targetJobTitle,
                                         company: currentQuestion.field === 'experience_position' ? (data.experience[activeEntryIndex ?? 0]?.company) : undefined,
+                                        experience: data.experience,
                                     }}
                                 />
                             )}

@@ -8,9 +8,10 @@ interface AISuggestButtonProps {
     currentValue: string;
     onSelect: (value: string) => void;
     fullContext?: {
-        education?: Array<{ major?: string; degree?: string }>;
+        education?: Array<{ major?: string; degree?: string; institution?: string }>;
         targetJobTitle?: string;
         company?: string;
+        experience?: Array<{ position?: string; company?: string }>;
     };
 }
 
