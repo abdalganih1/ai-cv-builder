@@ -65,12 +65,13 @@ export interface Question {
   id: string;
   field: string;
   text: string;
-  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email';
+  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email' | 'year';
   options?: string[];
   condition?: (data: CVData) => boolean;
   followUp?: boolean;
-  skippable?: boolean; // Whether this question can be skipped
-  placeholder?: string; // Placeholder text for input
+  skippable?: boolean;
+  placeholder?: string;
+  yearType?: 'start' | 'end';
 }
 
 // Missing fields detection for text analysis

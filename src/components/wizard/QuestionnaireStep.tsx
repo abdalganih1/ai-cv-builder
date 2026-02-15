@@ -7,6 +7,7 @@ import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
 import AISuggestButton from '@/components/ui/AISuggestButton';
 import { translateAbbreviation } from '@/lib/utils/syrian-universities';
+import { getYearSuggestions } from '@/lib/utils/year-suggestions';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -1115,6 +1116,58 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             )}
                         </div>
                     )}
+
+                    {currentQuestion.type === 'year' && (() => {
+                        const eduIdx = activeEntryIndex !== null ? activeEntryIndex : data.education.length - 1;
+                        const edu = data.education[eduIdx] || data.education[data.education.length - 1];
+                        const yearSuggestions = getYearSuggestions(
+                            currentQuestion.yearType || 'start',
+                            data.personal.birthDate,
+                            edu?.institution,
+                            edu?.major,
+                            edu?.startYear
+                        );
+                        return (
+                            <div className="space-y-3">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={response}
+                                        onChange={(e) => setResponse(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAnswer();
+                                            }
+                                        }}
+                                        className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                        placeholder={currentQuestion.yearType === 'start' ? 'مثال: 2018' : 'مثال: 2023'}
+                                        autoFocus
+                                        enterKeyHint="next"
+                                        min="1950"
+                                        max={new Date().getFullYear() + 5}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="text-xs text-gray-500 font-medium">اقتراحات:</span>
+                                    {yearSuggestions.map((s, i) => (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => setResponse(s.year.toString())}
+                                            className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                                                response === s.year.toString()
+                                                    ? 'bg-primary/10 border-primary text-primary font-bold'
+                                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                                            }`}
+                                        >
+                                            {s.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {currentQuestion.type === 'select' && currentQuestion.options && (
                         <div className="grid grid-cols-2 gap-3">

@@ -1,4 +1,5 @@
 import { CVData, Question, ResponseDepth } from '../types/cv-schema';
+import { getYearSuggestions } from '../utils/year-suggestions';
 
 // ═══════════════════════════════════════════════════════════════
 // ORDINAL NUMBERING — Arabic ordinals for repeated entries
@@ -137,19 +138,25 @@ class QuestionnaireAgent {
                     };
                 }
                 if (!lastEdu.startYear) {
+                    const yearSuggestions = getYearSuggestions('start', data.personal.birthDate, lastEdu.institution);
                     return {
                         id: 'edu_startYear',
                         field: 'education_startYear',
                         text: `متى بدأت الدراسة في ${lastEdu.institution}؟ (مثال: 2015)`,
-                        type: 'text'
+                        type: 'year',
+                        yearType: 'start',
+                        options: yearSuggestions.map(s => s.year.toString())
                     };
                 }
                 if (!lastEdu.endYear) {
+                    const yearSuggestions = getYearSuggestions('end', data.personal.birthDate, lastEdu.institution, lastEdu.major, lastEdu.startYear);
                     return {
                         id: 'edu_endYear',
                         field: 'education_endYear',
-                        text: `متى تخرجت من ${lastEdu.institution} أو متى تتوقع التخرج؟ (مثال: 2019 أو "حالياً")`,
-                        type: 'text'
+                        text: `متى تخرجت من ${lastEdu.institution} أو متى تتوقع التخرج؟`,
+                        type: 'year',
+                        yearType: 'end',
+                        options: yearSuggestions.map(s => s.label)
                     };
                 }
             }
@@ -398,12 +405,14 @@ class QuestionnaireAgent {
             'education_startYear': {
                 id: 'edu_startYear', field: 'education_startYear',
                 text: `متى بدأت الدراسة في ${eduName}؟ (مثال: 2015)`,
-                type: 'text'
+                type: 'year',
+                yearType: 'start'
             },
             'education_endYear': {
                 id: 'edu_endYear', field: 'education_endYear',
-                text: `متى تخرجت من ${eduName} أو متى تتوقع التخرج؟ (مثال: 2019 أو "حالياً")`,
-                type: 'text'
+                text: `متى تخرجت من ${eduName} أو متى تتوقع التخرج؟`,
+                type: 'year',
+                yearType: 'end'
             },
             'education_more': {
                 id: 'moreEducation', field: 'education_more',
