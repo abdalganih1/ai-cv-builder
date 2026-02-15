@@ -1125,7 +1125,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             data.personal.birthDate,
                             edu?.institution,
                             edu?.major,
-                            edu?.startYear
+                            edu?.startYear,
+                            edu?.degree,
+                            data.education
                         );
                         return (
                             <div className="space-y-3">

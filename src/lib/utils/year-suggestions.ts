@@ -1,6 +1,6 @@
 /**
  * Smart Year Suggestions for Education
- * Calculates expected start/end years based on birth date and university
+ * Calculates expected start/end years based on birth date, university, and previous education
  */
 
 interface YearSuggestion {
@@ -8,8 +8,17 @@ interface YearSuggestion {
     label: string;
 }
 
+interface EducationEntry {
+    id: string;
+    institution: string;
+    degree: string;
+    major?: string;
+    startYear: string;
+    endYear: string;
+}
+
 const UNIVERSITY_DURATIONS: Record<string, number> = {
-    'جامعة البعث': 5,
+    'جامعة حمص': 5,
     'جامعة دمشق': 5,
     'جامعة حلب': 5,
     'جامعة تشرين': 5,
@@ -38,6 +47,17 @@ const SHORT_PROGRAMS = [
     'دبلوم', 'شهادة مهنية', 'دورة',
 ];
 
+const DEGREE_ORDER = ['بكالوريوس', 'بكالوريوس هندسي', 'دبلوم', 'شهادة مهنية', 'ماجستير', 'دكتوراه'];
+
+const DEGREE_DURATIONS: Record<string, number> = {
+    'بكالوريوس': 4,
+    'بكالوريوس هندسي': 5,
+    'دبلوم': 2,
+    'شهادة مهنية': 1,
+    'ماجستير': 2,
+    'دكتوراه': 3,
+};
+
 export function extractBirthYear(birthDate: string | undefined): number | null {
     if (!birthDate || birthDate === '__skipped__') return null;
     
@@ -48,15 +68,56 @@ export function extractBirthYear(birthDate: string | undefined): number | null {
     return null;
 }
 
+function getLastCompletedEducation(education: EducationEntry[] | undefined): EducationEntry | null {
+    if (!education || education.length === 0) return null;
+    
+    const completed = education.filter(e => e.endYear && e.endYear !== '' && e.endYear !== '__skipped__');
+    if (completed.length === 0) return null;
+    
+    completed.sort((a, b) => {
+        const yearA = parseInt(a.endYear, 10) || 0;
+        const yearB = parseInt(b.endYear, 10) || 0;
+        return yearB - yearA;
+    });
+    
+    return completed[0];
+}
+
 export function getStartYearSuggestions(
     birthDate: string | undefined,
-    _university: string | undefined
+    _university: string | undefined,
+    degree: string | undefined = undefined,
+    education: EducationEntry[] | undefined = undefined
 ): YearSuggestion[] {
     const birthYear = extractBirthYear(birthDate);
     const currentYear = new Date().getFullYear();
     const suggestions: YearSuggestion[] = [];
     
-    if (birthYear) {
+    const lastEducation = getLastCompletedEducation(education);
+    const isAdvancedDegree = degree && (degree.includes('ماجستير') || degree.includes('دكتوراه'));
+    
+    if (isAdvancedDegree && lastEducation?.endYear) {
+        const lastEndYear = parseInt(lastEducation.endYear, 10);
+        if (!isNaN(lastEndYear)) {
+            const expectedStart = lastEndYear + 1;
+            
+            for (let offset = 0; offset <= 3; offset++) {
+                const year = expectedStart + offset;
+                if (year >= 2000 && year <= currentYear + 2) {
+                    suggestions.push({
+                        year,
+                        label: offset === 0 ? `${year} (متوقع بعد ${lastEducation.degree || 'التخرج'})` : year.toString(),
+                    });
+                }
+            }
+            
+            if (suggestions.length > 0) {
+                return suggestions;
+            }
+        }
+    }
+    
+    if (birthYear && !isAdvancedDegree) {
         const expectedStartYear = birthYear + 18;
         
         for (let offset = -2; offset <= 2; offset++) {
@@ -86,7 +147,8 @@ export function getStartYearSuggestions(
 export function getEndYearSuggestions(
     startYear: string | undefined,
     university: string | undefined,
-    major: string | undefined
+    major: string | undefined,
+    degree: string | undefined = undefined
 ): YearSuggestion[] {
     const currentYear = new Date().getFullYear();
     const suggestions: YearSuggestion[] = [];
@@ -99,16 +161,21 @@ export function getEndYearSuggestions(
     const start = startYear ? parseInt(startYear, 10) : null;
     
     if (start && !isNaN(start)) {
-        const baseDuration = UNIVERSITY_DURATIONS[university || ''] || 4;
+        let estimatedDuration = DEGREE_DURATIONS[degree || ''] || 4;
         
-        let estimatedDuration = baseDuration;
-        
-        if (major) {
-            const majorLower = major.toLowerCase();
-            if (LONG_PROGRAMS.some(p => majorLower.includes(p.toLowerCase()))) {
-                estimatedDuration = 5;
-            } else if (SHORT_PROGRAMS.some(p => majorLower.includes(p.toLowerCase()))) {
-                estimatedDuration = 2;
+        if (degree && DEGREE_DURATIONS[degree]) {
+            estimatedDuration = DEGREE_DURATIONS[degree];
+        } else {
+            const baseDuration = UNIVERSITY_DURATIONS[university || ''] || 4;
+            estimatedDuration = baseDuration;
+            
+            if (major) {
+                const majorLower = major.toLowerCase();
+                if (LONG_PROGRAMS.some(p => majorLower.includes(p.toLowerCase()))) {
+                    estimatedDuration = 5;
+                } else if (SHORT_PROGRAMS.some(p => majorLower.includes(p.toLowerCase()))) {
+                    estimatedDuration = 2;
+                }
             }
         }
         
@@ -117,25 +184,10 @@ export function getEndYearSuggestions(
             const endYear = start + duration;
             
             if (endYear <= currentYear + 5) {
-                if (extraYears === 0 && duration === 4) {
+                if (extraYears === 0) {
                     suggestions.push({
                         year: endYear,
-                        label: `${endYear} (${duration} سنوات - متوقع)`,
-                    });
-                } else if (extraYears === 0 && duration === 5) {
-                    suggestions.push({
-                        year: endYear,
-                        label: `${endYear} (${duration} سنوات - متوقع)`,
-                    });
-                } else if (extraYears === 0 && duration === 2) {
-                    suggestions.push({
-                        year: endYear,
-                        label: `${endYear} (${duration} سنتين - متوقع)`,
-                    });
-                } else if (extraYears === 0 && duration === 6) {
-                    suggestions.push({
-                        year: endYear,
-                        label: `${endYear} (${duration} سنوات)`,
+                        label: `${endYear} (${duration === 1 ? 'سنة' : duration === 2 ? 'سنتين' : `${duration} سنوات`} - متوقع)`,
                     });
                 } else {
                     suggestions.push({
@@ -167,11 +219,13 @@ export function getYearSuggestions(
     birthDate: string | undefined,
     university: string | undefined,
     major?: string,
-    startYear?: string
+    startYear?: string,
+    degree?: string,
+    education?: EducationEntry[]
 ): YearSuggestion[] {
     if (type === 'start') {
-        return getStartYearSuggestions(birthDate, university);
+        return getStartYearSuggestions(birthDate, university, degree, education);
     } else {
-        return getEndYearSuggestions(startYear, university, major);
+        return getEndYearSuggestions(startYear, university, major, degree);
     }
 }
