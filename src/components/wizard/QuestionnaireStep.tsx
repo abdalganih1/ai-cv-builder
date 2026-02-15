@@ -21,8 +21,10 @@ const AI_SUGGEST_FIELDS: Record<string, string> = {
     'experience_position': 'position',
     'experience_description': 'description',
     'targetJobTitle': 'jobTitle',
+    'skills': 'skills',
     'skills_text': 'skills',
     'languages_name': 'language',
+    'hobbies_text': 'hobbies',
 };
 
 interface StepProps {
@@ -860,6 +862,25 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
 
+        // If "yes" to _more field, jump to the new entry's first field
+        if ((field === 'education_more' || field === 'experience_more' || field === 'languages_more') && response === 'yes') {
+            const sectionPrefix = field.replace('_more', '_');
+            const newEntryIndex = sectionPrefix === 'education_' ? mergedData.education.length - 1 :
+                                  sectionPrefix === 'experience_' ? mergedData.experience.length - 1 :
+                                  mergedData.languages.length - 1;
+            
+            const newEntryStartIndex = newSeq.findIndex(item =>
+                item.entryIndex === newEntryIndex && item.field.startsWith(sectionPrefix)
+            );
+            
+            if (newEntryStartIndex >= 0) {
+                setCursorIndex(newEntryStartIndex);
+                showQuestionAtCursor(newSeq, newEntryStartIndex, mergedData);
+                setResponse('');
+                return;
+            }
+        }
+
         if (nextCursor >= newSeq.length) {
             // All questions answered!
             setCursorIndex(nextCursor);
@@ -1061,10 +1082,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         currentQuestion.field === 'education_major' ? (data.education[data.education.length - 1]?.institution || '') :
                                             currentQuestion.field === 'experience_position' ? (data.experience[data.experience.length - 1]?.company || '') :
                                                 currentQuestion.field === 'skills_text' ? (data.personal.targetJobTitle || '') :
-                                                    ''
+                                                    currentQuestion.field === 'hobbies_text' ? (data.personal.targetJobTitle || '') :
+                                                        ''
                                     }
                                     currentValue={response}
                                     onSelect={(value) => setResponse(value)}
+                                    fullContext={{
+                                        education: data.education,
+                                        targetJobTitle: data.personal.targetJobTitle,
+                                        company: currentQuestion.field === 'experience_position' ? (data.experience[activeEntryIndex ?? 0]?.company) : undefined,
+                                    }}
                                 />
                             )}
                         </div>
