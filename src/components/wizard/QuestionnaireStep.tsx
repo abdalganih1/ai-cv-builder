@@ -9,6 +9,8 @@ import AISuggestButton from '@/components/ui/AISuggestButton';
 import { translateAbbreviation } from '@/lib/utils/syrian-universities';
 import { getYearSuggestions, getAIYearSuggestions } from '@/lib/utils/year-suggestions';
 import type { YearSuggestion } from '@/lib/utils/year-suggestions';
+import { getWorkDateSuggestions, getAIWorkDateSuggestions } from '@/lib/utils/work-date-suggestions';
+import type { DateSuggestion } from '@/lib/utils/work-date-suggestions';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -146,6 +148,89 @@ function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                         onClick={() => onChange(s.year.toString())}
                         className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
                             value === s.year.toString()
+                                ? 'bg-primary/10 border-primary text-primary font-bold'
+                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                        }`}
+                    >
+                        {s.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DATE INPUT WITH AI SUGGESTIONS (for work dates)
+// ═══════════════════════════════════════════════════════════════
+interface DateInputProps {
+    suggestions: DateSuggestion[];
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    placeholder: string;
+    aiContext: {
+        birthDate?: string;
+        education: any[];
+        experience: any[];
+        fieldType: 'start' | 'end';
+        currentCompany?: string;
+        currentStartDate?: string;
+    };
+}
+
+function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onSubmit, placeholder, aiContext }: DateInputProps) {
+    const [suggestions, setSuggestions] = useState<DateSuggestion[]>(initialSuggestions);
+    const [aiLoading, setAiLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchAI = async () => {
+            setAiLoading(true);
+            const aiSuggestions = await getAIWorkDateSuggestions(aiContext);
+            if (aiSuggestions && aiSuggestions.length > 0) {
+                setSuggestions(aiSuggestions);
+            }
+            setAiLoading(false);
+        };
+        fetchAI();
+    }, [aiContext.fieldType, aiContext.currentCompany]);
+
+    return (
+        <div className="space-y-3">
+            <div className="relative">
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            onSubmit();
+                        }
+                    }}
+                    className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                    placeholder={placeholder}
+                    autoFocus
+                    enterKeyHint="next"
+                    dir="ltr"
+                />
+                {aiLoading && (
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    </div>
+                )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-gray-500 font-medium">
+                    اقتراحات {aiLoading ? '(جاري التحليل...)' : ''}:
+                </span>
+                {suggestions.map((s, i) => (
+                    <button
+                        key={i}
+                        type="button"
+                        onClick={() => onChange(s.date)}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                            value === s.date
                                 ? 'bg-primary/10 border-primary text-primary font-bold'
                                 : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
                         }`}
@@ -1270,6 +1355,36 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             ))}
                         </div>
                     )}
+
+                    {currentQuestion.type === 'date' && (() => {
+                        const expIdx = activeEntryIndex !== null ? activeEntryIndex : data.experience.length - 1;
+                        const exp = data.experience[expIdx] || data.experience[data.experience.length - 1];
+                        const dateSuggestions = getWorkDateSuggestions(
+                            currentQuestion.dateType || 'start',
+                            data.personal.birthDate,
+                            data.education,
+                            data.experience,
+                            exp?.company,
+                            exp?.startDate
+                        );
+                        return (
+                            <DateInputWithAI
+                                suggestions={dateSuggestions}
+                                value={response}
+                                onChange={setResponse}
+                                onSubmit={handleAnswer}
+                                placeholder={currentQuestion.dateType === 'start' ? 'مثال: 2020/01' : 'مثال: 2023/06'}
+                                aiContext={{
+                                    birthDate: data.personal.birthDate,
+                                    education: data.education,
+                                    experience: data.experience,
+                                    fieldType: currentQuestion.dateType || 'start',
+                                    currentCompany: exp?.company,
+                                    currentStartDate: exp?.startDate,
+                                }}
+                            />
+                        );
+                    })()}
                 </div>
 
                 {/* ═══ Navigation Buttons ═══ */}

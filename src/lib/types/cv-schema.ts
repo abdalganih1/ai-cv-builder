@@ -65,13 +65,14 @@ export interface Question {
   id: string;
   field: string;
   text: string;
-  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email' | 'year';
+  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email' | 'year' | 'date';
   options?: string[];
   condition?: (data: CVData) => boolean;
   followUp?: boolean;
   skippable?: boolean;
   placeholder?: string;
   yearType?: 'start' | 'end';
+  dateType?: 'start' | 'end';
 }
 
 // Missing fields detection for text analysis

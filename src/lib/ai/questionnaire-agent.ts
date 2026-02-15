@@ -211,15 +211,17 @@ class QuestionnaireAgent {
                         id: 'exp_startDate',
                         field: 'experience_startDate',
                         text: `متى بدأت العمل في ${lastExp.company}؟ (مثال: 2020/01)`,
-                        type: 'text'
+                        type: 'date',
+                        dateType: 'start'
                     };
                 }
                 if (!lastExp.endDate) {
                     return {
                         id: 'exp_endDate',
                         field: 'experience_endDate',
-                        text: `متى انتهت عملك في ${lastExp.company}؟ (أو اكتب "حتى الآن" إذا كنت لا تزال تعمل بها)`,
-                        type: 'text'
+                        text: `متى انتهت عملك في ${lastExp.company}؟ (أو اكتب "حالياً" إذا كنت لا تزال تعمل بها)`,
+                        type: 'date',
+                        dateType: 'end'
                     };
                 }
                 if (!lastExp.description) {
