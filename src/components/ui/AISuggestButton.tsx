@@ -11,7 +11,7 @@ interface AISuggestButtonProps {
 
 const STATIC_SUGGESTIONS: Record<string, string[]> = {
     university: [
-        'جامعة البعث',
+        'جامعة حمص',
         'جامعة دمشق',
         'جامعة حلب',
         'جامعة تشرين',
@@ -130,11 +130,88 @@ const STATIC_SUGGESTIONS: Record<string, string[]> = {
         'كتابة التقارير',
     ],
     jobTitle: [
-        'مطور Full-Stack',
-        'مهندس DevOps',
-        'مدير منتج',
+        'مدير',
+        'محاسب',
+        'موظف',
+        'مهندس',
+        'طبيب',
+        'معلم',
+        'مبيعات',
+        'تسويق',
+        'إداري',
+        'سكرتير',
+        'فني',
+        'مبرمج',
+        'مطور',
+        'مصمم',
+        'محلل',
+        'مستشار',
+        'منسق',
+        'مشرف',
+        'مترجم',
+        'كاتب',
+        'صحفي',
+        'مصور',
+        'مهندس مدني',
+        'مهندس معماري',
+        'مهندس كهربائي',
+        'مهندس ميكانيكي',
+        'مهندس برمجيات',
+        'مهندس شبكات',
+        'طبيب أسنان',
+        'طبيب بشري',
+        'صيدلي',
+        'ممرض',
+        'محامي',
+        'مدرس',
+        'أستاذ جامعي',
+        'مدير مشاريع',
+        'مدير مالي',
+        'مدير تسويق',
+        'مدير موارد بشرية',
+        'محاسب قانوني',
+        'مدقق حسابات',
+        'مطور ويب',
+        'مطور تطبيقات',
+        'مصمم جرافيك',
+        'مصمم واجهات',
         'محلل بيانات',
-        'مصمم UX',
+        'محلل نظم',
+        'مسؤول إعلام',
+        'مسؤول تسويق',
+        'مندوب مبيعات',
+        'رئيس قسم',
+        'مدير فرع',
+        'مدير عمليات',
+        'مدير إنتاج',
+        'مستشار قانوني',
+        'مستشار مالي',
+        'خبير ائتمان',
+        'ضابط جودة',
+        'مدير جودة',
+        'فني صيانة',
+        'فني مختبر',
+        'سائق',
+        'حارس',
+        'عامل',
+        'مزارع',
+        'نجار',
+        'حداد',
+        'كهربائي',
+        'سباك',
+        'حلاق',
+        'خياط',
+        'طباخ',
+        'نادل',
+        'مضيف',
+        'مدير فندق',
+        'مدير مطعم',
+        'مدير متجر',
+        'بائع',
+        'أمين صندوق',
+        'مستودع',
+        'مسؤول مشتريات',
+        'مسؤول مخازن',
     ],
     skills: [
         'JavaScript',
@@ -151,14 +228,20 @@ export default function AISuggestButton({ fieldType, currentValue, onSelect }: A
     const suggestions = useMemo(() => {
         const staticList = STATIC_SUGGESTIONS[fieldType] || [];
         if (!currentValue || currentValue.trim() === '') {
+            if (fieldType === 'jobTitle') {
+                return staticList.slice(0, 12);
+            }
             return staticList.slice(0, 6);
         }
-        const search = currentValue.toLowerCase();
-        const filtered = staticList.filter(s => 
-            s.toLowerCase().includes(search) || 
-            s.includes(currentValue)
+        const search = currentValue.toLowerCase().trim();
+        const exactStart = staticList.filter(s => 
+            s.toLowerCase().startsWith(search)
         );
-        return filtered.length > 0 ? filtered.slice(0, 6) : staticList.slice(0, 6);
+        const contains = staticList.filter(s => 
+            s.toLowerCase().includes(search) && !s.toLowerCase().startsWith(search)
+        );
+        const filtered = [...exactStart, ...contains];
+        return filtered.length > 0 ? filtered.slice(0, 8) : staticList.slice(0, 6);
     }, [fieldType, currentValue]);
 
     const handleSelect = (value: string) => {
