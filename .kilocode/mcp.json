@@ -1,1 +1,11 @@
-{"mcpServers":{}}
+{
+  "mcpServers": {
+    "cloudflare-api": {
+      "type": "remote",
+      "url": "https://cloudflare-mcp.mattzcarey.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer BvTg6qEvDLTzuakHZijwrq1FLKIjCeWw0L7g0YKY"
+      }
+    }
+  }
+}
