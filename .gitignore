@@ -54,3 +54,4 @@ pdf_debug/
 .wrangler/
 my_data/
 pdf_analysis_output/
+mcp.json
