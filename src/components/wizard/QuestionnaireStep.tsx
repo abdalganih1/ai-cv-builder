@@ -7,7 +7,8 @@ import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
 import AISuggestButton from '@/components/ui/AISuggestButton';
 import { translateAbbreviation } from '@/lib/utils/syrian-universities';
-import { getYearSuggestions } from '@/lib/utils/year-suggestions';
+import { getYearSuggestions, getAIYearSuggestions } from '@/lib/utils/year-suggestions';
+import type { YearSuggestion } from '@/lib/utils/year-suggestions';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -72,6 +73,87 @@ const SECTIONS: SectionDef[] = [
 interface SequenceItem {
     field: string;
     entryIndex?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// YEAR INPUT WITH AI SUGGESTIONS
+// ═══════════════════════════════════════════════════════════════
+interface YearInputProps {
+    suggestions: YearSuggestion[];
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    placeholder: string;
+    aiContext: {
+        birthDate?: string;
+        degree?: string;
+        education: any[];
+        fieldType: 'start' | 'end';
+        currentEntryIndex?: number;
+    };
+}
+
+function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onSubmit, placeholder, aiContext }: YearInputProps) {
+    const [suggestions, setSuggestions] = useState<YearSuggestion[]>(initialSuggestions);
+    const [aiLoading, setAiLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchAI = async () => {
+            setAiLoading(true);
+            const aiSuggestions = await getAIYearSuggestions(aiContext);
+            if (aiSuggestions && aiSuggestions.length > 0) {
+                setSuggestions(aiSuggestions);
+            }
+            setAiLoading(false);
+        };
+        fetchAI();
+    }, [aiContext.degree, aiContext.fieldType]);
+
+    return (
+        <div className="space-y-3">
+            <div className="relative">
+                <input
+                    type="number"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            onSubmit();
+                        }
+                    }}
+                    className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                    placeholder={placeholder}
+                    autoFocus
+                    enterKeyHint="next"
+                    min="1950"
+                    max={new Date().getFullYear() + 5}
+                />
+                {aiLoading && (
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    </div>
+                )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-gray-500 font-medium">اقتراحات {aiLoading && '(جاري التحليل...)'}:</span>
+                {suggestions.map((s, i) => (
+                    <button
+                        key={i}
+                        type="button"
+                        onClick={() => onChange(s.year.toString())}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                            value === s.year.toString()
+                                ? 'bg-primary/10 border-primary text-primary font-bold'
+                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                        }`}
+                    >
+                        {s.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: StepProps) {
@@ -1127,47 +1209,24 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             edu?.major,
                             edu?.startYear,
                             edu?.degree,
-                            data.education
+                            data.education,
+                            activeEntryIndex ?? undefined
                         );
                         return (
-                            <div className="space-y-3">
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        value={response}
-                                        onChange={(e) => setResponse(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                handleAnswer();
-                                            }
-                                        }}
-                                        className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                                        placeholder={currentQuestion.yearType === 'start' ? 'مثال: 2018' : 'مثال: 2023'}
-                                        autoFocus
-                                        enterKeyHint="next"
-                                        min="1950"
-                                        max={new Date().getFullYear() + 5}
-                                    />
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="text-xs text-gray-500 font-medium">اقتراحات:</span>
-                                    {yearSuggestions.map((s, i) => (
-                                        <button
-                                            key={i}
-                                            type="button"
-                                            onClick={() => setResponse(s.year.toString())}
-                                            className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-                                                response === s.year.toString()
-                                                    ? 'bg-primary/10 border-primary text-primary font-bold'
-                                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
-                                            }`}
-                                        >
-                                            {s.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            <YearInputWithAI
+                                suggestions={yearSuggestions}
+                                value={response}
+                                onChange={setResponse}
+                                onSubmit={handleAnswer}
+                                placeholder={currentQuestion.yearType === 'start' ? 'مثال: 2018' : 'مثال: 2023'}
+                                aiContext={{
+                                    birthDate: data.personal.birthDate,
+                                    degree: edu?.degree,
+                                    education: data.education,
+                                    fieldType: currentQuestion.yearType || 'start',
+                                    currentEntryIndex: activeEntryIndex ?? undefined,
+                                }}
+                            />
                         );
                     })()}
 
