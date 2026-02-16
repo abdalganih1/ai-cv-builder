@@ -57,15 +57,21 @@ interface PaymentSettings {
     amount: number;
     currency: string;
     paymentType: 'mandatory' | 'donation' | 'disabled';
+    priceUsd?: number;
+    priceSyp?: number;
+    paymentLanguage?: 'both' | 'ar' | 'en';
 }
 
 const DEFAULT_SETTINGS: PaymentSettings = {
     qrImageUrl: '/sham-cash-qr.png',
     recipientName: 'عبد الغني أحمد الحمدي',
     recipientCode: '0d4f56f704ded4f3148727e0edc03778',
-    amount: 500,
-    currency: 'ل.س',
+    amount: 5,
+    currency: 'USD',
     paymentType: 'mandatory',
+    priceUsd: 5,
+    priceSyp: 50000,
+    paymentLanguage: 'both',
 };
 
 export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
@@ -156,6 +162,15 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                         if (parsed.paymentType) {
                             localPaymentType = parsed.paymentType;
                             console.log('[Payment] Found paymentType in localStorage:', localPaymentType);
+                        }
+                        // Also read new fields
+                        if (parsed.priceUsd || parsed.priceSyp || parsed.paymentLanguage) {
+                            setPaymentSettings(prev => ({
+                                ...prev,
+                                priceUsd: parsed.priceUsd || prev.priceUsd,
+                                priceSyp: parsed.priceSyp || prev.priceSyp,
+                                paymentLanguage: parsed.paymentLanguage || prev.paymentLanguage,
+                            }));
                         }
                     } catch (e) {
                         console.error('Failed to parse local settings:', e);
@@ -352,6 +367,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const handleExport = async (option: 'ar' | 'en' | 'both') => {
         console.log('[Export] paymentSettings:', paymentSettings);
         console.log('[Export] paymentType:', paymentSettings.paymentType);
+        console.log('[Export] paymentLanguage:', paymentSettings.paymentLanguage);
         console.log('[Export] data.metadata.paymentStatus:', data.metadata.paymentStatus);
         
         if (paymentSettings.paymentType === 'disabled') {
@@ -360,15 +376,20 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             return;
         }
         
-        if (paymentSettings.paymentType === 'mandatory' && data.metadata.paymentStatus !== 'completed') {
-            console.log('[Export] Mandatory payment, showing modal');
+        const shouldRequirePayment = 
+            (paymentSettings.paymentLanguage === 'both') ||
+            (paymentSettings.paymentLanguage === 'en' && (option === 'en' || option === 'both')) ||
+            (paymentSettings.paymentLanguage === 'ar' && (option === 'ar' || option === 'both'));
+        
+        if (shouldRequirePayment && paymentSettings.paymentType === 'mandatory' && data.metadata.paymentStatus !== 'completed') {
+            console.log('[Export] Mandatory payment for this language, showing modal');
             setSelectedExportOption(option);
             setShowPaymentModal(true);
             return;
         }
         
-        if (paymentSettings.paymentType === 'donation' && data.metadata.paymentStatus !== 'completed') {
-            console.log('[Export] Donation payment, showing modal');
+        if (shouldRequirePayment && paymentSettings.paymentType === 'donation' && data.metadata.paymentStatus !== 'completed') {
+            console.log('[Export] Donation payment for this language, showing modal');
             setSelectedExportOption(option);
             setShowPaymentModal(true);
             return;
@@ -1194,9 +1215,15 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                                     </div>
 
                                                     {/* Cost Badge */}
-                                                    <div className="flex items-baseline gap-1 text-white">
-                                                        <span className="text-2xl font-black">{paymentSettings.amount}</span>
-                                                        <span className="text-sm font-bold opacity-80">{paymentSettings.currency}</span>
+                                                    <div className="text-center text-white space-y-1">
+                                                        <div className="flex items-baseline justify-center gap-1">
+                                                            <span className="text-2xl font-black">{paymentSettings.priceUsd || paymentSettings.amount}</span>
+                                                            <span className="text-sm font-bold opacity-80">USD</span>
+                                                        </div>
+                                                        <div className="flex items-baseline justify-center gap-1">
+                                                            <span className="text-lg font-bold">{paymentSettings.priceSyp?.toLocaleString() || '---'}</span>
+                                                            <span className="text-xs font-bold opacity-70">ل.س</span>
+                                                        </div>
                                                     </div>
 
                                                     {/* Payment Type Badge */}

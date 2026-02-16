@@ -4,11 +4,74 @@ import { AnalyticsStorage } from '@/lib/analytics/storage';
 
 export const runtime = 'edge';
 
-// Maximum file size: 5MB
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-
-// Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8562044120:AAFbR8a_xE88xQOh8E1aBoEPoLpeI8Yj1ig';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '692893387';
+
+async function sendTelegramNotification(params: {
+    customerName: string;
+    phone: string;
+    sessionId: string;
+    imageSize: number;
+}): Promise<void> {
+    try {
+        const message = `
+🔔 *إشعار دفع جديد*
+
+👤 *العميل:* ${params.customerName || 'غير محدد'}
+📞 *الهاتف:* ${params.phone || 'غير محدد'}
+📁 *حجم الصورة:* ${(params.imageSize / 1024).toFixed(2)} KB
+🔑 *الجلسة:* \`${params.sessionId || 'غير محدد'}\`
+📅 *الوقت:* ${new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Damascus' })}
+`.trim();
+
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'Markdown',
+            }),
+        });
+    } catch (error) {
+        console.error('[Telegram] Failed to send notification:', error);
+    }
+}
+
+async function sendTelegramPhoto(params: {
+    customerName: string;
+    phone: string;
+    sessionId: string;
+    base64Image: string;
+    mimeType: string;
+}): Promise<void> {
+    try {
+        const caption = `
+🔔 *إثبات دفع جديد*
+
+👤 *العميل:* ${params.customerName || 'غير محدد'}
+📞 *الهاتف:* ${params.phone || 'غير محدد'}
+🔑 *الجلسة:* \`${params.sessionId || 'غير محدد'}\`
+📅 *الوقت:* ${new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Damascus' })}
+`.trim();
+
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_CHAT_ID);
+        formData.append('photo', params.base64Image);
+        formData.append('caption', caption);
+        formData.append('parse_mode', 'Markdown');
+
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData,
+        });
+    } catch (error) {
+        console.error('[Telegram] Failed to send photo:', error);
+    }
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -18,7 +81,6 @@ export async function POST(request: NextRequest) {
         const phone = formData.get('phone') as string;
         const sessionId = formData.get('sessionId') as string;
 
-        // Validate file exists
         if (!file) {
             return NextResponse.json(
                 { error: 'لم يتم اختيار ملف' },
@@ -26,7 +88,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate file type
         if (!ALLOWED_TYPES.includes(file.type)) {
             return NextResponse.json(
                 { error: 'نوع الملف غير مدعوم. يسمح فقط بـ: JPG, PNG, WebP' },
@@ -34,7 +95,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate file size
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
                 { error: 'حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت' },
@@ -42,7 +102,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Convert file to base64 for storage using Uint8Array for Edge compatibility
         const bytes = await file.arrayBuffer();
         const uint8Array = new Uint8Array(bytes);
         let binaryString = '';
@@ -51,13 +110,11 @@ export async function POST(request: NextRequest) {
         }
         const base64 = btoa(binaryString);
 
-        // Generate unique filename
         const timestamp = Date.now();
         const sanitizedName = (customerName || 'customer').replace(/\s+/g, '_').substring(0, 20);
         const extension = file.name.split('.').pop() || 'png';
         const filename = `proof_${sanitizedName}_${timestamp}.${extension}`;
 
-        // Log payment proof for admin review
         console.log('='.repeat(50));
         console.log('💰 NEW PAYMENT PROOF RECEIVED');
         console.log('='.repeat(50));
@@ -69,10 +126,27 @@ export async function POST(request: NextRequest) {
         console.log(`🔑 Session ID: ${sessionId || 'Not provided'}`);
         console.log('='.repeat(50));
 
-        // For now, we'll return a data URL as a temporary storage solution
         const dataUrl = `data:${file.type};base64,${base64}`;
 
-        // Save payment proof URL to session in D1 if sessionId is provided
+        // Send Telegram notification (non-blocking)
+        sendTelegramNotification({
+            customerName: customerName || '',
+            phone: phone || '',
+            sessionId: sessionId || '',
+            imageSize: uint8Array.length,
+        }).catch(err => console.error('[Telegram] Notification error:', err));
+
+        // Also try to send photo if small enough (< 3MB for Telegram)
+        if (uint8Array.length < 3 * 1024 * 1024) {
+            sendTelegramPhoto({
+                customerName: customerName || '',
+                phone: phone || '',
+                sessionId: sessionId || '',
+                base64Image: dataUrl,
+                mimeType: file.type,
+            }).catch(err => console.error('[Telegram] Photo error:', err));
+        }
+
         if (sessionId) {
             try {
                 let db: any = undefined;
@@ -93,7 +167,6 @@ export async function POST(request: NextRequest) {
                 }
             } catch (dbError) {
                 console.error('[Upload] Failed to save payment proof to session:', dbError);
-                // Don't fail the request, just log the error
             }
         }
 

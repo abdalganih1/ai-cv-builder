@@ -85,9 +85,17 @@ export function getWorkDateSuggestions(
             for (let year = expectedStart; year <= currentYear; year++) {
                 suggestions.push({
                     date: `${year}/01`,
-                    label: `${year}/01`,
+                    label: `${year}/01${year === expectedStart ? ' (متوقع)' : ''}`,
                 });
             }
+        }
+
+        const currentMonthStr = `${currentYear}/${currentMonth.toString().padStart(2, '0')}`;
+        if (!suggestions.some(s => s.date === currentMonthStr)) {
+            suggestions.push({
+                date: currentMonthStr,
+                label: `${currentMonthStr} (الشهر الحالي)`,
+            });
         }
     } else {
         suggestions.push({

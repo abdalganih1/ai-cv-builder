@@ -137,7 +137,10 @@ function SessionsTab({ sessions }: { sessions: Session[] }) {
 
 function SettingsTab() {
     const [type, setType] = useState('donation');
-    const [price, setPrice] = useState(5);
+    const [priceUsd, setPriceUsd] = useState(5);
+    const [priceSyp, setPriceSyp] = useState(50000);
+    const [paymentLanguage, setPaymentLanguage] = useState<'both' | 'ar' | 'en'>('both');
+    const [defaultPaymentImage, setDefaultPaymentImage] = useState(true);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
@@ -145,12 +148,21 @@ function SettingsTab() {
         if (saved) {
             const p = JSON.parse(saved);
             setType(p.paymentType || 'donation');
-            setPrice(p.price || 5);
+            setPriceUsd(p.priceUsd || 5);
+            setPriceSyp(p.priceSyp || 50000);
+            setPaymentLanguage(p.paymentLanguage || 'both');
+            setDefaultPaymentImage(p.defaultPaymentImage !== false);
         }
     }, []);
 
     const handleSave = () => {
-        localStorage.setItem('cv_payment_settings', JSON.stringify({ paymentType: type, price }));
+        localStorage.setItem('cv_payment_settings', JSON.stringify({ 
+            paymentType: type, 
+            priceUsd,
+            priceSyp,
+            paymentLanguage,
+            defaultPaymentImage
+        }));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     };
@@ -169,11 +181,38 @@ function SettingsTab() {
                         <option value="mandatory">إلزامي (مطلوب للتصدير)</option>
                     </select>
                 </div>
-                
+
                 <div>
-                    <label className="block text-gray-300 mb-2">السعر (USD)</label>
-                    <input type="number" value={price} onChange={e => setPrice(parseFloat(e.target.value) || 0)}
+                    <label className="block text-gray-300 mb-2">السعر بالدولار (USD)</label>
+                    <input type="number" value={priceUsd} onChange={e => setPriceUsd(parseFloat(e.target.value) || 0)}
                         className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600" />
+                </div>
+
+                <div>
+                    <label className="block text-gray-300 mb-2">السعر بالليرة السورية (SYP)</label>
+                    <input type="number" value={priceSyp} onChange={e => setPriceSyp(parseInt(e.target.value) || 0)}
+                        className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600" />
+                </div>
+
+                <div>
+                    <label className="block text-gray-300 mb-2">الدفع مطلوب لـ</label>
+                    <select value={paymentLanguage} onChange={e => setPaymentLanguage(e.target.value as 'both' | 'ar' | 'en')}
+                        className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600">
+                        <option value="both">كل اللغات (العربية والإنجليزية)</option>
+                        <option value="en">الإنجليزية فقط</option>
+                        <option value="ar">العربية فقط</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <input 
+                        type="checkbox" 
+                        id="defaultImage" 
+                        checked={defaultPaymentImage} 
+                        onChange={e => setDefaultPaymentImage(e.target.checked)}
+                        className="w-4 h-4"
+                    />
+                    <label htmlFor="defaultImage" className="text-gray-300">استخدام صورة الدفع الافتراضية</label>
                 </div>
 
                 <button onClick={handleSave}

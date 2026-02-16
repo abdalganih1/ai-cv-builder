@@ -4,6 +4,72 @@
 
 ---
 
+## 📅 التقرير الثامن والعشرين: 2026-02-16
+
+### 🔧 إصلاحات متعددة بناءً على ملاحظات المستخدم
+
+#### 📋 المشاكل المبلغ عنها
+
+1. **تواريخ الخبرة العملية:** لا توجد اقتراحات ذكية لتاريخ بدء العمل + لا يوجد زر "حتى الآن"
+2. **لوحة التحكم:** السعر بالدولار فقط، يجب إضافة السعر السوري
+3. **لوحة التحكم:** لا يمكن تحديد الدفع للغة محددة (عربي فقط أو إنجليزي فقط)
+4. **صورة إثبات الدفع:** يجب إمكانية تغييرها أو استخدام صورة افتراضية
+5. **إشعار Telegram:** عند رفع إثبات دفع، إرسال إشعار للبوت
+6. **الترجمة الإنجليزية:** فشل في الترجمة (Failed to fetch)
+
+#### ✅ الحلول المطبقة
+
+**1. إصلاح تواريخ الخبرة العملية:**
+- **الملف:** [`src/lib/ai/questionnaire-agent.ts`](src/lib/ai/questionnaire-agent.ts)
+- تغيير نوع حقل `experience_startDate` و `experience_endDate` من `text` إلى `date`
+- إضافة `dateType: 'start'` و `dateType: 'end'` للتمييز
+
+- **الملف:** [`src/lib/utils/work-date-suggestions.ts`](src/lib/utils/work-date-suggestions.ts)
+- إضافة اقتراح "الشهر الحالي" لتاريخ البدء
+- تحسين التسميات مع "(متوقع)" للسنة المتوقعة
+
+- **الملف:** [`src/components/wizard/QuestionnaireStep.tsx`](src/components/wizard/QuestionnaireStep.tsx)
+- مكون `DateInputWithAI` يعرض زر "🔄 حتى الآن (لا أزال أعمل هنا)" لتاريخ الانتهاء
+
+**2. تحسين لوحة التحكم:**
+- **الملف:** [`src/app/panel/page.tsx`](src/app/panel/page.tsx)
+- إضافة حقل "السعر بالدولار (USD)"
+- إضافة حقل "السعر بالليرة السورية (SYP)"
+- إضافة خيار "الدفع مطلوب لـ":
+  - كل اللغات (العربية والإنجليزية)
+  - الإنجليزية فقط
+  - العربية فقط
+- إضافة خيار "استخدام صورة الدفع الافتراضية"
+
+**3. تحديث CVPreview للإعدادات الجديدة:**
+- **الملف:** [`src/components/preview/CVPreview.tsx`](src/components/preview/CVPreview.tsx)
+- إضافة حقول `priceUsd`, `priceSyp`, `paymentLanguage` للـ PaymentSettings
+- عرض السعرين (دولار + ليرة سورية) في نافذة الدفع
+- التحقق من `paymentLanguage` قبل طلب الدفع
+
+**4. إصلاح الترجمة الإنجليزية:**
+- **الملف:** [`src/lib/ai/chat-editor.ts`](src/lib/ai/chat-editor.ts)
+- تغيير `stream: false` إلى `stream: true` في دالة `translateCVToEnglish`
+- السبب: Streaming أكثر موثوقية مع Edge Runtime
+
+**5. إشعار Telegram عند الدفع:**
+- **الملف:** [`src/app/api/upload-proof/route.ts`](src/app/api/upload-proof/route.ts)
+- إضافة دالة `sendTelegramNotification` للإشعار النصي
+- إضافة دالة `sendTelegramPhoto` لإرسال صورة إثبات الدفع
+- البيانات:
+  - Bot Token: `8562044120:AAFbR8a_xE88xQOh8E1aBoEPoLpeI8Yj1ig`
+  - Chat ID: `692893387`
+
+#### 📊 النتيجة
+- تواريخ العمل مع اقتراحات ذكية ✅
+- زر "حتى الآن" يعمل ✅
+- سعرين (دولار + سوري) ✅
+- دفع للغة محددة ✅
+- إشعار Telegram ✅
+- الترجمة الإنجليزية تعمل ✅
+
+---
+
 ## 📅 التقرير السابع والعشرين: 2026-02-16
 
 ### 📱 إصلاحات شاشة البدء المتقدم

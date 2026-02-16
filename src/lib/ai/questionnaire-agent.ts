@@ -460,12 +460,14 @@ class QuestionnaireAgent {
             'experience_startDate': {
                 id: 'exp_startDate', field: 'experience_startDate',
                 text: `متى بدأت العمل في ${expName}؟ (مثال: 2020/01)`,
-                type: 'text'
+                type: 'date',
+                dateType: 'start'
             },
             'experience_endDate': {
                 id: 'exp_endDate', field: 'experience_endDate',
                 text: `متى انتهت عملك في ${expName}؟ (أو اكتب "حتى الآن" إذا كنت لا تزال تعمل بها)`,
-                type: 'text'
+                type: 'date',
+                dateType: 'end'
             },
             'experience_description': {
                 id: 'exp_description', field: 'experience_description',
