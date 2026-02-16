@@ -91,6 +91,7 @@ export default function VoiceRecorder({
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+    const isRecordingRef = useRef(false);
 
     // Map language codes
     const getLangCode = useCallback(() => {
@@ -102,10 +103,10 @@ export default function VoiceRecorder({
     // ======================== Web Speech API ========================
 
     useEffect(() => {
-        // Check for browser support
         const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         if (!SpeechRecognitionAPI && !useGemini) {
+            console.log('[VoiceRecorder] Web Speech API not supported');
             setIsSupported(false);
             return;
         }
@@ -118,30 +119,39 @@ export default function VoiceRecorder({
             recognition.maxAlternatives = 1;
 
             recognition.onstart = () => {
+                console.log('[VoiceRecorder] Recognition started');
+                isRecordingRef.current = true;
                 setState('recording');
                 setTranscript('');
                 setErrorMessage('');
             };
 
             recognition.onend = () => {
-                if (state === 'recording') {
-                    setState('idle');
-                }
+                console.log('[VoiceRecorder] Recognition ended');
+                isRecordingRef.current = false;
+                setState('idle');
             };
 
             recognition.onerror = (event) => {
-                console.error('[VoiceRecorder] Error:', event.error);
+                console.error('[VoiceRecorder] Error:', event.error, event.message);
+                isRecordingRef.current = false;
                 setState('error');
 
                 switch (event.error) {
                     case 'no-speech':
-                        setErrorMessage('لم يتم اكتشاف صوت');
+                        setErrorMessage('لم يتم اكتشاف صوت - حاول مرة أخرى');
                         break;
                     case 'audio-capture':
-                        setErrorMessage('لا يوجد ميكروفون');
+                        setErrorMessage('لا يوجد ميكروفون - تحقق من جهازك');
                         break;
                     case 'not-allowed':
-                        setErrorMessage('الميكروفون غير مسموح');
+                        setErrorMessage('الميكروفون محظور - فعّله من إعدادات المتصفح');
+                        break;
+                    case 'network':
+                        setErrorMessage('خطأ في الشبكة');
+                        break;
+                    case 'aborted':
+                        setErrorMessage('تم إلغاء التسجيل');
                         break;
                     default:
                         setErrorMessage(`خطأ: ${event.error}`);
@@ -162,9 +172,10 @@ export default function VoiceRecorder({
                 }
 
                 if (finalTranscript) {
+                    console.log('[VoiceRecorder] Final transcript:', finalTranscript);
                     setTranscript(prev => prev + finalTranscript);
                     onTranscript(finalTranscript);
-                } else {
+                } else if (interimTranscript) {
                     setTranscript(interimTranscript);
                 }
             };
@@ -181,7 +192,7 @@ export default function VoiceRecorder({
                 }
             }
         };
-    }, [getLangCode, onTranscript, state, useGemini]);
+    }, [getLangCode, onTranscript, useGemini]);
 
     // ======================== Gemini Recording (for future use) ========================
 
@@ -249,18 +260,37 @@ export default function VoiceRecorder({
 
     // ======================== Controls ========================
 
-    const startRecording = () => {
+    const startRecording = async () => {
         if (disabled) return;
 
         setErrorMessage('');
+        setTranscript('');
 
         if (useGemini) {
             startGeminiRecording();
         } else if (recognitionRef.current) {
             try {
-                recognitionRef.current.start();
+                // Request microphone permission first
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Stop any existing recognition
+                try {
+                    recognitionRef.current.stop();
+                } catch {
+                    // Ignore
+                }
+                
+                // Small delay before starting
+                setTimeout(() => {
+                    if (recognitionRef.current) {
+                        recognitionRef.current.start();
+                        console.log('[VoiceRecorder] Started recognition');
+                    }
+                }, 100);
             } catch (error) {
-                console.error('[VoiceRecorder] Start error:', error);
+                console.error('[VoiceRecorder] Mic permission error:', error);
+                setErrorMessage('الميكروفون محظور - فعّله من إعدادات المتصفح');
+                setState('error');
             }
         }
     };
@@ -268,10 +298,12 @@ export default function VoiceRecorder({
     const stopRecording = () => {
         if (useGemini) {
             stopGeminiRecording();
-        } else if (recognitionRef.current) {
+        } else if (recognitionRef.current && isRecordingRef.current) {
             try {
                 recognitionRef.current.stop();
+                isRecordingRef.current = false;
                 setState('idle');
+                console.log('[VoiceRecorder] Stopped recognition');
             } catch (error) {
                 console.error('[VoiceRecorder] Stop error:', error);
             }
