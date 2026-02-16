@@ -5,51 +5,43 @@ import { CVData } from '@/lib/types/cv-schema';
 
 // Flag to track if fonts are registered
 let fontsRegistered = false;
+let fontLoadError = false;
 
 // Register Arabic Font with error handling
 function registerFonts() {
-    if (fontsRegistered) return;
+    if (fontsRegistered || fontLoadError) return;
 
     try {
-        // IBM Plex Sans Arabic - for headers and titles
+        // Use Cairo as primary - more reliable
         Font.register({
-            family: 'IBMPlexSansArabic',
+            family: 'Cairo',
             fonts: [
                 {
-                    src: '/IBMPlexSansArabic-Regular.ttf',
+                    src: '/Cairo-Regular.ttf',
                     fontWeight: 'normal'
                 },
                 {
-                    src: '/IBMPlexSansArabic-Bold.ttf',
-                    fontWeight: 'bold'
-                }
-            ]
-        });
-
-        // Dubai - for body text (better diacritics/tashkeel support)
-        Font.register({
-            family: 'Dubai',
-            fonts: [
-                {
-                    src: '/Dubai-Regular.ttf',
-                    fontWeight: 'normal'
-                },
-                {
-                    src: '/Dubai-Bold.ttf',
+                    src: '/Cairo-Bold.ttf',
                     fontWeight: 'bold'
                 }
             ]
         });
 
         fontsRegistered = true;
-        console.log('✅ Arabic fonts registered successfully (IBM Plex + Dubai)');
+        console.log('✅ Arabic fonts registered successfully (Cairo)');
     } catch (error) {
         console.error('❌ Failed to register Arabic fonts:', error);
+        fontLoadError = true;
     }
 }
 
 // Attempt to register fonts immediately
-registerFonts();
+try {
+    registerFonts();
+} catch (e) {
+    console.error('Font registration error:', e);
+    fontLoadError = true;
+}
 
 /**
  * Note: We do NOT use Unicode RTL control characters (RLM, RLE, PDF, RLO)
