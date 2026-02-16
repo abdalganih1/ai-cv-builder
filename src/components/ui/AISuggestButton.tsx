@@ -7,6 +7,7 @@ interface AISuggestButtonProps {
     context?: string;
     currentValue: string;
     onSelect: (value: string) => void;
+    multiSelect?: boolean;
     fullContext?: {
         education?: Array<{ major?: string; degree?: string; institution?: string }>;
         targetJobTitle?: string;
@@ -212,9 +213,10 @@ function getSmartSuggestions(
     return [];
 }
 
-export default function AISuggestButton({ fieldType, context, currentValue, onSelect, fullContext }: AISuggestButtonProps) {
+export default function AISuggestButton({ fieldType, context, currentValue, onSelect, multiSelect, fullContext }: AISuggestButtonProps) {
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
     const [aiLoading, setAiLoading] = useState(false);
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
     const localSuggestions = useMemo(() => {
         if (fieldType === 'position' || fieldType === 'jobTitle' || fieldType === 'description') {
@@ -225,7 +227,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
             university: [
                 'جامعة حمص', 'جامعة دمشق', 'جامعة حلب', 'جامعة تشرين',
                 'جامعة حماة', 'جامعة الفرات', 'جامعة طرطوس',
-                'الجامعة الافتراضية السورية', 'الجامعة الوطنية الخاصة',
+                'الجامعة الافتراضية السورية', 'WPU', 'AUST',
                 'الجامعة العربية الدولية', 'جامعة القلمون',
             ],
             language: [
@@ -234,7 +236,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
             ],
             degree: [
                 'بكالوريوس', 'ماجستير', 'دبلوم', 'دكتوراه',
-                'شهادة مهنية', 'بكالوريوس هندسي',
+                'شهادة مهنية',
             ],
             major: [
                 'هندسة برمجيات', 'علوم الحاسوب', 'هندسة كهربائية',
@@ -245,8 +247,11 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                 'شركة سيريتل', 'MTN سوريا', 'بنك سورية والخليج',
             ],
             skills: [
-                'JavaScript', 'Python', 'React', 'Node.js',
-                'تواصل فعّال', 'إدارة وقت', 'تفكير ناقد',
+                'JavaScript', 'Python', 'React', 'Node.js', 'TypeScript',
+                'SQL', 'Git', 'Docker', 'AWS', 'Linux',
+                'تواصل فعّال', 'إدارة وقت', 'تفكير ناقد', 'حل مشكلات',
+                'عمل جماعي', 'قيادة', 'تفاوض', 'عرض وتقديم',
+                'Microsoft Office', 'Excel', 'PowerPoint',
             ],
             hobbies: [
                 'القراءة', 'السباحة', 'الرياضة', 'السفر', 'الطبخ',
@@ -257,17 +262,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
         };
 
         const staticList = STATIC_SUGGESTIONS[fieldType] || [];
-        
-        if (!currentValue || currentValue.trim() === '') {
-            return staticList.slice(0, 6);
-        }
-
-        const search = currentValue.toLowerCase().trim();
-        const exactStart = staticList.filter(s => s.toLowerCase().startsWith(search));
-        const contains = staticList.filter(s => s.toLowerCase().includes(search) && !s.toLowerCase().startsWith(search));
-        const filtered = [...exactStart, ...contains];
-        
-        return filtered.length > 0 ? filtered.slice(0, 8) : staticList.slice(0, 6);
+        return staticList.slice(0, 12);
     }, [fieldType, currentValue, fullContext]);
 
     useEffect(() => {
@@ -305,8 +300,39 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
 
     const suggestions = aiSuggestions.length > 0 ? aiSuggestions : localSuggestions;
 
+    const UNIVERSITY_ALIASES: Record<string, string> = {
+        'WPU': 'الجامعة الوطنية الخاصة',
+        'AUST': 'الجامعة العربية الدولية الخاصة للعلوم والتكنولوجيا',
+    };
+
     const handleSelect = (value: string) => {
-        onSelect(value);
+        let finalValue = value;
+        
+        if (fieldType === 'university' && UNIVERSITY_ALIASES[value]) {
+            finalValue = UNIVERSITY_ALIASES[value];
+        }
+        
+        if (multiSelect) {
+            const newSelected = new Set(selectedItems);
+            if (newSelected.has(value)) {
+                newSelected.delete(value);
+            } else {
+                newSelected.add(value);
+            }
+            setSelectedItems(newSelected);
+            
+            const combinedValue = Array.from(newSelected).join('، ');
+            onSelect(combinedValue);
+        } else {
+            onSelect(value);
+        }
+    };
+
+    const isItemSelected = (value: string) => {
+        if (multiSelect) {
+            return selectedItems.has(value);
+        }
+        return currentValue === value;
     };
 
     if (suggestions.length === 0) {
@@ -317,6 +343,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
         <div className="ai-suggest-container">
             <div className="ai-suggest-label">
                 💡 اقتراحات ذكية {aiLoading && <span className="animate-pulse">(جاري التحليل...)</span>}
+                {multiSelect && <span className="text-gray-500 text-xs">(اضغط للاختيار المتعدد)</span>}
             </div>
             <div className="ai-suggest-chips">
                 {suggestions.map((suggestion, idx) => (
@@ -324,9 +351,9 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                         key={idx}
                         type="button"
                         onClick={() => handleSelect(suggestion)}
-                        className="ai-suggest-chip"
+                        className={`ai-suggest-chip ${isItemSelected(suggestion) ? 'ai-suggest-chip-selected' : ''}`}
                     >
-                        {suggestion}
+                        {isItemSelected(suggestion) && '✓ '}{suggestion}
                     </button>
                 ))}
             </div>
@@ -343,7 +370,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                     margin-bottom: 8px;
                     display: flex;
                     align-items: center;
-                    gap: 4px;
+                    gap: 8px;
                 }
                 .ai-suggest-chips {
                     display: flex;
@@ -370,6 +397,16 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                     color: #3730a3;
                     transform: translateY(-1px);
                     box-shadow: 0 4px 8px rgba(99, 102, 241, 0.15);
+                }
+                .ai-suggest-chip-selected {
+                    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+                    border-color: #4f46e5;
+                    color: white;
+                }
+                .ai-suggest-chip-selected:hover {
+                    background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+                    border-color: #4338ca;
+                    color: white;
                 }
             `}</style>
         </div>

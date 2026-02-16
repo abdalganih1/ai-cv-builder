@@ -100,6 +100,7 @@ interface YearInputProps {
 function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onSubmit, placeholder, aiContext }: YearInputProps) {
     const [suggestions, setSuggestions] = useState<YearSuggestion[]>(initialSuggestions);
     const [aiLoading, setAiLoading] = useState(false);
+    const currentYear = new Date().getFullYear();
 
     useEffect(() => {
         const fetchAI = async () => {
@@ -139,9 +140,22 @@ function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                     </div>
                 )}
             </div>
+            {aiContext.fieldType === 'end' && (
+                <button
+                    type="button"
+                    onClick={() => onChange(currentYear.toString())}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${
+                        value === currentYear.toString()
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
+                    }`}
+                >
+                    🎓 حتى الآن (لا أزال طالباً)
+                </button>
+            )}
             <div className="flex flex-wrap gap-2">
                 <span className="text-xs text-gray-500 font-medium">اقتراحات {aiLoading && '(جاري التحليل...)'}:</span>
-                {suggestions.map((s, i) => (
+                {suggestions.filter(s => s.year !== currentYear || aiContext.fieldType !== 'end').map((s, i) => (
                     <button
                         key={i}
                         type="button"
@@ -1151,6 +1165,19 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 autoFocus
                                 enterKeyHint="next"
                             />
+                            {currentQuestion.field === 'targetJobTitle' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setResponse('__unknown__')}
+                                    className={`w-full mt-3 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
+                                        response === '__unknown__'
+                                            ? 'bg-primary text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    🤔 لا أعلم (سيتم اقتراح مسمى وظيفي مناسب لاحقاً)
+                                </button>
+                            )}
                             {/* AI Suggestions */}
                             {AI_SUGGEST_FIELDS[currentQuestion.field] && (
                                 <AISuggestButton
@@ -1164,6 +1191,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     }
                                     currentValue={response}
                                     onSelect={(value) => setResponse(value)}
+                                    multiSelect={currentQuestion.field === 'skills_text' || currentQuestion.field === 'hobbies_text'}
                                     fullContext={{
                                         education: data.education,
                                         targetJobTitle: data.personal.targetJobTitle,

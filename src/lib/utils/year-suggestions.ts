@@ -48,15 +48,13 @@ const SHORT_PROGRAMS = ['دبلوم', 'شهادة مهنية', 'دورة'];
 const DEGREE_ORDER: Record<string, number> = {
     'دكتوراه': 4,
     'ماجستير': 3,
-    'بكالوريوس هندسي': 2,
-    'بكالوريوس': 1,
+    'بكالوريوس': 2,
     'دبلوم': 0,
     'شهادة مهنية': 0,
 };
 
 const DEGREE_DURATIONS: Record<string, number> = {
     'بكالوريوس': 4,
-    'بكالوريوس هندسي': 5,
     'دبلوم': 2,
     'شهادة مهنية': 1,
     'ماجستير': 2,
@@ -65,8 +63,19 @@ const DEGREE_DURATIONS: Record<string, number> = {
 
 export function extractBirthYear(birthDate: string | undefined): number | null {
     if (!birthDate || birthDate === '__skipped__') return null;
-    const yearMatch = birthDate.match(/\d{4}/);
-    return yearMatch ? parseInt(yearMatch[0], 10) : null;
+    
+    const yearMatches = birthDate.match(/\d{4}/g);
+    if (!yearMatches || yearMatches.length === 0) return null;
+    
+    const currentYear = new Date().getFullYear();
+    for (const match of yearMatches) {
+        const year = parseInt(match, 10);
+        if (year >= 1950 && year <= currentYear) {
+            return year;
+        }
+    }
+    
+    return parseInt(yearMatches[0], 10);
 }
 
 function getDegreeLevel(degree: string): number {
@@ -81,7 +90,6 @@ function normalizeDegree(degree: string): string {
     if (!degree) return '';
     if (degree.includes('دكتوراه')) return 'دكتوراه';
     if (degree.includes('ماجستير')) return 'ماجستير';
-    if (degree.includes('بكالوريوس هندسي')) return 'بكالوريوس هندسي';
     if (degree.includes('بكالوريوس')) return 'بكالوريوس';
     if (degree.includes('دبلوم')) return 'دبلوم';
     if (degree.includes('شهادة مهنية')) return 'شهادة مهنية';

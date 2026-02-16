@@ -96,8 +96,10 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [analysisDone, setAnalysisDone] = useState(false);
     const [editingSection, setEditingSection] = useState<string | null>(null);
     const [manualEditValue, setManualEditValue] = useState<string>('');
+    const [isAiEditing, setIsAiEditing] = useState(false);
+    const [aiEditSection, setAiEditSection] = useState<string | null>(null);
+    const [aiEditPrompt, setAiEditPrompt] = useState('');
 
-    // Handle file upload - open cropper instead of directly setting photo
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -108,38 +110,25 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             };
             reader.readAsDataURL(file);
         }
-        // Reset input so same file can be selected again
         e.target.value = '';
     };
 
-    // Handle cropped image save
     const handleCropComplete = (croppedImageUrl: string) => {
         onUpdate({ ...data, personal: { ...data.personal, photoUrl: croppedImageUrl } });
         setPendingCropImage(null);
     };
 
-    // Load cached English CV on mount
     useEffect(() => {
-        try {
-            const cached = localStorage.getItem(ENGLISH_CV_CACHE_KEY);
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                setEnglishCV(parsed);
-                console.log('✅ Loaded cached English CV from localStorage');
-            }
-        } catch (error) {
-            console.warn('Failed to load cached English CV:', error);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (analysisDone) return;
+        const analyzed = sessionStorage.getItem('cv_analysis_done');
+        if (analyzed === 'true' || analysisDone) return;
+        
         const analyzeCV = async () => {
             setIsAnalyzing(true);
             try {
                 const enhancedData = await generateProfessionalCV(data);
                 onUpdate(enhancedData);
                 setAnalysisDone(true);
+                sessionStorage.setItem('cv_analysis_done', 'true');
             } catch (error) {
                 console.error('Auto-analysis failed:', error);
                 setAnalysisDone(true);
@@ -148,7 +137,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             }
         };
         analyzeCV();
-    }, [analysisDone, data, onUpdate]);
+    }, []);
 
     // Fetch payment settings from API
     useEffect(() => {
@@ -261,12 +250,30 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     // Handle updates from Chat - routes to correct language state
     const handleChatUpdate = (newData: CVData) => {
         if (activeLanguage === 'en') {
-            // Independent English Update
             setEnglishCV(newData);
             console.log('🇬🇧 English CV updated independently');
         } else {
-            // Arabic/Main Update
             handleUpdate(newData);
+        }
+    };
+
+    // Handle AI editing for specific section
+    const handleAiSectionEdit = async (section: string) => {
+        if (!aiEditPrompt.trim()) return;
+        
+        setIsAiEditing(true);
+        try {
+            const { processEditRequest } = await import('@/lib/ai/chat-editor');
+            const prompt = `عدّل قسم "${LABELS.ar[section as keyof typeof LABELS.ar] || section}": ${aiEditPrompt}`;
+            const updatedCV = await processEditRequest(previewData, prompt, activeLanguage);
+            handleChatUpdate(updatedCV);
+            setAiEditSection(null);
+            setAiEditPrompt('');
+        } catch (error) {
+            console.error('AI section edit failed:', error);
+            alert('فشل التعديل بالذكاء الاصطناعي');
+        } finally {
+            setIsAiEditing(false);
         }
     };
 
@@ -720,7 +727,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                 )}
                                 <div className="text-center sm:text-right">
                                     <h1 className="text-2xl sm:text-4xl font-bold text-primary mb-1 sm:mb-2">{previewData.personal.firstName} {previewData.personal.lastName}</h1>
-                                    <p className="text-base sm:text-xl text-accent font-medium">{previewData.personal.targetJobTitle || previewData.personal.jobTitle || labels.jobTitle}</p>
+                                    <p className="text-base sm:text-xl text-accent font-medium">
+                                        {previewData.personal.targetJobTitle === '__unknown__' 
+                                            ? (previewData.personal.jobTitle || 'المسمى الوظيفي')
+                                            : (previewData.personal.targetJobTitle || previewData.personal.jobTitle || labels.jobTitle)}
+                                    </p>
                                 </div>
                             </div>
                             <div className="text-xs sm:text-sm text-gray-600 leading-relaxed w-full sm:w-auto text-center sm:text-right">
@@ -736,14 +747,49 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
                                     <h2 className="text-xl font-bold text-primary">{labels.summary}</h2>
-                                    <button
-                                        onClick={() => { setManualEditValue(getSectionValue('summary', previewData)); setEditingSection('summary'); }}
-                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                        title="تعديل"
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => { setManualEditValue(getSectionValue('summary', previewData)); setEditingSection('summary'); setAiEditSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                            title="تعديل يدوي"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => { setAiEditSection('summary'); setEditingSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="تعديل بالذكاء الاصطناعي"
+                                        >
+                                            🤖
+                                        </button>
+                                    </div>
                                 </div>
+                                {aiEditSection === 'summary' && (
+                                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <input
+                                            type="text"
+                                            placeholder="مثال: اجعل النبذة أكثر احترافية"
+                                            className="w-full p-3 border border-blue-200 rounded-lg text-sm"
+                                            value={aiEditPrompt}
+                                            onChange={(e) => setAiEditPrompt(e.target.value)}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => handleAiSectionEdit('summary')}
+                                                disabled={isAiEditing || !aiEditPrompt.trim()}
+                                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                                            >
+                                                {isAiEditing ? 'جاري...' : 'تطبيق'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAiEditSection(null); setAiEditPrompt(''); }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <p className="text-gray-700 leading-relaxed text-base">{previewData.personal.summary}</p>
                             </div>
                         )}
@@ -1195,7 +1241,15 @@ function getSectionValue(section: string, data: CVData): string {
 }
 
 function applyManualEdit(section: string, value: string, data: CVData, onUpdate: (data: CVData) => void, _language: 'ar' | 'en'): void {
-    const newData = { ...data };
+    const newData: CVData = { 
+        ...data,
+        personal: { ...data.personal },
+        education: [...(data.education || [])],
+        experience: [...(data.experience || [])],
+        skills: [...(data.skills || [])],
+        languages: [...(data.languages || [])],
+        hobbies: [...(data.hobbies || [])],
+    };
     
     if (section === 'summary') {
         newData.personal = { ...data.personal, summary: value };
@@ -1206,6 +1260,34 @@ function applyManualEdit(section: string, value: string, data: CVData, onUpdate:
         newData.languages = lines.map(line => {
             const parts = line.split(':').map(p => p.trim());
             return { name: parts[0] || '', level: parts[1] || 'متوسط' };
+        });
+    } else if (section === 'experience') {
+        const blocks = value.split('\n\n').filter(b => b.trim());
+        newData.experience = blocks.map((block, idx) => {
+            const lines = block.split('\n').filter(l => l.trim());
+            const firstLine = lines[0] || '';
+            const match = firstLine.match(/(.+?)\s*-\s*(.+):?/);
+            return {
+                id: data.experience?.[idx]?.id || `exp_${Date.now()}_${idx}`,
+                position: match?.[1]?.trim() || '',
+                company: match?.[2]?.replace(':', '').trim() || '',
+                startDate: data.experience?.[idx]?.startDate || '',
+                endDate: data.experience?.[idx]?.endDate || '',
+                description: lines.slice(1).join('\n').trim(),
+            };
+        });
+    } else if (section === 'education') {
+        const lines = value.split('\n').filter(l => l.trim());
+        newData.education = lines.map((line, idx) => {
+            const match = line.match(/(.+?)\s+(.+?)\s*-\s*(.+?)\s*\((\d+)-(\d+)\)/);
+            return {
+                id: data.education?.[idx]?.id || `edu_${Date.now()}_${idx}`,
+                degree: match?.[1]?.trim() || '',
+                major: match?.[2]?.trim() || '',
+                institution: match?.[3]?.trim() || '',
+                startYear: match?.[4] || '',
+                endYear: match?.[5] || '',
+            };
         });
     }
     

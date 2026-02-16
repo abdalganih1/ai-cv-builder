@@ -17,6 +17,7 @@ interface EditChatProps {
     data: CVData;
     onUpdate: (newData: CVData) => void;
     language?: 'ar' | 'en';
+    onProcessingChange?: (isProcessing: boolean) => void;
 }
 
 interface ChatMessage {
@@ -29,16 +30,14 @@ interface ChatMessage {
 // توليد معرف فريد
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-export default function EditChat({ data, onUpdate, language = 'ar' }: EditChatProps) {
+export default function EditChat({ data, onUpdate, language = 'ar', onProcessingChange }: EditChatProps) {
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Analytics tracking
     const { trackChatMessageSent, trackChatResponseReceived, trackCVEditApplied } = useAnalytics();
 
-    // تحميل الرسائل من localStorage عند البداية
     useEffect(() => {
         const saved = localStorage.getItem('cv_editor_messages');
         if (saved) {
@@ -54,17 +53,19 @@ export default function EditChat({ data, onUpdate, language = 'ar' }: EditChatPr
         }
     }, []);
 
-    // حفظ الرسائل في localStorage عند كل تغيير
     useEffect(() => {
         if (messages.length > 0) {
             localStorage.setItem('cv_editor_messages', JSON.stringify(messages));
         }
     }, [messages]);
 
-    // التمرير لآخر رسالة
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    useEffect(() => {
+        onProcessingChange?.(isProcessing);
+    }, [isProcessing, onProcessingChange]);
 
     const addMessage = (type: ChatMessage['type'], content: string) => {
         const newMessage: ChatMessage = {
@@ -85,13 +86,8 @@ export default function EditChat({ data, onUpdate, language = 'ar' }: EditChatPr
         const msgId = generateId();
         setIsProcessing(true);
 
-        // أضف رسالة المستخدم للتاريخ
         addMessage('user', userMsg);
-
-        // تتبع إرسال الرسالة
         trackChatMessageSent({ id: msgId, content: userMsg });
-
-        // الآن نمسح الـ input بعد حفظ الرسالة
         setInput('');
 
         try {
