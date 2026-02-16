@@ -481,9 +481,9 @@ export function CombinedPDFDocument({ arabicData, englishData }: CombinedPDFDocu
     return (
         <Document>
             {/* Arabic page first */}
-            <CVPage data={arabicData} language="ar" showLanguageBadge={true} />
+            <CVPage data={arabicData} language="ar" showLanguageBadge={false} />
             {/* English page second */}
-            <CVPage data={englishData} language="en" showLanguageBadge={true} />
+            <CVPage data={englishData} language="en" showLanguageBadge={false} />
         </Document>
     );
 }
