@@ -1,7 +1,7 @@
 // Client-side AI helper with Streaming support
 
-const MAX_RETRIES = 2;
-const INITIAL_DELAY = 1000;
+const MAX_RETRIES = 3;
+const INITIAL_DELAY = 2000;
 
 async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -88,7 +88,6 @@ export async function chatWithAI(
 ): Promise<any> {
     const { temperature, retryCount = 0, stream = true } = options;
 
-    // Create AbortController for timeout (120 seconds for non-streaming, 90 for streaming)
     const controller = new AbortController();
     const timeout = stream ? 180000 : 240000;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -100,15 +99,14 @@ export async function chatWithAI(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ messages, temperature, stream }),
-            signal: controller.signal, // Add abort signal
+            signal: controller.signal,
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error(`AI API Error (${response.status}):`, errorData);
 
-            // Retry on server errors (but fewer retries to save time)
-            if (response.status >= 500 && retryCount < MAX_RETRIES) {
+            if ((response.status >= 500 || response.status === 429) && retryCount < MAX_RETRIES) {
                 const delay = INITIAL_DELAY * Math.pow(2, retryCount);
                 console.log(`Server error. Retrying in ${delay}ms...`);
                 await sleep(delay);
@@ -118,16 +116,13 @@ export async function chatWithAI(
             throw new Error(`AI Request failed: ${response.status}`);
         }
 
-        // Check if response is streaming (SSE)
         const contentType = response.headers.get('content-type') || '';
 
         if (contentType.includes('text/event-stream')) {
-            // Parse streaming response
             console.log('📡 Receiving streaming response...');
             const content = await parseSSEStream(response);
             console.log('✅ Stream complete, content length:', content.length);
 
-            // Return in standard format
             return {
                 choices: [{
                     message: {

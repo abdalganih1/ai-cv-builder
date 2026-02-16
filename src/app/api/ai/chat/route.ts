@@ -4,17 +4,15 @@ export const runtime = 'edge';
 
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
-// Simple in-memory rate limiting (per Edge function instance)
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT = 10; // requests per minute
-const RATE_WINDOW = 60 * 1000; // 1 minute in milliseconds
+const RATE_LIMIT = 15;
+const RATE_WINDOW = 60 * 1000;
 
 function checkRateLimit(clientId: string): boolean {
     const now = Date.now();
     const clientData = requestCounts.get(clientId);
 
     if (!clientData || now > clientData.resetTime) {
-        // Reset or initialize
         requestCounts.set(clientId, { count: 1, resetTime: now + RATE_WINDOW });
         return true;
     }
@@ -28,7 +26,6 @@ function checkRateLimit(clientId: string): boolean {
 }
 
 function getClientId(request: NextRequest): string {
-    // Use IP address or a combination of headers as client identifier
     return request.headers.get('x-forwarded-for') ||
         request.headers.get('x-real-ip') ||
         'anonymous';
@@ -36,7 +33,6 @@ function getClientId(request: NextRequest): string {
 
 export async function POST(request: NextRequest) {
     try {
-        // Rate limiting check
         const clientId = getClientId(request);
         if (!checkRateLimit(clientId)) {
             return new Response(
@@ -45,7 +41,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate request body
         let body;
         try {
             body = await request.json();
@@ -58,7 +53,6 @@ export async function POST(request: NextRequest) {
 
         const { messages, temperature, stream = true } = body;
 
-        // Validate messages
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             return new Response(
                 JSON.stringify({ error: "Messages array is required" }),
@@ -76,68 +70,85 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Streaming request to AI
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-                'Accept-Language': 'ar-SA,ar',
-            },
-            body: JSON.stringify({
-                model: 'GLM-4.7',
-                messages,
-                temperature: temperature || 0.7,
-                stream: stream, // Enable streaming from AI provider
-            }),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 180000);
 
-        if (response.status === 429) {
-            return new Response(
-                JSON.stringify({
-                    choices: [{
-                        message: {
-                            content: JSON.stringify({
-                                _fallback: true,
-                                message: "عذراً، الخدمة مشغولة حالياً. يرجى المحاولة بعد قليل."
-                            })
-                        }
-                    }]
-                }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`ZAI API Error (${response.status}):`, errorText);
-            return new Response(
-                JSON.stringify({ error: `AI Request failed: ${response.status}` }),
-                { status: response.status, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        // If streaming is enabled, pass through the stream
-        if (stream && response.body) {
-            return new Response(response.body, {
-                status: 200,
+        try {
+            const response = await fetch(`${BASE_URL}/chat/completions`, {
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'text/event-stream',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ZAI_API_KEY}`,
+                    'Accept-Language': 'ar-SA,ar',
                 },
+                body: JSON.stringify({
+                    model: 'GLM-4.7',
+                    messages,
+                    temperature: temperature || 0.7,
+                    stream: stream,
+                }),
+                signal: controller.signal,
             });
-        }
 
-        // Fallback to non-streaming response
-        const data = await response.json();
-        return new Response(JSON.stringify(data), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-        });
+            clearTimeout(timeoutId);
+
+            if (response.status === 429) {
+                return new Response(
+                    JSON.stringify({
+                        choices: [{
+                            message: {
+                                content: JSON.stringify({
+                                    _fallback: true,
+                                    message: "عذراً، الخدمة مشغولة حالياً. يرجى المحاولة بعد قليل."
+                                })
+                            }
+                        }]
+                    }),
+                    { status: 200, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`ZAI API Error (${response.status}):`, errorText);
+                return new Response(
+                    JSON.stringify({ error: `AI Request failed: ${response.status}` }),
+                    { status: response.status, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
+            if (stream && response.body) {
+                return new Response(response.body, {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive',
+                    },
+                });
+            }
+
+            const data = await response.json();
+            return new Response(JSON.stringify(data), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            throw fetchError;
+        }
 
     } catch (error) {
         console.error('Error in AI chat route:', error);
+        
+        if (error instanceof Error && error.name === 'AbortError') {
+            return new Response(
+                JSON.stringify({ error: "انتهت مهلة الطلب. يرجى المحاولة مرة أخرى." }),
+                { status: 504, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+        
         const errorMessage = error instanceof Error ? error.message : 'حدث خطأ داخلي في الخادم';
         return new Response(
             JSON.stringify({ error: errorMessage }),
