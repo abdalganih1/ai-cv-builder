@@ -153,14 +153,19 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     // Fetch payment settings from API
     useEffect(() => {
         async function fetchSettings() {
+            let localPaymentType: string | null = null;
+            
             try {
                 // أولاً: جلب من localStorage للتطوير المحلي
                 const localSettings = localStorage.getItem('cv_payment_settings');
                 if (localSettings) {
                     try {
                         const parsed = JSON.parse(localSettings);
-                        setPaymentSettings(prev => ({ ...prev, ...parsed }));
-                        console.log('[Payment] Loaded from localStorage:', parsed.paymentType);
+                        console.log('[Payment] Raw localStorage data:', parsed);
+                        if (parsed.paymentType) {
+                            localPaymentType = parsed.paymentType;
+                            console.log('[Payment] Found paymentType in localStorage:', localPaymentType);
+                        }
                     } catch (e) {
                         console.error('Failed to parse local settings:', e);
                     }
@@ -169,11 +174,32 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                 // ثانياً: محاولة جلب من API (للإنتاج)
                 const res = await fetch('/api/settings');
                 const responseData = await res.json();
+                
                 if (responseData.success && responseData.data) {
-                    setPaymentSettings(responseData.data);
+                    console.log('[Payment] API response:', responseData.data);
+                    
+                    // localStorage يأخذ الأسبقية على API
+                    if (localPaymentType) {
+                        setPaymentSettings(prev => ({ 
+                            ...prev, 
+                            ...responseData.data, 
+                            paymentType: localPaymentType as PaymentSettings['paymentType']
+                        }));
+                        console.log('[Payment] Using localStorage paymentType:', localPaymentType);
+                    } else {
+                        setPaymentSettings(prev => ({ ...prev, ...responseData.data }));
+                    }
+                } else if (localPaymentType) {
+                    // لا يوجد API، استخدم localStorage فقط
+                    setPaymentSettings(prev => ({ ...prev, paymentType: localPaymentType as PaymentSettings['paymentType'] }));
+                    console.log('[Payment] No API, using localStorage paymentType:', localPaymentType);
                 }
             } catch (error) {
                 console.error('Failed to fetch payment settings:', error);
+                // في حالة الخطأ، استخدم localStorage إن وجد
+                if (localPaymentType) {
+                    setPaymentSettings(prev => ({ ...prev, paymentType: localPaymentType as PaymentSettings['paymentType'] }));
+                }
             }
         }
         fetchSettings();
@@ -315,6 +341,31 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     };
 
     const handleExport = async (option: 'ar' | 'en' | 'both') => {
+        console.log('[Export] paymentSettings:', paymentSettings);
+        console.log('[Export] paymentType:', paymentSettings.paymentType);
+        console.log('[Export] data.metadata.paymentStatus:', data.metadata.paymentStatus);
+        
+        if (paymentSettings.paymentType === 'disabled') {
+            console.log('[Export] Payment disabled, exporting directly');
+            await performExport(option);
+            return;
+        }
+        
+        if (paymentSettings.paymentType === 'mandatory' && data.metadata.paymentStatus !== 'completed') {
+            console.log('[Export] Mandatory payment, showing modal');
+            setSelectedExportOption(option);
+            setShowPaymentModal(true);
+            return;
+        }
+        
+        if (paymentSettings.paymentType === 'donation' && data.metadata.paymentStatus !== 'completed') {
+            console.log('[Export] Donation payment, showing modal');
+            setSelectedExportOption(option);
+            setShowPaymentModal(true);
+            return;
+        }
+        
+        console.log('[Export] Payment already completed or not required, exporting');
         await performExport(option);
     };
 

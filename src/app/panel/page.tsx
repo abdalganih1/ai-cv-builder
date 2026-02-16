@@ -164,10 +164,9 @@ function SettingsTab() {
                     <label className="block text-gray-300 mb-2">نوع الدفع</label>
                     <select value={type} onChange={e => setType(e.target.value)}
                         className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600">
-                        <option value="disabled">معطل</option>
-                        <option value="donation">تبرع</option>
-                        <option value="optional">اختياري</option>
-                        <option value="required">إلزامي</option>
+                        <option value="disabled">معطل (بدون دفع)</option>
+                        <option value="donation">تبرع (اختياري)</option>
+                        <option value="mandatory">إلزامي (مطلوب للتصدير)</option>
                     </select>
                 </div>
                 
