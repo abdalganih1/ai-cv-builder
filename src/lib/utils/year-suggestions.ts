@@ -98,6 +98,7 @@ interface EducationAnalysis {
     hasHigherEducation: boolean;
     hasLowerEducation: boolean;
     lastHigherEndYear: number | null;
+    lastHigherStartYear: number | null;
     lastLowerEndYear: number | null;
     lastLowerStartYear: number | null;
     lowerEducationDuration: number;
@@ -115,6 +116,7 @@ function analyzeEducation(
     let hasHigherEducation = false;
     let hasLowerEducation = false;
     let lastHigherEndYear: number | null = null;
+    let lastHigherStartYear: number | null = null;
     let lastLowerEndYear: number | null = null;
     let lastLowerStartYear: number | null = null;
     let lowerEducationDuration = 4;
@@ -124,6 +126,7 @@ function analyzeEducation(
             hasHigherEducation: false,
             hasLowerEducation: false,
             lastHigherEndYear: null,
+            lastHigherStartYear: null,
             lastLowerEndYear: null,
             lastLowerStartYear: null,
             lowerEducationDuration,
@@ -148,6 +151,9 @@ function analyzeEducation(
             if (endYear && (!lastHigherEndYear || endYear > lastHigherEndYear)) {
                 lastHigherEndYear = endYear;
             }
+            if (startYear && (!lastHigherStartYear || startYear > lastHigherStartYear)) {
+                lastHigherStartYear = startYear;
+            }
         } else if (eduLevel < currentLevel) {
             hasLowerEducation = true;
             if (endYear && (!lastLowerEndYear || endYear > lastLowerEndYear)) {
@@ -165,6 +171,7 @@ function analyzeEducation(
         hasHigherEducation,
         hasLowerEducation,
         lastHigherEndYear,
+        lastHigherStartYear,
         lastLowerEndYear,
         lastLowerStartYear,
         lowerEducationDuration,
@@ -205,12 +212,11 @@ export function getStartYearSuggestions(
     }
 
     // ═══ Scenario 2: Has higher education (e.g., adding Bachelor's after Master's was entered) ═══
-    if (analysis.hasHigherEducation && analysis.lastHigherEndYear) {
+    if (analysis.hasHigherEducation && analysis.lastHigherStartYear) {
         const degreeLevel = analysis.currentDegreeLevel;
         
         if (degreeLevel === 1 || degreeLevel === 2) { // Bachelor's
-            const higherDuration = 2; // Master's duration
-            const expectedEnd = analysis.lastHigherEndYear - higherDuration;
+            const expectedEnd = analysis.lastHigherStartYear - 1;
             const expectedStart = expectedEnd - degreeDuration;
             
             for (let offset = -2; offset <= 2; offset++) {
@@ -224,8 +230,7 @@ export function getStartYearSuggestions(
                 }
             }
         } else if (degreeLevel === 3) { // Master's (adding before Doctorate)
-            const docDuration = 3;
-            const expectedEnd = analysis.lastHigherEndYear - docDuration;
+            const expectedEnd = analysis.lastHigherStartYear - 1;
             const expectedStart = expectedEnd - degreeDuration;
             
             for (let offset = -2; offset <= 2; offset++) {

@@ -59,6 +59,84 @@ const GENERAL_JOBS = [
     'منسق', 'مساعد', 'مستشار', 'خبير', 'محلل',
 ];
 
+const JOB_DESCRIPTIONS: Record<string, string[]> = {
+    'مهندس برمجيات': [
+        'تصميم وتطوير تطبيقات ويب وموبايل باستخدام أحدث التقنيات',
+        'كتابة كود نظيف وقابل للصيانة مع اختبارات وحدة شاملة',
+        'التعاون مع فريق التصميم لتحسين تجربة المستخدم',
+    ],
+    'مطور برمجي': [
+        'تطوير وصيانة التطبيقات البرمجية وفق المواصفات المطلوبة',
+        'تحسين أداء التطبيقات وإصلاح الأخطاء البرمجية',
+        'المشاركة في مراجعة الكود وتحسين جودة البرمجيات',
+    ],
+    'محاسب': [
+        'إعداد القيود المحاسبية اليومية والتسويات الجردية',
+        'إعداد الميزانيات العمومية وقوائم الدخل',
+        'متابعة الحسابات البنكية والتسويات البنكية',
+    ],
+    'مدير': [
+        'إدارة فريق العمل وتوزيع المهام ومراقبة الأداء',
+        'التخطيط الاستراتيجي وتحديد أهداف القسم',
+        'إعداد التقارير الدورية وعرضها للإدارة العليا',
+    ],
+    'مندوب مبيعات': [
+        'الترويج للمنتجات والخدمات وجذب عملاء جدد',
+        'متابعة العملاء الحاليين وتلبية احتياجاتهم',
+        'تحقيق أهداف المبيعات المحددة شهرياً وسنوياً',
+    ],
+    'مهندس مدني': [
+        'تصميم وإشراف على المشاريع الإنشائية والبنائية',
+        'إعداد المخططات التنفيذية والجدول الزمني للمشاريع',
+        'مراقبة جودة التنفيذ ومطابقتها مع المواصفات',
+    ],
+    'مهندس كهربائي': [
+        'تصميم وتنفيذ الأنظمة الكهربائية للمشاريع',
+        'إعداد المخططات الكهربائية وجداول الكميات',
+        'الإشراف على تركيب وصيانة المعدات الكهربائية',
+    ],
+    'معلم': [
+        'تدريس المواد التعليمية وفق المنهج المقرر',
+        'إعداد خطط درسية ووسائل تعليمية فعالة',
+        'متابعة تحصيل الطلاب وتقييم أدائهم',
+    ],
+    'طبيب': [
+        'تشخيص وعلاج الحالات المرضية المختلفة',
+        'إجراء الفحوصات الطبية ومراجعة نتائجها',
+        'متابعة حالة المرضى وتقديم الاستشارات الطبية',
+    ],
+};
+
+function getJobDescriptionSuggestions(position: string, company: string): string[] {
+    const suggestions: string[] = [];
+    
+    const positionLower = position.toLowerCase();
+    for (const [key, descriptions] of Object.entries(JOB_DESCRIPTIONS)) {
+        if (positionLower.includes(key) || key.includes(position)) {
+            suggestions.push(...descriptions);
+            break;
+        }
+    }
+    
+    if (suggestions.length === 0) {
+        for (const [key, descriptions] of Object.entries(JOB_DESCRIPTIONS)) {
+            if (positionLower.includes(key.split(' ')[0])) {
+                suggestions.push(...descriptions.map(d => d.replace(key, position)));
+                break;
+            }
+        }
+    }
+    
+    if (suggestions.length === 0 && company) {
+        suggestions.push(
+            `العمل في ${company} وتنفيذ المهام المطلوبة بكفاءة`,
+            `المساهمة في تحقيق أهداف ${company} وخططها الاستراتيجية`,
+        );
+    }
+    
+    return suggestions.slice(0, 3);
+}
+
 function getSmartSuggestions(
     fieldType: string,
     currentValue: string,
@@ -119,6 +197,18 @@ function getSmartSuggestions(
         return suggestions.slice(0, 10);
     }
 
+    if (fieldType === 'description') {
+        const position = fullContext?.experience?.[fullContext.experience.length - 1]?.position || '';
+        const company = fullContext?.company || '';
+        const suggestions = getJobDescriptionSuggestions(position, company);
+        
+        if (currentValue && currentValue.trim() !== '') {
+            return [];
+        }
+        
+        return suggestions;
+    }
+
     return [];
 }
 
@@ -127,7 +217,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
     const [aiLoading, setAiLoading] = useState(false);
 
     const localSuggestions = useMemo(() => {
-        if (fieldType === 'position' || fieldType === 'jobTitle') {
+        if (fieldType === 'position' || fieldType === 'jobTitle' || fieldType === 'description') {
             return getSmartSuggestions(fieldType, currentValue, fullContext);
         }
         

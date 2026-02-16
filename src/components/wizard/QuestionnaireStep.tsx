@@ -1044,7 +1044,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     ← العودة لتعديل البيانات
                 </button>
                 <button onClick={() => onNext({})} className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all">
-                    الانتقال للدفع والمعاينة
+                    الانتقال للمعاينة
                 </button>
             </div>
         </div>
@@ -1136,29 +1136,21 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'text' && (
                         <div>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={response}
-                                    onChange={(e) => setResponse(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleAnswer();
-                                        }
-                                    }}
-                                    className="w-full p-5 pl-14 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
-                                    placeholder="اكتب إجابتك هنا..."
-                                    autoFocus
-                                    enterKeyHint="next"
-                                />
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                                    <VoiceRecorder
-                                        onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
-                                        placeholder="🎤"
-                                    />
-                                </div>
-                            </div>
+                            <input
+                                type="text"
+                                value={response}
+                                onChange={(e) => setResponse(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAnswer();
+                                    }
+                                }}
+                                className="w-full p-5 text-lg border-2 border-gray-100 rounded-2xl focus:border-primary focus:ring-0 outline-none transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder:text-gray-300"
+                                placeholder="اكتب إجابتك هنا..."
+                                autoFocus
+                                enterKeyHint="next"
+                            />
                             {/* AI Suggestions */}
                             {AI_SUGGEST_FIELDS[currentQuestion.field] && (
                                 <AISuggestButton
@@ -1201,10 +1193,6 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     enterKeyHint="enter"
                                 />
                                 <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                                    <VoiceRecorder
-                                        onTranscript={(text) => setResponse(prev => prev + ' ' + text)}
-                                        placeholder="🎤"
-                                    />
                                     <span className="text-xs text-gray-400">{response.length} حرف</span>
                                 </div>
                             </div>
@@ -1219,6 +1207,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     }
                                     currentValue={response}
                                     onSelect={(value) => setResponse(value)}
+                                    fullContext={{
+                                        education: data.education,
+                                        targetJobTitle: data.personal.targetJobTitle,
+                                        company: currentQuestion.field === 'experience_description' ? (data.experience[activeEntryIndex ?? data.experience.length - 1]?.company) : undefined,
+                                        experience: data.experience,
+                                    }}
                                 />
                             )}
                         </div>
