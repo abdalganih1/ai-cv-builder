@@ -12,23 +12,23 @@ function registerFonts() {
     if (fontsRegistered || fontLoadError) return;
 
     try {
-        // Use Cairo as primary - more reliable
+        // Use IBMPlexSansArabic - reliable Arabic font
         Font.register({
-            family: 'Cairo',
+            family: 'IBMPlexSansArabic',
             fonts: [
                 {
-                    src: '/Cairo-Regular.ttf',
+                    src: '/IBMPlexSansArabic-Regular.ttf',
                     fontWeight: 'normal'
                 },
                 {
-                    src: '/Cairo-Bold.ttf',
+                    src: '/IBMPlexSansArabic-Bold.ttf',
                     fontWeight: 'bold'
                 }
             ]
         });
 
         fontsRegistered = true;
-        console.log('✅ Arabic fonts registered successfully (Cairo)');
+        console.log('✅ Arabic fonts registered successfully (IBMPlexSansArabic)');
     } catch (error) {
         console.error('❌ Failed to register Arabic fonts:', error);
         fontLoadError = true;
