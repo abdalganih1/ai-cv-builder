@@ -60,6 +60,7 @@ interface PaymentSettings {
     priceUsd?: number;
     priceSyp?: number;
     paymentLanguage?: 'both' | 'ar' | 'en';
+    defaultPaymentImage?: boolean;
 }
 
 const DEFAULT_SETTINGS: PaymentSettings = {
@@ -72,6 +73,7 @@ const DEFAULT_SETTINGS: PaymentSettings = {
     priceUsd: 5,
     priceSyp: 50000,
     paymentLanguage: 'both',
+    defaultPaymentImage: true,
 };
 
 export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
@@ -150,62 +152,46 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     // Fetch payment settings from API
     useEffect(() => {
         async function fetchSettings() {
-            let localPaymentType: string | null = null;
-            
             try {
-                // أولاً: جلب من localStorage للتطوير المحلي
                 const localSettings = localStorage.getItem('cv_payment_settings');
                 if (localSettings) {
                     try {
                         const parsed = JSON.parse(localSettings);
                         console.log('[Payment] Raw localStorage data:', parsed);
-                        if (parsed.paymentType) {
-                            localPaymentType = parsed.paymentType;
-                            console.log('[Payment] Found paymentType in localStorage:', localPaymentType);
-                        }
-                        // Also read new fields
-                        if (parsed.priceUsd || parsed.priceSyp || parsed.paymentLanguage) {
-                            setPaymentSettings(prev => ({
-                                ...prev,
-                                priceUsd: parsed.priceUsd || prev.priceUsd,
-                                priceSyp: parsed.priceSyp || prev.priceSyp,
-                                paymentLanguage: parsed.paymentLanguage || prev.paymentLanguage,
-                            }));
-                        }
+                        
+                        setPaymentSettings(prev => ({
+                            ...prev,
+                            paymentType: parsed.paymentType || prev.paymentType,
+                            priceUsd: parsed.priceUsd ?? prev.priceUsd,
+                            priceSyp: parsed.priceSyp ?? prev.priceSyp,
+                            paymentLanguage: parsed.paymentLanguage || prev.paymentLanguage,
+                            defaultPaymentImage: parsed.defaultPaymentImage ?? prev.defaultPaymentImage,
+                        }));
+                        console.log('[Payment] Applied localStorage settings:', parsed);
                     } catch (e) {
                         console.error('Failed to parse local settings:', e);
                     }
                 }
 
-                // ثانياً: محاولة جلب من API (للإنتاج)
                 const res = await fetch('/api/settings');
                 const responseData = await res.json();
                 
                 if (responseData.success && responseData.data) {
                     console.log('[Payment] API response:', responseData.data);
                     
-                    // localStorage يأخذ الأسبقية على API
-                    if (localPaymentType) {
-                        setPaymentSettings(prev => ({ 
-                            ...prev, 
-                            ...responseData.data, 
-                            paymentType: localPaymentType as PaymentSettings['paymentType']
-                        }));
-                        console.log('[Payment] Using localStorage paymentType:', localPaymentType);
-                    } else {
-                        setPaymentSettings(prev => ({ ...prev, ...responseData.data }));
-                    }
-                } else if (localPaymentType) {
-                    // لا يوجد API، استخدم localStorage فقط
-                    setPaymentSettings(prev => ({ ...prev, paymentType: localPaymentType as PaymentSettings['paymentType'] }));
-                    console.log('[Payment] No API, using localStorage paymentType:', localPaymentType);
+                    // localStorage يأخذ الأسبقية على API للقيم الموجودة
+                    const localParsed = localSettings ? JSON.parse(localSettings) : {};
+                    setPaymentSettings(prev => ({ 
+                        ...prev, 
+                        ...responseData.data,
+                        paymentType: localParsed.paymentType || responseData.data.paymentType || prev.paymentType,
+                        priceUsd: localParsed.priceUsd ?? responseData.data.priceUsd ?? prev.priceUsd,
+                        priceSyp: localParsed.priceSyp ?? responseData.data.priceSyp ?? prev.priceSyp,
+                        paymentLanguage: localParsed.paymentLanguage || responseData.data.paymentLanguage || prev.paymentLanguage,
+                    }));
                 }
             } catch (error) {
                 console.error('Failed to fetch payment settings:', error);
-                // في حالة الخطأ، استخدم localStorage إن وجد
-                if (localPaymentType) {
-                    setPaymentSettings(prev => ({ ...prev, paymentType: localPaymentType as PaymentSettings['paymentType'] }));
-                }
             }
         }
         fetchSettings();
