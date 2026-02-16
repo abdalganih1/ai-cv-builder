@@ -581,10 +581,19 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-1 flex flex-col">
                     <h3 className="font-bold text-primary mb-2">مساعد التعديل الذكي</h3>
                     <p className="text-xs text-gray-500 mb-4">اطلب أي تعديل على سيرتك الذاتية وسأقوم بتنفيذه فوراً.</p>
+                    {isAiEditing && (
+                        <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-sm text-blue-700 font-medium">جاري معالجة طلبك...</span>
+                            </div>
+                        </div>
+                    )}
                     <EditChat
                         data={previewData}
                         onUpdate={handleChatUpdate}
                         language={activeLanguage}
+                        onProcessingChange={setIsAiEditing}
                     />
                 </div>
 
@@ -799,14 +808,49 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                                     <h2 className="text-xl font-bold text-primary">{labels.experience}</h2>
-                                    <button
-                                        onClick={() => { setManualEditValue(getSectionValue('experience', previewData)); setEditingSection('experience'); }}
-                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                        title="تعديل"
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => { setManualEditValue(getSectionValue('experience', previewData)); setEditingSection('experience'); setAiEditSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                            title="تعديل يدوي"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => { setAiEditSection('experience'); setEditingSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="تعديل بالذكاء الاصطناعي"
+                                        >
+                                            🤖
+                                        </button>
+                                    </div>
                                 </div>
+                                {aiEditSection === 'experience' && (
+                                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <input
+                                            type="text"
+                                            placeholder="مثال: أضف خبرة جديدة في شركة سيريتل"
+                                            className="w-full p-3 border border-blue-200 rounded-lg text-sm"
+                                            value={aiEditPrompt}
+                                            onChange={(e) => setAiEditPrompt(e.target.value)}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => handleAiSectionEdit('experience')}
+                                                disabled={isAiEditing || !aiEditPrompt.trim()}
+                                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                                            >
+                                                {isAiEditing ? 'جاري...' : 'تطبيق'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAiEditSection(null); setAiEditPrompt(''); }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-col gap-6">
                                     {previewData.experience.map((exp) => (
                                         <div key={exp.id}>
@@ -827,14 +871,49 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                                     <h2 className="text-xl font-bold text-primary">{labels.education}</h2>
-                                    <button
-                                        onClick={() => { setManualEditValue(getSectionValue('education', previewData)); setEditingSection('education'); }}
-                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                        title="تعديل"
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => { setManualEditValue(getSectionValue('education', previewData)); setEditingSection('education'); setAiEditSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                            title="تعديل يدوي"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => { setAiEditSection('education'); setEditingSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="تعديل بالذكاء الاصطناعي"
+                                        >
+                                            🤖
+                                        </button>
+                                    </div>
                                 </div>
+                                {aiEditSection === 'education' && (
+                                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <input
+                                            type="text"
+                                            placeholder="مثال: غيّر التخصص من تحكم إلى هندسة برمجيات"
+                                            className="w-full p-3 border border-blue-200 rounded-lg text-sm"
+                                            value={aiEditPrompt}
+                                            onChange={(e) => setAiEditPrompt(e.target.value)}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => handleAiSectionEdit('education')}
+                                                disabled={isAiEditing || !aiEditPrompt.trim()}
+                                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                                            >
+                                                {isAiEditing ? 'جاري...' : 'تطبيق'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAiEditSection(null); setAiEditPrompt(''); }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-col gap-4">
                                     {previewData.education.map((edu) => (
                                         <div key={edu.id}>
@@ -852,14 +931,49 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                                     <h2 className="text-xl font-bold text-primary">{labels.skills}</h2>
-                                    <button
-                                        onClick={() => { setManualEditValue(getSectionValue('skills', previewData)); setEditingSection('skills'); }}
-                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                        title="تعديل"
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => { setManualEditValue(getSectionValue('skills', previewData)); setEditingSection('skills'); setAiEditSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                            title="تعديل يدوي"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => { setAiEditSection('skills'); setEditingSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="تعديل بالذكاء الاصطناعي"
+                                        >
+                                            🤖
+                                        </button>
+                                    </div>
                                 </div>
+                                {aiEditSection === 'skills' && (
+                                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <input
+                                            type="text"
+                                            placeholder="مثال: أضف مهارة React و Node.js"
+                                            className="w-full p-3 border border-blue-200 rounded-lg text-sm"
+                                            value={aiEditPrompt}
+                                            onChange={(e) => setAiEditPrompt(e.target.value)}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => handleAiSectionEdit('skills')}
+                                                disabled={isAiEditing || !aiEditPrompt.trim()}
+                                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                                            >
+                                                {isAiEditing ? 'جاري...' : 'تطبيق'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAiEditSection(null); setAiEditPrompt(''); }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-wrap gap-2">
                                     {previewData.skills.map((skill, idx) => (
                                         <span key={idx} className="bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg text-sm text-gray-700 font-medium">
@@ -875,14 +989,49 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                                     <h2 className="text-xl font-bold text-primary">{labels.languages}</h2>
-                                    <button
-                                        onClick={() => { setManualEditValue(getSectionValue('languages', previewData)); setEditingSection('languages'); }}
-                                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                        title="تعديل"
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => { setManualEditValue(getSectionValue('languages', previewData)); setEditingSection('languages'); setAiEditSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                            title="تعديل يدوي"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => { setAiEditSection('languages'); setEditingSection(null); }}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="تعديل بالذكاء الاصطناعي"
+                                        >
+                                            🤖
+                                        </button>
+                                    </div>
                                 </div>
+                                {aiEditSection === 'languages' && (
+                                    <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <input
+                                            type="text"
+                                            placeholder="مثال: أضف لغة الإنجليزية بمستوى جيد جداً"
+                                            className="w-full p-3 border border-blue-200 rounded-lg text-sm"
+                                            value={aiEditPrompt}
+                                            onChange={(e) => setAiEditPrompt(e.target.value)}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => handleAiSectionEdit('languages')}
+                                                disabled={isAiEditing || !aiEditPrompt.trim()}
+                                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                                            >
+                                                {isAiEditing ? 'جاري...' : 'تطبيق'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAiEditSection(null); setAiEditPrompt(''); }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-col gap-2">
                                     {previewData.languages.map((lang, idx) => (
                                         <div key={idx} className="flex justify-between items-center bg-gray-50 border border-gray-200 px-4 py-2 rounded-lg">
