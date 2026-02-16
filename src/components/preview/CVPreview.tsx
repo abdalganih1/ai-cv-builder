@@ -95,6 +95,8 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisDone, setAnalysisDone] = useState(false);
     const [editingSection, setEditingSection] = useState<string | null>(null);
+    const [manualEditValue, setManualEditValue] = useState<string>('');
+    const [showManualEdit, setShowManualEdit] = useState(false);
 
     // Handle file upload - open cropper instead of directly setting photo
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1088,19 +1090,119 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
 
             {/* Section Edit Modal */}
             {editingSection && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingSection(null)}>
-                    <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingSection(null); setShowManualEdit(false); }}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xl font-bold text-gray-900">✏️ تعديل {LABELS.ar[editingSection as keyof typeof LABELS.ar] || editingSection}</h3>
-                            <button onClick={() => setEditingSection(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                            <button onClick={() => { setEditingSection(null); setShowManualEdit(false); }} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
-                        <p className="text-sm text-gray-500 mb-4">اكتب التعديل المطلوب في الشريط الجانبي (مساعد التعديل الذكي)</p>
-                        <button onClick={() => setEditingSection(null)} className="w-full py-3 bg-primary text-white rounded-xl font-bold">
-                            حسناً، سأستخدم المساعد
+                        
+                        {!showManualEdit ? (
+                            <div className="space-y-3">
+                                {/* Option 1: Manual Edit */}
+                                <button 
+                                    onClick={() => {
+                                        setManualEditValue(getSectionValue(editingSection, previewData));
+                                        setShowManualEdit(true);
+                                    }}
+                                    className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-primary hover:bg-primary/5 transition-all text-right flex items-center gap-3"
+                                >
+                                    <span className="text-2xl">✍️</span>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-gray-900">تعديل يدوي</p>
+                                        <p className="text-xs text-gray-500">عدّل النص مباشرة</p>
+                                    </div>
+                                </button>
+                                
+                                {/* Option 2: AI Assistant */}
+                                <button 
+                                    onClick={() => setEditingSection(null)}
+                                    className="w-full p-4 rounded-xl border-2 border-primary/30 bg-primary/5 hover:border-primary transition-all text-right flex items-center gap-3"
+                                >
+                                    <span className="text-2xl">🤖</span>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-primary">استخدام المساعد الذكي</p>
+                                        <p className="text-xs text-gray-500">اكتب طلبك في الشريط الجانبي</p>
+                                    </div>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <textarea
+                                    value={manualEditValue}
+                                    onChange={(e) => setManualEditValue(e.target.value)}
+                                    className="w-full p-4 border-2 border-gray-200 rounded-xl min-h-[150px] focus:border-primary outline-none text-gray-800"
+                                    placeholder="أدخل النص الجديد..."
+                                    dir={activeLanguage === 'en' ? 'ltr' : 'rtl'}
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowManualEdit(false)}
+                                        className="flex-1 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50"
+                                    >
+                                        رجوع
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            applyManualEdit(editingSection, manualEditValue, previewData, handleChatUpdate, activeLanguage);
+                                            setEditingSection(null);
+                                            setShowManualEdit(false);
+                                        }}
+                                        className="flex-1 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark"
+                                    >
+                                        حفظ التعديل
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <p className="text-xs text-blue-700">
+                                💡 <strong>نصيحة:</strong> المساعد الذكي يمكنه مساعدتك في صياغة احترافية وتحسين المحتوى، لكنك لست مجبراً على استخدامه.
+                            </p>
+                        </div>
+                        
+                        <button 
+                            onClick={() => { setEditingSection(null); setShowManualEdit(false); }} 
+                            className="w-full mt-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+                        >
+                            إلغاء
                         </button>
                     </div>
                 </div>
             )}
         </div>
     );
+}
+
+// Helper functions for manual editing
+function getSectionValue(section: string, data: CVData): string {
+    if (section === 'summary') return data.personal.summary || '';
+    if (section === 'skills') return data.skills?.join('، ') || '';
+    if (section === 'languages') return data.languages?.map(l => `${l.name}: ${l.level}`).join('\n') || '';
+    if (section === 'experience') {
+        return data.experience?.map(e => `${e.position} - ${e.company}:\n${e.description}`).join('\n\n') || '';
+    }
+    if (section === 'education') {
+        return data.education?.map(e => `${e.degree} ${e.major || ''} - ${e.institution} (${e.startYear}-${e.endYear})`).join('\n') || '';
+    }
+    return '';
+}
+
+function applyManualEdit(section: string, value: string, data: CVData, onUpdate: (data: CVData) => void, _language: 'ar' | 'en'): void {
+    const newData = { ...data };
+    
+    if (section === 'summary') {
+        newData.personal = { ...data.personal, summary: value };
+    } else if (section === 'skills') {
+        newData.skills = value.split(/[،,\n]+/).map(s => s.trim()).filter(s => s);
+    } else if (section === 'languages') {
+        const lines = value.split('\n').filter(l => l.trim());
+        newData.languages = lines.map(line => {
+            const parts = line.split(':').map(p => p.trim());
+            return { name: parts[0] || '', level: parts[1] || 'متوسط' };
+        });
+    }
+    
+    onUpdate(newData);
 }
