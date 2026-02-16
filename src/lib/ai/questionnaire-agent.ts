@@ -252,7 +252,7 @@ class QuestionnaireAgent {
             return {
                 id: 'skills',
                 field: 'skills',
-                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل (مثال: Word, Excel, إدارة المشاريع, اللغة الإنجليزية)',
+                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل',
                 type: 'textarea'
             };
         }
@@ -362,7 +362,7 @@ class QuestionnaireAgent {
             },
             'targetJobTitle': {
                 id: 'targetJobTitle', field: 'targetJobTitle',
-                text: 'ما هو المسمى الوظيفي الذي ترغب أن يظهر في أعلى السيرة الذاتية؟ (مثال: مبرمج واجهات أمامية، مدير مشاريع)',
+                text: 'ما هو المسمى الوظيفي الذي ترغب أن يظهر في أعلى السيرة الذاتية؟',
                 type: 'text', skippable: false
             },
             'email': {
@@ -375,6 +375,18 @@ class QuestionnaireAgent {
                 id: 'photoUrl', field: 'photoUrl',
                 text: 'هل تود إضافة صورة شخصية للسيرة الذاتية؟ يفضل صورة احترافية خلفية بيضاء.',
                 type: 'file', skippable: true
+            },
+            'residencyStatus': {
+                id: 'residencyStatus', field: 'residencyStatus',
+                text: `ما هي حالة إقامتك في ${data.personal.residencyCountry || 'الدولة'}؟`,
+                type: 'select',
+                options: ['مواطن', 'مقيم (مع إقامة)', 'زائر (بدون إقامة)'],
+                skippable: true
+            },
+            'residencyExpiry': {
+                id: 'residencyExpiry', field: 'residencyExpiry',
+                text: 'ما هو تاريخ انتهاء الإقامة؟ (مثال: 2025/12)',
+                type: 'text', skippable: true
             }
         };
 
@@ -473,7 +485,7 @@ class QuestionnaireAgent {
         if (field === 'skills') {
             return {
                 id: 'skills', field: 'skills',
-                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل (مثال: Word, Excel, إدارة المشاريع, اللغة الإنجليزية)',
+                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل',
                 type: 'textarea'
             };
         }
@@ -518,7 +530,7 @@ class QuestionnaireAgent {
         if (field === 'hobbies_text') {
             return {
                 id: 'hobbiesText', field: 'hobbies_text',
-                text: 'اكتب هواياتك واهتماماتك مفصولة بفواصل (مثال: القراءة، السباحة، البرمجة، الرياضة)',
+                text: 'اكتب هواياتك واهتماماتك مفصولة بفواصل',
                 type: 'textarea'
             };
         }

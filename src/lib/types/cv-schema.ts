@@ -9,6 +9,10 @@ export interface PersonalInfo {
   birthDate?: string;
   photoUrl?: string;
   targetJobTitle?: string;
+  residencyCountry?: string;
+  residencyStatus?: 'citizen' | 'resident' | 'visitor';
+  residencyExpiry?: string;
+  nationality?: string;
 }
 
 export interface Education {

@@ -354,7 +354,14 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
 
                     {data.personal.email && data.personal.email !== '__skipped__' && <Text style={styles.contactInfo}>{data.personal.email}</Text>}
                     {data.personal.phone && data.personal.phone !== '__skipped__' && <Text style={styles.contactInfo}>{data.personal.phone}</Text>}
-                    {data.personal.country && data.personal.country !== '__skipped__' && <Text style={styles.contactInfo}>{data.personal.country}</Text>}
+                    <Text style={styles.contactInfo}>
+                        {data.personal.country && data.personal.country !== '__skipped__' ? data.personal.country : ''}
+                        {data.personal.residencyStatus && data.personal.residencyStatus !== 'citizen' ? 
+                            ` • ${data.personal.residencyStatus === 'resident' ? 'مقيم' : 'زائر'}` : ''}
+                    </Text>
+                    {data.personal.residencyExpiry && (
+                        <Text style={styles.contactInfo}>انتهاء الإقامة: {data.personal.residencyExpiry}</Text>
+                    )}
                 </View>
                 {data.personal.photoUrl && data.personal.photoUrl !== '__skipped__' && (
                     // eslint-disable-next-line jsx-a11y/alt-text

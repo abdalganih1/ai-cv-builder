@@ -209,6 +209,8 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
         fetchAI();
     }, [aiContext.fieldType, aiContext.currentCompany]);
 
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
     return (
         <div className="space-y-3">
             <div className="relative">
@@ -234,11 +236,24 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                     </div>
                 )}
             </div>
+            {aiContext.fieldType === 'end' && (
+                <button
+                    type="button"
+                    onClick={() => onChange('حتى الآن')}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${
+                        value === 'حتى الآن'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
+                    }`}
+                >
+                    🔄 حتى الآن (لا أزال أعمل هنا)
+                </button>
+            )}
             <div className="flex flex-wrap gap-2">
                 <span className="text-xs text-gray-500 font-medium">
                     اقتراحات {aiLoading ? '(جاري التحليل...)' : ''}:
                 </span>
-                {suggestions.map((s, i) => (
+                {suggestions.filter(s => s.date !== 'حتى الآن' || aiContext.fieldType !== 'end').map((s, i) => (
                     <button
                         key={i}
                         type="button"
@@ -261,6 +276,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
     const [response, setResponse] = useState<string>('');
     const [loading, setLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Email-specific state
     const [emailUsername, setEmailUsername] = useState<string>('');
@@ -1057,8 +1073,31 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 >
                     ← العودة لتعديل البيانات
                 </button>
-                <button onClick={() => onNext({})} className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all">
-                    الانتقال للمعاينة
+                <button 
+                    onClick={async () => {
+                        setIsGenerating(true);
+                        try {
+                            const { generateProfessionalCV } = await import('@/lib/ai/chat-editor');
+                            const enhancedData = await generateProfessionalCV(data);
+                            onUpdate(enhancedData);
+                        } catch (error) {
+                            console.error('Failed to generate CV:', error);
+                        } finally {
+                            setIsGenerating(false);
+                            onNext({});
+                        }
+                    }} 
+                    disabled={isGenerating}
+                    className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all disabled:opacity-70 disabled:cursor-wait"
+                >
+                    {isGenerating ? (
+                        <span className="flex items-center gap-3">
+                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            جاري توليد السيرة الذاتية...
+                        </span>
+                    ) : (
+                        'الانتقال للمعاينة'
+                    )}
                 </button>
             </div>
         </div>

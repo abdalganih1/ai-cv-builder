@@ -24,6 +24,7 @@ interface StepProps {
 // Section labels in both languages
 const LABELS = {
     ar: {
+        header: 'المعلومات الشخصية',
         summary: 'نبذة تعريفية',
         experience: 'الخبرة العملية',
         education: 'التعليم',
@@ -34,6 +35,7 @@ const LABELS = {
         jobTitle: 'المسمى الوظيفي',
     },
     en: {
+        header: 'Personal Info',
         summary: 'Professional Summary',
         experience: 'Work Experience',
         education: 'Education',
@@ -743,11 +745,28 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     </p>
                                 </div>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-600 leading-relaxed w-full sm:w-auto text-center sm:text-right">
-                                {previewData.personal.email && previewData.personal.email !== '__skipped__' && <p dir="ltr">{previewData.personal.email}</p>}
-                                {previewData.personal.phone && previewData.personal.phone !== '__skipped__' && <p dir="ltr">{previewData.personal.phone}</p>}
-                                {previewData.personal.country && previewData.personal.country !== '__skipped__' && <p>{previewData.personal.country}</p>}
-                                {previewData.personal.birthDate && previewData.personal.birthDate !== '__skipped__' && <p>{labels.birthDate}: {previewData.personal.birthDate}</p>}
+                            <div className="flex items-start gap-2">
+                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed w-full sm:w-auto text-center sm:text-right flex-1">
+                                    {previewData.personal.email && previewData.personal.email !== '__skipped__' && <p dir="ltr">{previewData.personal.email}</p>}
+                                    {previewData.personal.phone && previewData.personal.phone !== '__skipped__' && <p dir="ltr">{previewData.personal.phone}</p>}
+                                    <p>
+                                        {previewData.personal.country && previewData.personal.country !== '__skipped__' && previewData.personal.country}
+                                        {previewData.personal.residencyStatus && previewData.personal.residencyStatus !== 'citizen' && (
+                                            <span className="text-primary"> • {previewData.personal.residencyStatus === 'resident' ? 'مقيم' : 'زائر'}</span>
+                                        )}
+                                    </p>
+                                    {previewData.personal.residencyExpiry && (
+                                        <p className="text-orange-600 text-xs">انتهاء الإقامة: {previewData.personal.residencyExpiry}</p>
+                                    )}
+                                    {previewData.personal.birthDate && previewData.personal.birthDate !== '__skipped__' && <p>{labels.birthDate}: {previewData.personal.birthDate}</p>}
+                                </div>
+                                <button
+                                    onClick={() => { setEditingSection('header'); setManualEditValue(getSectionValue('header', previewData)); setAiEditSection(null); }}
+                                    className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all shrink-0"
+                                    title="تعديل الهيدر"
+                                >
+                                    ✏️
+                                </button>
                             </div>
                         </div>
 
@@ -1377,6 +1396,22 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
 
 // Helper functions for manual editing
 function getSectionValue(section: string, data: CVData): string {
+    if (section === 'header') {
+        const parts = [
+            `الاسم: ${data.personal.firstName} ${data.personal.lastName}`,
+            `المسمى الوظيفي: ${data.personal.targetJobTitle || data.personal.jobTitle || ''}`,
+            `البريد: ${data.personal.email || ''}`,
+            `الهاتف: ${data.personal.phone}`,
+            `الدولة: ${data.personal.country}`,
+        ];
+        if (data.personal.residencyStatus && data.personal.residencyStatus !== 'citizen') {
+            parts.push(`حالة الإقامة: ${data.personal.residencyStatus === 'resident' ? 'مقيم' : 'زائر'}`);
+        }
+        if (data.personal.residencyExpiry) {
+            parts.push(`انتهاء الإقامة: ${data.personal.residencyExpiry}`);
+        }
+        return parts.join('\n');
+    }
     if (section === 'summary') return data.personal.summary || '';
     if (section === 'skills') return data.skills?.join('، ') || '';
     if (section === 'languages') return data.languages?.map(l => `${l.name}: ${l.level}`).join('\n') || '';
@@ -1400,7 +1435,27 @@ function applyManualEdit(section: string, value: string, data: CVData, onUpdate:
         hobbies: [...(data.hobbies || [])],
     };
     
-    if (section === 'summary') {
+    if (section === 'header') {
+        const lines = value.split('\n').filter(l => l.trim());
+        const parsed: Record<string, string> = {};
+        lines.forEach(line => {
+            const [key, ...rest] = line.split(':');
+            if (key && rest.length) {
+                parsed[key.trim()] = rest.join(':').trim();
+            }
+        });
+        newData.personal = {
+            ...data.personal,
+            firstName: parsed['الاسم']?.split(' ')[0] || data.personal.firstName,
+            lastName: parsed['الاسم']?.split(' ').slice(1).join(' ') || data.personal.lastName,
+            targetJobTitle: parsed['المسمى الوظيفي'] || data.personal.targetJobTitle,
+            email: parsed['البريد'] || data.personal.email,
+            phone: parsed['الهاتف'] || data.personal.phone,
+            country: parsed['الدولة'] || data.personal.country,
+            residencyStatus: parsed['حالة الإقامة'] === 'مقيم' ? 'resident' : parsed['حالة الإقامة'] === 'زائر' ? 'visitor' : data.personal.residencyStatus,
+            residencyExpiry: parsed['انتهاء الإقامة'] || data.personal.residencyExpiry,
+        };
+    } else if (section === 'summary') {
         newData.personal = { ...data.personal, summary: value };
     } else if (section === 'skills') {
         newData.skills = value.split(/[،,\n]+/).map(s => s.trim()).filter(s => s);
