@@ -357,8 +357,8 @@ class QuestionnaireAgent {
         const personalMap: Record<string, Question> = {
             'birthDate': {
                 id: 'birthDate', field: 'birthDate',
-                text: 'ما هو تاريخ ميلادك؟ (مثال: 1990/05/15)',
-                type: 'text', skippable: true
+                text: 'ما هو تاريخ ميلادك؟',
+                type: 'birthdate', skippable: true
             },
             'targetJobTitle': {
                 id: 'targetJobTitle', field: 'targetJobTitle',
