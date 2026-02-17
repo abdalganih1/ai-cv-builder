@@ -69,7 +69,7 @@ export interface Question {
   id: string;
   field: string;
   text: string;
-  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email' | 'year' | 'date';
+  type: 'text' | 'yesno' | 'select' | 'textarea' | 'file' | 'email' | 'year' | 'date' | 'birthdate';
   options?: string[];
   condition?: (data: CVData) => boolean;
   followUp?: boolean;

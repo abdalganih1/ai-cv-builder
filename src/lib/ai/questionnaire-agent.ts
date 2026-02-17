@@ -54,8 +54,8 @@ class QuestionnaireAgent {
             return {
                 id: 'birthDate',
                 field: 'birthDate',
-                text: 'ما هو تاريخ ميلادك؟ (مثال: 1990/05/15)',
-                type: 'text',
+                text: 'ما هو تاريخ ميلادك؟',
+                type: 'birthdate',
                 skippable: true
             };
         }

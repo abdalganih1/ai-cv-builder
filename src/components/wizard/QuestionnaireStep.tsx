@@ -11,6 +11,7 @@ import { getYearSuggestions, getAIYearSuggestions } from '@/lib/utils/year-sugge
 import type { YearSuggestion } from '@/lib/utils/year-suggestions';
 import { getWorkDateSuggestions, getAIWorkDateSuggestions } from '@/lib/utils/work-date-suggestions';
 import type { DateSuggestion } from '@/lib/utils/work-date-suggestions';
+import SmartDateInput from '@/components/ui/SmartDateInput';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -1240,6 +1241,17 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 />
                             )}
                         </div>
+                    )}
+
+                    {currentQuestion.type === 'birthdate' && (
+                        <SmartDateInput
+                            value={response}
+                            onChange={setResponse}
+                            onSubmit={handleAnswer}
+                            minYear={1950}
+                            maxYear={new Date().getFullYear() - 10}
+                            label="تاريخ الميلاد"
+                        />
                     )}
 
                     {currentQuestion.type === 'textarea' && (
