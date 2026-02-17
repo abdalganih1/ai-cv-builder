@@ -63,10 +63,10 @@ const DEGREE_DURATIONS: Record<string, number> = {
 
 export function extractBirthYear(birthDate: string | undefined): number | null {
     if (!birthDate || birthDate === '__skipped__') return null;
-    
+
     const yearMatches = birthDate.match(/\d{4}/g);
     if (!yearMatches || yearMatches.length === 0) return null;
-    
+
     const currentYear = new Date().getFullYear();
     for (const match of yearMatches) {
         const year = parseInt(match, 10);
@@ -74,7 +74,7 @@ export function extractBirthYear(birthDate: string | undefined): number | null {
             return year;
         }
     }
-    
+
     return parseInt(yearMatches[0], 10);
 }
 
@@ -222,11 +222,11 @@ export function getStartYearSuggestions(
     // ═══ Scenario 2: Has higher education (e.g., adding Bachelor's after Master's was entered) ═══
     if (analysis.hasHigherEducation && analysis.lastHigherStartYear) {
         const degreeLevel = analysis.currentDegreeLevel;
-        
+
         if (degreeLevel === 1 || degreeLevel === 2) { // Bachelor's
             const expectedEnd = analysis.lastHigherStartYear - 1;
             const expectedStart = expectedEnd - degreeDuration;
-            
+
             for (let offset = -2; offset <= 2; offset++) {
                 const year = expectedStart + offset;
                 if (year >= 2000 && year <= currentYear && !usedYears.has(year)) {
@@ -240,7 +240,7 @@ export function getStartYearSuggestions(
         } else if (degreeLevel === 3) { // Master's (adding before Doctorate)
             const expectedEnd = analysis.lastHigherStartYear - 1;
             const expectedStart = expectedEnd - degreeDuration;
-            
+
             for (let offset = -2; offset <= 2; offset++) {
                 const year = expectedStart + offset;
                 if (year >= 2000 && year <= currentYear && !usedYears.has(year)) {
@@ -257,7 +257,7 @@ export function getStartYearSuggestions(
     // ═══ Scenario 3: Use birth year for first education entry ═══
     if (birthYear && suggestions.length === 0) {
         const expectedStartYear = birthYear + 18;
-        
+
         for (let offset = -2; offset <= 2; offset++) {
             const year = expectedStartYear + offset;
             if (year >= 2000 && year <= currentYear && !usedYears.has(year)) {
@@ -270,14 +270,17 @@ export function getStartYearSuggestions(
         }
     }
 
-    // ═══ Fallback: Recent years ═══
+    // ═══ Fallback: Wider year range (centered around typical university age) ═══
     if (suggestions.length < 3) {
-        for (let offset = 0; offset <= 8; offset++) {
-            const year = currentYear - offset;
-            if (!usedYears.has(year)) {
+        // بدلاً من إعطاء السنوات الحديثة فقط، نعطي نطاق متمركز حول 2015-2020
+        const centerYear = currentYear - 5;
+        const offsets = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5];
+        for (const offset of offsets) {
+            const year = centerYear + offset;
+            if (year >= 2000 && year <= currentYear && !usedYears.has(year)) {
                 usedYears.add(year);
                 suggestions.push({ year, label: year.toString() });
-                if (suggestions.length >= 6) break;
+                if (suggestions.length >= 8) break;
             }
         }
     }

@@ -12,6 +12,7 @@ import type { YearSuggestion } from '@/lib/utils/year-suggestions';
 import { getWorkDateSuggestions, getAIWorkDateSuggestions } from '@/lib/utils/work-date-suggestions';
 import type { DateSuggestion } from '@/lib/utils/work-date-suggestions';
 import SmartDateInput from '@/components/ui/SmartDateInput';
+import SmartTagInput from '@/components/ui/SmartTagInput';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -145,11 +146,10 @@ function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                 <button
                     type="button"
                     onClick={() => onChange(currentYear.toString())}
-                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${
-                        value === currentYear.toString()
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
-                    }`}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${value === currentYear.toString()
+                        ? 'bg-primary text-white shadow-md'
+                        : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
+                        }`}
                 >
                     🎓 حتى الآن (لا أزال طالباً)
                 </button>
@@ -161,11 +161,10 @@ function YearInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                         key={i}
                         type="button"
                         onClick={() => onChange(s.year.toString())}
-                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-                            value === s.year.toString()
-                                ? 'bg-primary/10 border-primary text-primary font-bold'
-                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
-                        }`}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${value === s.year.toString()
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                            }`}
                     >
                         {s.label}
                     </button>
@@ -241,11 +240,10 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                 <button
                     type="button"
                     onClick={() => onChange('حتى الآن')}
-                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${
-                        value === 'حتى الآن'
-                            ? 'bg-primary text-white shadow-md'
-                            : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
-                    }`}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${value === 'حتى الآن'
+                        ? 'bg-primary text-white shadow-md'
+                        : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
+                        }`}
                 >
                     🔄 حتى الآن (لا أزال أعمل هنا)
                 </button>
@@ -259,11 +257,10 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                         key={i}
                         type="button"
                         onClick={() => onChange(s.date)}
-                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-                            value === s.date
-                                ? 'bg-primary/10 border-primary text-primary font-bold'
-                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
-                        }`}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${value === s.date
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                            }`}
                     >
                         {s.label}
                     </button>
@@ -275,9 +272,17 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
 
 export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: StepProps) {
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-    const [response, setResponse] = useState<string>('');
+    const [response, _setResponse] = useState<string>('');
+    const responseRef = useRef<string>('');
+    const setResponse = useCallback((val: string) => {
+        responseRef.current = val;
+        _setResponse(val);
+    }, []);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+
+    // Tags state for skills/hobbies
+    const [tagsState, setTagsState] = useState<string[]>([]);
 
     // Email-specific state
     const [emailUsername, setEmailUsername] = useState<string>('');
@@ -407,6 +412,10 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     // POPULATE RESPONSE — fill input with stored value
     // ═══════════════════════════════════════════════════════════════
     const populateResponse = useCallback((field: string, entryIndex: number | undefined, d: CVData) => {
+        // Reset tags state for non-tags fields
+        if (field !== 'skills' && field !== 'hobbies_text') {
+            setTagsState([]);
+        }
         // Personal fields
         if (field === 'birthDate') {
             const v = d.personal.birthDate;
@@ -472,12 +481,15 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         }
         // Skills
         else if (field === 'skills') {
-            setResponse(d.skills?.join('، ') || '');
+            const existingSkills = d.skills || [];
+            setTagsState(existingSkills);
+            setResponse(existingSkills.join('، ') || '');
         }
         // Hobbies
         else if (field === 'hobbies_text') {
-            const h = d.hobbies?.filter(h => h !== '__pending__');
-            setResponse(h?.join('، ') || '');
+            const h = d.hobbies?.filter(h => h !== '__pending__') || [];
+            setTagsState(h);
+            setResponse(h.join('، ') || '');
         }
         // yes/no fields — check stored answer
         else if (field === 'education_has') {
@@ -719,6 +731,8 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     const handleAnswer = async () => {
         if (!currentQuestion) return;
 
+        // ✅ استخدام responseRef لضمان قراءة آخر قيمة (مهم لـ SmartDateInput الذي يستخدم setTimeout)
+        const response = responseRef.current;
         const field = currentQuestion.field;
         const idx = activeEntryIndex !== null ? activeEntryIndex : 0;
 
@@ -870,7 +884,8 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
         // ═══ SKILLS & HOBBIES ═══
         else if (field === 'skills') {
-            updatedData.skills = response.split(/[،,]+/).map(s => s.trim()).filter(s => s);
+            // tags mode: tagsState is already an array
+            updatedData.skills = tagsState.length > 0 ? tagsState : response.split(/[،,]+/).map(s => s.trim()).filter(s => s);
         }
         else if (field === 'hobbies_has') {
             if (response === 'yes') {
@@ -881,7 +896,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             }
         }
         else if (field === 'hobbies_text') {
-            updatedData.hobbies = response.split(/[،,]+/).map(s => s.trim()).filter(s => s);
+            updatedData.hobbies = tagsState.length > 0 ? tagsState : response.split(/[،,]+/).map(s => s.trim()).filter(s => s);
             updatedData._completedHobbies = true;
         }
 
@@ -982,13 +997,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
         if ((field === 'education_more' || field === 'experience_more' || field === 'languages_more') && response === 'yes') {
             const sectionPrefix = field.replace('_more', '_');
             const newEntryIndex = sectionPrefix === 'education_' ? mergedData.education.length - 1 :
-                                  sectionPrefix === 'experience_' ? mergedData.experience.length - 1 :
-                                  mergedData.languages.length - 1;
-            
+                sectionPrefix === 'experience_' ? mergedData.experience.length - 1 :
+                    mergedData.languages.length - 1;
+
             const newEntryStartIndex = newSeq.findIndex(item =>
                 item.entryIndex === newEntryIndex && item.field.startsWith(sectionPrefix)
             );
-            
+
             if (newEntryStartIndex >= 0) {
                 setCursorIndex(newEntryStartIndex);
                 showQuestionAtCursor(newSeq, newEntryStartIndex, mergedData);
@@ -1074,7 +1089,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                 >
                     ← العودة لتعديل البيانات
                 </button>
-                <button 
+                <button
                     onClick={async () => {
                         setIsGenerating(true);
                         try {
@@ -1087,7 +1102,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             setIsGenerating(false);
                             onNext({});
                         }
-                    }} 
+                    }}
                     disabled={isGenerating}
                     className="bg-primary text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all disabled:opacity-70 disabled:cursor-wait"
                 >
@@ -1209,11 +1224,10 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 <button
                                     type="button"
                                     onClick={() => setResponse('__unknown__')}
-                                    className={`w-full mt-3 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
-                                        response === '__unknown__'
-                                            ? 'bg-primary text-white shadow-md'
-                                            : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
-                                    }`}
+                                    className={`w-full mt-3 py-3 px-4 rounded-xl font-bold text-sm transition-all ${response === '__unknown__'
+                                        ? 'bg-primary text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
+                                        }`}
                                 >
                                     🤔 لا أعلم (سيتم اقتراح مسمى وظيفي مناسب لاحقاً)
                                 </button>
@@ -1251,6 +1265,25 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             minYear={1950}
                             maxYear={new Date().getFullYear() - 10}
                             label="تاريخ الميلاد"
+                        />
+                    )}
+
+                    {currentQuestion.type === 'tags' && (
+                        <SmartTagInput
+                            tags={tagsState}
+                            onChange={(newTags) => {
+                                setTagsState(newTags);
+                                setResponse(newTags.join('، '));
+                            }}
+                            onSubmit={handleAnswer}
+                            fieldType={currentQuestion.field === 'hobbies_text' ? 'hobbies' : 'skills'}
+                            placeholder={currentQuestion.field === 'hobbies_text' ? 'ابحث عن هواياتك...' : 'ابحث عن مهاراتك...'}
+                            context={{
+                                major: data.education?.[0]?.major,
+                                targetJobTitle: data.personal.targetJobTitle,
+                                education: data.education,
+                                experience: data.experience,
+                            }}
                         />
                     )}
 

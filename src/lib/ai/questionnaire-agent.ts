@@ -252,8 +252,8 @@ class QuestionnaireAgent {
             return {
                 id: 'skills',
                 field: 'skills',
-                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل',
-                type: 'textarea'
+                text: 'ما هي أهم المهارات التي تتقنها؟',
+                type: 'tags'
             };
         }
 
@@ -487,8 +487,8 @@ class QuestionnaireAgent {
         if (field === 'skills') {
             return {
                 id: 'skills', field: 'skills',
-                text: 'ما هي أهم المهارات التي تتقنها؟ اكتبها مفصولة بفواصل',
-                type: 'textarea'
+                text: 'ما هي أهم المهارات التي تتقنها؟',
+                type: 'tags'
             };
         }
 
@@ -532,8 +532,8 @@ class QuestionnaireAgent {
         if (field === 'hobbies_text') {
             return {
                 id: 'hobbiesText', field: 'hobbies_text',
-                text: 'اكتب هواياتك واهتماماتك مفصولة بفواصل',
-                type: 'textarea'
+                text: 'أضف هواياتك واهتماماتك',
+                type: 'tags'
             };
         }
 

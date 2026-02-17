@@ -90,7 +90,7 @@ export default function SmartDateInput({
                 for (let y = minYear; y <= maxYear; y++) {
                     const lastTwo = y % 100;
                     const firstTwo = Math.floor(y / 100);
-                    if (lastTwo === twoDigits || firstTwo === twoDigits || 
+                    if (lastTwo === twoDigits || firstTwo === twoDigits ||
                         lastTwo.toString().startsWith(input) || firstTwo.toString() === input) {
                         matching.push(y);
                     }
@@ -157,7 +157,8 @@ export default function SmartDateInput({
         setSelectedDay(dayStr);
         const fullDate = `${selectedYear}/${selectedMonth}/${dayStr}`;
         onChange(fullDate);
-        setTimeout(() => onSubmit(), 100);
+        // ✅ تأخير أطول لضمان تحديث React state قبل استدعاء handleAnswer
+        setTimeout(() => onSubmit(), 300);
     };
 
     const handleDayKeyDown = (e: React.KeyboardEvent, day: number) => {
@@ -216,11 +217,10 @@ export default function SmartDateInput({
                             <button
                                 key={year}
                                 onClick={() => handleYearSelect(year)}
-                                className={`p-3 rounded-xl text-sm font-bold transition-all ${
-                                    selectedYear === year.toString()
+                                className={`p-3 rounded-xl text-sm font-bold transition-all ${selectedYear === year.toString()
                                         ? 'bg-primary text-white shadow-md'
                                         : 'bg-gray-50 border-2 border-gray-100 text-gray-700 hover:border-primary/50 hover:bg-primary/5'
-                                }`}
+                                    }`}
                             >
                                 {getYearLabel(year)}
                             </button>
@@ -247,11 +247,10 @@ export default function SmartDateInput({
                                 <button
                                     key={idx}
                                     onClick={() => handleMonthSelect(monthNum)}
-                                    className={`p-3 rounded-xl text-sm font-bold transition-all ${
-                                        selectedMonth === monthNum
+                                    className={`p-3 rounded-xl text-sm font-bold transition-all ${selectedMonth === monthNum
                                             ? 'bg-primary text-white shadow-md'
                                             : 'bg-gray-50 border-2 border-gray-100 text-gray-700 hover:border-primary/50 hover:bg-primary/5'
-                                    }`}
+                                        }`}
                                 >
                                     {month}
                                     <span className="block text-xs text-gray-400 mt-1">{monthNum}</span>
@@ -276,11 +275,10 @@ export default function SmartDateInput({
                                 key={day}
                                 onClick={() => handleDaySelect(day)}
                                 onKeyDown={(e) => handleDayKeyDown(e, day)}
-                                className={`p-2 rounded-lg text-sm font-bold transition-all ${
-                                    selectedDay === day.toString().padStart(2, '0')
+                                className={`p-2 rounded-lg text-sm font-bold transition-all ${selectedDay === day.toString().padStart(2, '0')
                                         ? 'bg-primary text-white shadow-md'
                                         : 'bg-gray-50 border border-gray-100 text-gray-700 hover:border-primary/50 hover:bg-primary/5'
-                                }`}
+                                    }`}
                             >
                                 {day}
                             </button>
