@@ -131,17 +131,16 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     useEffect(() => {
         const analyzed = sessionStorage.getItem('cv_analysis_done');
         if (analyzed === 'true' || analysisDone) return;
+        setAnalysisDone(true);
+        sessionStorage.setItem('cv_analysis_done', 'true');
         
         const analyzeCV = async () => {
             setIsAnalyzing(true);
             try {
                 const enhancedData = await generateProfessionalCV(data);
                 onUpdate(enhancedData);
-                setAnalysisDone(true);
-                sessionStorage.setItem('cv_analysis_done', 'true');
             } catch (error) {
                 console.error('Auto-analysis failed:', error);
-                setAnalysisDone(true);
             } finally {
                 setIsAnalyzing(false);
             }
@@ -472,7 +471,6 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     };
 
     const handlePaymentConfirm = async () => {
-        // Check if proof is required (only for mandatory payment type)
         if (paymentSettings.paymentType === 'mandatory' && !paymentProof) {
             setShowProofRequired(true);
             return;
@@ -481,7 +479,6 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         setIsProcessingPayment(true);
         setPaymentStatus('📤 جاري رفع إثبات الدفع...');
 
-        // Upload the proof image
         const proofUrl = await uploadProofImage();
 
         if (!proofUrl && uploadStatus === 'error') {
@@ -491,89 +488,51 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         }
 
         setPaymentStatus('✅ تم رفع إثبات الدفع بنجاح!');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Trigger AI to generate professional CV - Show progress indicator
-        setShowProgress(true);
-
-        try {
-            const enhancedData = await generateProfessionalCV(data);
-            setShowProgress(false);
-            setPaymentStatus('✨ تم إنشاء السيرة الذاتية الاحترافية بنجاح!');
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // Update data with payment completed
-            onUpdate({
-                ...enhancedData,
-                metadata: {
-                    ...data.metadata,
-                    paymentStatus: 'completed',
-                    paymentProofUrl: proofUrl || undefined
-                }
-            });
-
-            // Now perform the export
-            if (selectedExportOption) {
-                await performExport(selectedExportOption);
+        onUpdate({
+            metadata: {
+                ...data.metadata,
+                paymentStatus: 'completed',
+                paymentProofUrl: proofUrl || undefined
             }
-        } catch (error) {
-            console.error("AI Enhancement failed:", error);
-            setShowProgress(false);
-            setPaymentStatus('⚠️ تعذّر تحسين السيرة الذاتية، سننتقل للنسخة الأساسية...');
-            await new Promise(resolve => setTimeout(resolve, 1500));
+        });
 
-            // Update payment status and proceed
-            onUpdate({
-                metadata: {
-                    ...data.metadata,
-                    paymentStatus: 'completed',
-                    paymentProofUrl: proofUrl || undefined
-                }
-            });
-
-            if (selectedExportOption) {
-                await performExport(selectedExportOption);
-            }
-        } finally {
-            setIsProcessingPayment(false);
+        if (selectedExportOption) {
+            await performExport(selectedExportOption);
         }
+
+        setIsProcessingPayment(false);
+        setShowPaymentModal(false);
+
+        generateProfessionalCV(data).then(enhancedData => {
+            onUpdate(enhancedData);
+        }).catch(error => {
+            console.error("AI Enhancement failed:", error);
+        });
     };
 
     const handleSkipPayment = async () => {
-        // Only allow skip for donation type
         if (paymentSettings.paymentType !== 'donation') return;
 
-        setShowProgress(true);
-        try {
-            const enhancedData = await generateProfessionalCV(data);
-            setShowProgress(false);
-
-            onUpdate({
-                ...enhancedData,
-                metadata: {
-                    ...data.metadata,
-                    paymentStatus: 'completed',
-                }
-            });
-
-            if (selectedExportOption) {
-                await performExport(selectedExportOption);
+        onUpdate({
+            metadata: {
+                ...data.metadata,
+                paymentStatus: 'completed',
             }
-        } catch (error) {
-            console.error("AI Enhancement failed:", error);
-            setShowProgress(false);
-            onUpdate({
-                metadata: {
-                    ...data.metadata,
-                    paymentStatus: 'completed',
-                }
-            });
+        });
 
-            if (selectedExportOption) {
-                await performExport(selectedExportOption);
-            }
+        if (selectedExportOption) {
+            await performExport(selectedExportOption);
         }
+
+        setShowPaymentModal(false);
+
+        generateProfessionalCV(data).then(enhancedData => {
+            onUpdate(enhancedData);
+        }).catch(error => {
+            console.error("AI Enhancement failed:", error);
+        });
     };
 
     return (
