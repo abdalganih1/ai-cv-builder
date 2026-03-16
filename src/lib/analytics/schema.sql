@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS payment_settings (
   amount INTEGER DEFAULT 500,
   currency TEXT DEFAULT 'ل.س',
   payment_type TEXT DEFAULT 'mandatory' CHECK (payment_type IN ('mandatory', 'donation', 'disabled')),
+  price_usd REAL DEFAULT 5,
+  price_syp INTEGER DEFAULT 50000,
+  payment_language TEXT DEFAULT 'both' CHECK (payment_language IN ('both', 'ar', 'en')),
+  default_payment_image INTEGER DEFAULT 1,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

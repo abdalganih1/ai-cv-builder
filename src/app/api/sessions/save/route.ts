@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import { AnalyticsStorage } from '@/lib/analytics/storage';
 import type { Session } from '@/lib/analytics/types';
 
@@ -39,9 +40,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // الحصول على Storage adapter
-        // @ts-expect-error - D1 binding from Cloudflare
-        const db = request.cf?.env?.DB;
+        // الحصول على Storage adapter عبر getRequestContext
+        let db: any = undefined;
+        try {
+            const { env } = getRequestContext();
+            db = env.ANALYTICS_DB || undefined;
+        } catch {
+            console.log('[Save] No Cloudflare context available');
+        }
         const storage = new AnalyticsStorage(db);
 
         // حفظ البيانات

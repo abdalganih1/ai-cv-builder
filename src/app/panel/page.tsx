@@ -142,30 +142,78 @@ function SettingsTab() {
     const [paymentLanguage, setPaymentLanguage] = useState<'both' | 'ar' | 'en'>('both');
     const [defaultPaymentImage, setDefaultPaymentImage] = useState(true);
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [loadingSettings, setLoadingSettings] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('cv_payment_settings');
-        if (saved) {
-            const p = JSON.parse(saved);
-            setType(p.paymentType || 'donation');
-            setPriceUsd(p.priceUsd || 5);
-            setPriceSyp(p.priceSyp || 50000);
-            setPaymentLanguage(p.paymentLanguage || 'both');
-            setDefaultPaymentImage(p.defaultPaymentImage !== false);
-        }
+        // تحميل من API أولاً (D1)، ثم localStorage كـ fallback
+        fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const s = data.data;
+                    setType(s.paymentType || 'donation');
+                    setPriceUsd(s.priceUsd ?? 5);
+                    setPriceSyp(s.priceSyp ?? 50000);
+                    setPaymentLanguage(s.paymentLanguage || 'both');
+                    setDefaultPaymentImage(s.defaultPaymentImage !== false);
+                }
+            })
+            .catch(() => {
+                // Fallback: تحميل من localStorage
+                const localSaved = localStorage.getItem('cv_payment_settings');
+                if (localSaved) {
+                    const p = JSON.parse(localSaved);
+                    setType(p.paymentType || 'donation');
+                    setPriceUsd(p.priceUsd || 5);
+                    setPriceSyp(p.priceSyp || 50000);
+                    setPaymentLanguage(p.paymentLanguage || 'both');
+                    setDefaultPaymentImage(p.defaultPaymentImage !== false);
+                }
+            })
+            .finally(() => setLoadingSettings(false));
     }, []);
 
-    const handleSave = () => {
-        localStorage.setItem('cv_payment_settings', JSON.stringify({ 
-            paymentType: type, 
+    const handleSave = async () => {
+        setSaving(true);
+        const settings = {
+            paymentType: type,
             priceUsd,
             priceSyp,
             paymentLanguage,
-            defaultPaymentImage
-        }));
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+            defaultPaymentImage,
+        };
+
+        // حفظ في localStorage كـ cache دائماً
+        localStorage.setItem('cv_payment_settings', JSON.stringify(settings));
+
+        // حفظ في D1
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2000);
+            }
+        } catch {
+            // حتى لو فشل D1، localStorage تم الحفظ فيه
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        }
+        setSaving(false);
     };
+
+    if (loadingSettings) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-blue-500 rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-md mx-auto space-y-4">
@@ -215,11 +263,12 @@ function SettingsTab() {
                     <label htmlFor="defaultImage" className="text-gray-300">استخدام صورة الدفع الافتراضية</label>
                 </div>
 
-                <button onClick={handleSave}
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold">
-                    {saved ? '✅ تم الحفظ' : 'حفظ'}
+                <button onClick={handleSave} disabled={saving}
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded font-bold">
+                    {saving ? '⏳ جاري الحفظ...' : saved ? '✅ تم الحفظ' : 'حفظ'}
                 </button>
             </div>
         </div>
     );
 }
+

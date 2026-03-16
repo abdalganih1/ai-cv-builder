@@ -587,7 +587,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
 
             <style jsx>{`
                 .ai-suggest-container {
-                    margin-top: 12px;
+                    margin-bottom: 12px;
                     direction: rtl;
                 }
                 .ai-suggest-label {

@@ -58,9 +58,20 @@ async function sendTelegramPhoto(params: {
 📅 *الوقت:* ${new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Damascus' })}
 `.trim();
 
+        // تحويل base64 إلى Blob
+        const base64Data = params.base64Image.includes(',')
+            ? params.base64Image.split(',')[1]
+            : params.base64Image;
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: params.mimeType });
+
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_CHAT_ID);
-        formData.append('photo', params.base64Image);
+        formData.append('photo', blob, 'payment_proof.jpg');
         formData.append('caption', caption);
         formData.append('parse_mode', 'Markdown');
 

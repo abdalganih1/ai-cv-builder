@@ -13,6 +13,7 @@ import { getWorkDateSuggestions, getAIWorkDateSuggestions } from '@/lib/utils/wo
 import type { DateSuggestion } from '@/lib/utils/work-date-suggestions';
 import SmartDateInput from '@/components/ui/SmartDateInput';
 import SmartTagInput from '@/components/ui/SmartTagInput';
+import ImageCropper from '@/components/preview/ImageCropper';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -678,17 +679,25 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     }, [sequence, data, getSectionStatus, showQuestionAtCursor]);
 
     // ═══════════════════════════════════════════════════════════════
-    // FILE UPLOAD HANDLER
+    // FILE UPLOAD HANDLER - فتح أداة القص بدل الحفظ المباشر
     // ═══════════════════════════════════════════════════════════════
+    const [pendingCropImage, setPendingCropImage] = useState<string | null>(null);
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onloadend = () => {
-                setResponse(reader.result as string);
+                // فتح أداة القص بدل الحفظ المباشر
+                setPendingCropImage(reader.result as string);
             };
             reader.readAsDataURL(file);
         }
+    };
+
+    const handleCropComplete = (croppedImageUrl: string) => {
+        setResponse(croppedImageUrl);
+        setPendingCropImage(null);
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -1362,6 +1371,15 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 </div>
                             )}
                         </div>
+                    )}
+
+                    {/* أداة قص الصورة الشخصية */}
+                    {pendingCropImage && (
+                        <ImageCropper
+                            imageUrl={pendingCropImage}
+                            onCropComplete={handleCropComplete}
+                            onCancel={() => setPendingCropImage(null)}
+                        />
                     )}
 
                     {currentQuestion.type === 'email' && (
