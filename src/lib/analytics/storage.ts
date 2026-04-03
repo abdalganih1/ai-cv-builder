@@ -77,6 +77,7 @@ export class AnalyticsStorage {
                     updates.push('profile_photo = ?');
                     values.push(data.profilePhoto);
                 } else {
+                    console.warn(`[Storage] profilePhoto too large (${(data.profilePhoto.length / 1024).toFixed(0)}KB) for session ${sessionId}, storing placeholder`);
                     updates.push('profile_photo = ?');
                     values.push('__too_large_for_db__');
                 }
@@ -87,6 +88,7 @@ export class AnalyticsStorage {
                 if (data.paymentProofUrl.length < 500 * 1024) {
                     values.push(data.paymentProofUrl);
                 } else {
+                    console.warn(`[Storage] paymentProofUrl too large (${(data.paymentProofUrl.length / 1024).toFixed(0)}KB) for session ${sessionId}, storing placeholder`);
                     values.push('https://via.placeholder.com/300x400?text=Image+Saved+In+Telegram');
                 }
                 updates.push('payment_status = ?');
@@ -99,6 +101,7 @@ export class AnalyticsStorage {
                 if (data.paymentProofData.length < 500 * 1024) {
                     values.push(data.paymentProofData);
                 } else {
+                    console.warn(`[Storage] paymentProofData too large (${(data.paymentProofData.length / 1024).toFixed(0)}KB) for session ${sessionId}, storing placeholder`);
                     values.push('__too_large_for_db__');
                 }
             }

@@ -94,7 +94,7 @@ async function sendTelegramCVNotification(data: CVNotifyRequest): Promise<void> 
         message += `🔑 *الجلسة:* \`${data.sessionId || 'غير محدد'}\`\n`;
         message += `📅 *الوقت:* ${new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Damascus' })}\n`;
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -103,6 +103,10 @@ async function sendTelegramCVNotification(data: CVNotifyRequest): Promise<void> 
                 parse_mode: 'Markdown',
             }),
         });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error('[Telegram CV] API Error:', response.status, errorBody);
+        }
     } catch (error) {
         console.error('[Telegram CV] Failed to send notification:', error);
     }

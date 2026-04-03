@@ -27,7 +27,7 @@ async function sendTelegramNotification(params: {
 📅 *الوقت:* ${new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Damascus' })}
 `.trim();
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -36,6 +36,10 @@ async function sendTelegramNotification(params: {
                 parse_mode: 'Markdown',
             }),
         });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error('[Telegram] sendMessage Error:', response.status, errorBody);
+        }
     } catch (error) {
         console.error('[Telegram] Failed to send notification:', error);
     }
@@ -75,10 +79,14 @@ async function sendTelegramPhoto(params: {
         formData.append('caption', caption);
         formData.append('parse_mode', 'Markdown');
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
             method: 'POST',
             body: formData,
         });
+        if (!photoResponse.ok) {
+            const errorBody = await photoResponse.text();
+            console.error('[Telegram] sendPhoto Error:', photoResponse.status, errorBody);
+        }
     } catch (error) {
         console.error('[Telegram] Failed to send photo:', error);
     }

@@ -24,12 +24,20 @@ function getCFInfo(request: NextRequest): CFRequestInfo {
     };
 }
 
-// التحقق من صحة نوع الحدث
+// التحقق من صحة نوع الحدث — يجب أن تتطابق مع جميع الأنواع في types.ts
 function isValidEventType(type: string): type is EventType {
     const validTypes: EventType[] = [
+        // أحداث أساسية
         'page_view', 'step_view', 'step_complete', 'form_field_fill',
         'button_click', 'file_upload', 'pdf_upload', 'payment_proof_upload',
-        'tab_visible', 'tab_hidden', 'page_exit', 'session_start', 'session_end', 'error'
+        'tab_visible', 'tab_hidden', 'page_exit', 'session_start', 'session_end', 'error',
+        // أحداث الوضع المتقدم (المصادر + التحليل)
+        'advanced_mode_start', 'source_added', 'source_removed', 'source_type_changed',
+        'analysis_started', 'analysis_completed', 'analysis_failed',
+        // أحداث الدردشة والتعديل
+        'chat_message_sent', 'chat_response_received', 'cv_edit_applied',
+        // أخطاء API
+        'api_error',
     ];
     return validTypes.includes(type as EventType);
 }
