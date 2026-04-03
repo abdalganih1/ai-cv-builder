@@ -4,6 +4,37 @@
 
 ---
 
+## 📋 تقرير 2026-03-16: إصلاح تخزين D1 + إشعارات Telegram + أداة قص الصورة + تحسينات UI
+
+### المشكلة
+1. **D1 binding خاطئ في sessions/save** - يستخدم `request.cf?.env?.DB` الذي لا يعمل مع Cloudflare Pages
+2. **إعدادات الدفع في localStorage فقط** - كل مستخدم يرى إعداداته الخاصة
+3. **لا يوجد API لحفظ الإعدادات** - settings API يدعم GET فقط
+4. **لا يتم إرسال CV data لـ Telegram عند التوليد** - فقط إثبات الدفع يُرسل
+5. **أداة قص الصورة غائبة** عن خطوة الأسئلة (موجودة فقط في CVPreview)
+6. **الاقتراحات تحت مربع النص** بدلاً من أعلاه
+7. **Telegram Photo يرسل base64 URL وليس binary**
+
+### الحل المطبق
+| الملف | التعديل |
+|-------|---------|
+| `api/sessions/save/route.ts` | إصلاح D1 binding: `getRequestContext().env.ANALYTICS_DB` |
+| `api/settings/route.ts` | إضافة PUT method لحفظ الإعدادات في D1 + حقول جديدة |
+| `api/notify-cv/route.ts` | **[NEW]** إرسال ملخص CV لـ Telegram عند التصدير |
+| `panel/page.tsx` | حفظ الإعدادات في D1 أولاً مع localStorage fallback |
+| `CVPreview.tsx` | ربط تصدير PDF بإشعار Telegram + أولوية D1 في الإعدادات |
+| `QuestionnaireStep.tsx` | إضافة ImageCropper عند اختيار الصورة الشخصية |
+| `AISuggestButton.tsx` | نقل الاقتراحات فوق مربع النص |
+| `upload-proof/route.ts` | إصلاح إرسال الصورة كـ binary blob |
+| `schema.sql` | إضافة أعمدة: price_usd, price_syp, payment_language, default_payment_image |
+
+### النتيجة
+- ✅ البناء نجح (`npm run build` - exit code 0)
+- ✅ النشر نجح (`git push origin main`) - commit `7fa11c9`
+- 9 ملفات، 384 إضافة، 63 حذف
+
+---
+
 ## 🐛 مشكلة معلقة: مكون إدخال تاريخ الميلاد الذكي لا يظهر
 
 ### 📋 المشكلة
@@ -1530,3 +1561,17 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 - [`src/components/wizard/QuestionnaireStep.tsx`](src/components/wizard/QuestionnaireStep.tsx)
 
 ---
+
+### 2026-04-03: تقرير حل مشاكل التتبع والتلغرام والدفع
+
+#### ��� المشكلة الرابعة: لا يتم إرسال الإشعارات للتلغرام
+**السبب:** في بيئة Edge (التي يستخدمها Cloudflare)، العمليات الدنيوية (Promises) التي لا يتم انتظارها باستخدام `await` يتم إلغاؤها فور إرسال رد `NextResponse.json`. الكود كان يستخدم `.catch()` بدون `await`، فكان السيرفر يغلق الطلب قبل إتمام إرسال طلب التلغرام.
+**الحل المطبق:** تمت إضافة `await` لكافة دوال الإرسال للتلغرام في `notify-cv/route.ts` و `upload-proof/route.ts`. 
+
+#### ��� المشكلة الخامسة: فشل تخزين التحليلات وحالة الدفع في لوحة التحكم
+**السبب:**
+1. حجم الحمولة: قاعدة بيانات Cloudflare D1 تحد من حجم الاستعلام بـ 1MB الافتراضي. إذا كانت الصورة الشخصية (`profilePhoto`) أو إيصال الدفع كبيرين، تفشل عملية `UPDATE` مع DB.
+2. عدم تحديث مخطط DB (Schema): من الممكن أن الأعمدة الجديدة مثل `price_usd` في `payment_settings` أو `cv_data` في `sessions` لم يتم تهيئتها بنجاح في قاعدة البيانات الحقيقية.
+**الحل المطبق:**
+1. تم تقليم (Truncate) السلاسل النصية الطويلة جداً (أكبر من 500 كيلوبايت) عند الحفظ في D1.
+2. تم إنشاء مسار صيانة خلفي خفي للحماية (`/api/admin/db-fix`) ليعمل على إصلاح وإنشاء أي أعمدة ناقصة في قاعدة البيانات.

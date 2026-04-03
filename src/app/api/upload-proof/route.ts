@@ -139,23 +139,29 @@ export async function POST(request: NextRequest) {
 
         const dataUrl = `data:${file.type};base64,${base64}`;
 
-        // Send Telegram notification (non-blocking)
-        sendTelegramNotification({
-            customerName: customerName || '',
-            phone: phone || '',
-            sessionId: sessionId || '',
-            imageSize: uint8Array.length,
-        }).catch(err => console.error('[Telegram] Notification error:', err));
-
-        // Also try to send photo if small enough (< 3MB for Telegram)
-        if (uint8Array.length < 3 * 1024 * 1024) {
-            sendTelegramPhoto({
+        try {
+            await sendTelegramNotification({
                 customerName: customerName || '',
                 phone: phone || '',
                 sessionId: sessionId || '',
-                base64Image: dataUrl,
-                mimeType: file.type,
-            }).catch(err => console.error('[Telegram] Photo error:', err));
+                imageSize: uint8Array.length,
+            });
+        } catch (err) {
+            console.error('[Telegram] Notification error:', err);
+        }
+
+        if (uint8Array.length < 3 * 1024 * 1024) {
+            try {
+                await sendTelegramPhoto({
+                    customerName: customerName || '',
+                    phone: phone || '',
+                    sessionId: sessionId || '',
+                    base64Image: dataUrl,
+                    mimeType: file.type,
+                });
+            } catch (err) {
+                console.error('[Telegram] Photo error:', err);
+            }
         }
 
         if (sessionId) {

@@ -119,10 +119,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // إرسال إشعار Telegram (non-blocking)
-        sendTelegramCVNotification(body).catch(err =>
-            console.error('[Telegram CV] Notification error:', err)
-        );
+        // إرسال إشعار Telegram بشكل متزامن لأن Edge Runtime يلغي العمليات غير المكتملة
+        try {
+            await sendTelegramCVNotification(body);
+        } catch (err) {
+            console.error('[Telegram CV] Notification error:', err);
+        }
 
         // حفظ cvData في D1
         let db: any = undefined;

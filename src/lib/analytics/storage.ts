@@ -72,13 +72,23 @@ export class AnalyticsStorage {
 
             // الصورة الشخصية
             if (data.profilePhoto) {
-                updates.push('profile_photo = ?');
-                values.push(data.profilePhoto);
+                // منع تجاوز حد D1 البالغ 1 ميجابايت للاستعلامات بتجاهل الصور الكبيرة
+                if (data.profilePhoto.length < 500 * 1024) {
+                    updates.push('profile_photo = ?');
+                    values.push(data.profilePhoto);
+                } else {
+                    updates.push('profile_photo = ?');
+                    values.push('__too_large_for_db__');
+                }
             }
 
             if (data.paymentProofUrl) {
                 updates.push('payment_proof_url = ?');
-                values.push(data.paymentProofUrl);
+                if (data.paymentProofUrl.length < 500 * 1024) {
+                    values.push(data.paymentProofUrl);
+                } else {
+                    values.push('https://via.placeholder.com/300x400?text=Image+Saved+In+Telegram');
+                }
                 updates.push('payment_status = ?');
                 values.push('uploaded');
             }
@@ -86,7 +96,11 @@ export class AnalyticsStorage {
             // بيانات إثبات الدفع كـ base64
             if (data.paymentProofData) {
                 updates.push('payment_proof_data = ?');
-                values.push(data.paymentProofData);
+                if (data.paymentProofData.length < 500 * 1024) {
+                    values.push(data.paymentProofData);
+                } else {
+                    values.push('__too_large_for_db__');
+                }
             }
 
             // بيانات الوضع المتقدم
