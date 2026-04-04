@@ -49,6 +49,20 @@ const LABELS = {
 
 const ENGLISH_CV_CACHE_KEY = 'cv_english_translation';
 
+// Generate a lightweight fingerprint of Arabic CV data (without photoUrl)
+function generateDataFingerprint(data: CVData): string {
+    const obj = {
+        firstName: data.personal.firstName,
+        lastName: data.personal.lastName,
+        summary: data.personal.summary,
+        experience: data.experience?.map(e => e.description),
+        education: data.education?.map(e => e.degree + e.institution),
+        skills: data.skills,
+        languages: data.languages?.map(l => l.name + l.level),
+    };
+    return JSON.stringify(obj).split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) & 0xFFFFFF, 0).toString(36);
+}
+
 // Payment settings interface
 interface PaymentSettings {
     qrImageUrl: string;
@@ -84,7 +98,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [showExportModal, setShowExportModal] = useState(false);
     const [pendingCropImage, setPendingCropImage] = useState<string | null>(null);
     const [translationProgress, setTranslationProgress] = useState(0);
-    const [translationTimer, setTranslationTimer] = useState(100);
+    const [translationTimer, setTranslationTimer] = useState(35);
 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(DEFAULT_SETTINGS);
@@ -109,6 +123,27 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     const [isAiEditing, setIsAiEditing] = useState(false);
     const [aiEditSection, setAiEditSection] = useState<string | null>(null);
     const [aiEditPrompt, setAiEditPrompt] = useState('');
+
+    // Header edit fields (separate inputs per field)
+    const [headerEditFields, setHeaderEditFields] = useState<{
+        firstName: string;
+        lastName: string;
+        targetJobTitle: string;
+        email: string;
+        phone: string;
+        country: string;
+        birthDate: string;
+        headerNotes: string;
+    } | null>(null);
+
+    // Experience edit (per-item)
+    const [experienceEditItems, setExperienceEditItems] = useState<typeof data.experience | null>(null);
+
+    // Education edit (per-item)
+    const [educationEditItems, setEducationEditItems] = useState<typeof data.education | null>(null);
+
+    // Languages edit (per-item)
+    const [languageEditItems, setLanguageEditItems] = useState<typeof data.languages | null>(null);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -148,6 +183,28 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         analyzeCV();
     }, []);
 
+    // ✅ NEW: Restore English CV from cache on mount (with fingerprint validation)
+    useEffect(() => {
+        try {
+            const cached = localStorage.getItem(ENGLISH_CV_CACHE_KEY);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                // Check fingerprint to ensure cache matches current Arabic data
+                const currentFingerprint = generateDataFingerprint(data);
+                if (parsed._fingerprint === currentFingerprint && parsed.data) {
+                    setEnglishCV(parsed.data);
+                    console.log('✅ Restored English CV from cache (fingerprint matched)');
+                } else {
+                    console.log('🔄 Cache fingerprint mismatch - clearing stale cache');
+                    localStorage.removeItem(ENGLISH_CV_CACHE_KEY);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to restore English CV from cache:', error);
+            localStorage.removeItem(ENGLISH_CV_CACHE_KEY);
+        }
+    }, []); // Run only once on mount
+
     // Fetch payment settings from API (D1 first, localStorage fallback)
     useEffect(() => {
         async function fetchSettings() {
@@ -184,12 +241,17 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
         fetchSettings();
     }, []);
 
-    // Save English CV to localStorage when it changes
+    // Save English CV to localStorage with fingerprint for validation
     useEffect(() => {
         if (englishCV) {
             try {
-                localStorage.setItem(ENGLISH_CV_CACHE_KEY, JSON.stringify(englishCV));
-                console.log('💾 Saved English CV to localStorage');
+                const fingerprint = generateDataFingerprint(data);
+                localStorage.setItem(ENGLISH_CV_CACHE_KEY, JSON.stringify({
+                    _fingerprint: fingerprint,
+                    data: englishCV,
+                    savedAt: Date.now()
+                }));
+                console.log('💾 Saved English CV to cache with fingerprint:', fingerprint);
             } catch (error) {
                 console.warn('Failed to save English CV to cache:', error);
             }
@@ -271,7 +333,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (isTranslating) {
-            setTranslationTimer(100);
+            setTranslationTimer(35);
             setTranslationProgress(0);
             interval = setInterval(() => {
                 setTranslationTimer(prev => {
@@ -280,11 +342,12 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                 });
                 setTranslationProgress(prev => {
                     if (prev >= 95) return 95;
-                    return prev + 1;
+                    // 95% in ~35 seconds
+                    return Math.min(95, prev + 2.7);
                 });
             }, 1000);
         } else {
-            setTranslationTimer(100);
+            setTranslationTimer(35);
             setTranslationProgress(0);
         }
         return () => clearInterval(interval);
@@ -617,7 +680,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     style={{ width: `${translationProgress}%` }}
                                 />
                             </div>
-                            <p className="text-[10px] text-gray-400 text-center">يقوم الذكاء الاصطناعي بصياغة احترافية (يستغرق 1-2 دقيقة)</p>
+                            <p className="text-[10px] text-gray-400 text-center">جاري الترجمة الاحترافية، يستغرق حتى 35 ثانية...</p>
                         </div>
                     )}
 
@@ -737,9 +800,27 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                         <p className="text-orange-600 text-xs">انتهاء الإقامة: {previewData.personal.residencyExpiry}</p>
                                     )}
                                     {previewData.personal.birthDate && previewData.personal.birthDate !== '__skipped__' && <p>{labels.birthDate}: {previewData.personal.birthDate}</p>}
+                                    {previewData.personal.headerNotes && (
+                                        <p className="text-sky-700 text-xs font-medium mt-1 italic">
+                                            {previewData.personal.headerNotes}
+                                        </p>
+                                    )}
                                 </div>
                                 <button
-                                    onClick={() => { setEditingSection('header'); setManualEditValue(getSectionValue('header', previewData)); setAiEditSection(null); }}
+                                    onClick={() => {
+                                        setHeaderEditFields({
+                                            firstName: previewData.personal.firstName || '',
+                                            lastName: previewData.personal.lastName || '',
+                                            targetJobTitle: previewData.personal.targetJobTitle || previewData.personal.jobTitle || '',
+                                            email: previewData.personal.email && previewData.personal.email !== '__skipped__' ? previewData.personal.email : '',
+                                            phone: previewData.personal.phone && previewData.personal.phone !== '__skipped__' ? previewData.personal.phone : '',
+                                            country: previewData.personal.country && previewData.personal.country !== '__skipped__' ? previewData.personal.country : '',
+                                            birthDate: previewData.personal.birthDate && previewData.personal.birthDate !== '__skipped__' ? previewData.personal.birthDate : '',
+                                            headerNotes: previewData.personal.headerNotes || '',
+                                        });
+                                        setEditingSection('header');
+                                        setAiEditSection(null);
+                                    }}
                                     className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all shrink-0"
                                     title="تعديل الهيدر"
                                 >
@@ -755,7 +836,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <h2 className="text-xl font-bold text-primary">{labels.summary}</h2>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={() => { setManualEditValue(getSectionValue('summary', previewData)); setEditingSection('summary'); setAiEditSection(null); }}
+                                            onClick={() => { setManualEditValue(previewData.personal.summary || ''); setEditingSection('summary'); setAiEditSection(null); }}
                                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                                             title="تعديل يدوي"
                                         >
@@ -807,7 +888,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <h2 className="text-xl font-bold text-primary">{labels.experience}</h2>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={() => { setManualEditValue(getSectionValue('experience', previewData)); setEditingSection('experience'); setAiEditSection(null); }}
+                                            onClick={() => {
+                                            setExperienceEditItems(previewData.experience.map(e => ({...e})));
+                                            setEditingSection('experience');
+                                            setAiEditSection(null);
+                                        }}
                                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                                             title="تعديل يدوي"
                                         >
@@ -870,7 +955,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <h2 className="text-xl font-bold text-primary">{labels.education}</h2>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={() => { setManualEditValue(getSectionValue('education', previewData)); setEditingSection('education'); setAiEditSection(null); }}
+                                            onClick={() => {
+                                            setEducationEditItems(previewData.education.map(e => ({...e})));
+                                            setEditingSection('education');
+                                            setAiEditSection(null);
+                                        }}
                                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                                             title="تعديل يدوي"
                                         >
@@ -930,7 +1019,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <h2 className="text-xl font-bold text-primary">{labels.skills}</h2>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={() => { setManualEditValue(getSectionValue('skills', previewData)); setEditingSection('skills'); setAiEditSection(null); }}
+                                            onClick={() => { setManualEditValue((previewData.skills || []).join('\n')); setEditingSection('skills'); setAiEditSection(null); }}
                                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                                             title="تعديل يدوي"
                                         >
@@ -988,7 +1077,11 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <h2 className="text-xl font-bold text-primary">{labels.languages}</h2>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={() => { setManualEditValue(getSectionValue('languages', previewData)); setEditingSection('languages'); setAiEditSection(null); }}
+                                            onClick={() => {
+                                            setLanguageEditItems(previewData.languages.map(l => ({...l})));
+                                            setEditingSection('languages');
+                                            setAiEditSection(null);
+                                        }}
                                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                                             title="تعديل يدوي"
                                         >
@@ -1336,14 +1429,422 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                 />
             )}
 
-            {/* Section Edit Modal - Direct Manual Edit */}
-            {editingSection && (
+            {/* ✏️ HEADER EDIT MODAL - Separate fields per info */}
+            {editingSection === 'header' && headerEditFields && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingSection(null); setHeaderEditFields(null); }}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-xl font-bold text-gray-900">✏️ تعديل المعلومات الشخصية</h3>
+                            <button onClick={() => { setEditingSection(null); setHeaderEditFields(null); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Row: First Name */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">الاسم الأول</label>
+                                <input
+                                    value={headerEditFields.firstName}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, firstName: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="auto"
+                                />
+                            </div>
+                            {/* Row: Last Name */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">اسم العائلة</label>
+                                <input
+                                    value={headerEditFields.lastName}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, lastName: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="auto"
+                                />
+                            </div>
+                            {/* Row: Job Title */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">المسمى الوظيفي</label>
+                                <input
+                                    value={headerEditFields.targetJobTitle}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, targetJobTitle: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="auto"
+                                />
+                            </div>
+                            {/* Row: Email */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">البريد الإلكتروني</label>
+                                <input
+                                    type="email"
+                                    value={headerEditFields.email}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, email: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="ltr"
+                                />
+                            </div>
+                            {/* Row: Phone */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">الهاتف</label>
+                                <input
+                                    type="tel"
+                                    value={headerEditFields.phone}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, phone: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="ltr"
+                                />
+                            </div>
+                            {/* Row: Country */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">الدولة</label>
+                                <input
+                                    value={headerEditFields.country}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, country: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="auto"
+                                />
+                            </div>
+                            {/* Row: Birth Date */}
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-bold text-gray-500 w-32 shrink-0 text-left">تاريخ الميلاد</label>
+                                <input
+                                    value={headerEditFields.birthDate}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, birthDate: e.target.value } : prev)}
+                                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-primary outline-none text-gray-800"
+                                    dir="ltr"
+                                    placeholder="مثال: 1990-01-15"
+                                />
+                            </div>
+                            {/* Row: Header Notes */}
+                            <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-bold text-indigo-600">📝 ملاحظة في الهيدر</label>
+                                    <span className="text-xs text-gray-400">(تظهر في رأس السيرة دون كلمة &quot;ملاحظة&quot;)</span>
+                                </div>
+                                <input
+                                    value={headerEditFields.headerNotes}
+                                    onChange={e => setHeaderEditFields(prev => prev ? { ...prev, headerNotes: e.target.value } : prev)}
+                                    className="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-500 outline-none text-gray-800 bg-indigo-50/30"
+                                    placeholder="مثال: يوجد إقامة حتى عام 2026"
+                                    dir="auto"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-6">
+                            <button
+                                onClick={() => { setEditingSection(null); setHeaderEditFields(null); }}
+                                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!headerEditFields) return;
+                                    const updatedData: CVData = {
+                                        ...previewData,
+                                        personal: {
+                                            ...previewData.personal,
+                                            firstName: headerEditFields.firstName,
+                                            lastName: headerEditFields.lastName,
+                                            targetJobTitle: headerEditFields.targetJobTitle,
+                                            email: headerEditFields.email || previewData.personal.email,
+                                            phone: headerEditFields.phone || previewData.personal.phone,
+                                            country: headerEditFields.country || previewData.personal.country,
+                                            birthDate: headerEditFields.birthDate || undefined,
+                                            headerNotes: headerEditFields.headerNotes || undefined,
+                                        }
+                                    };
+                                    handleChatUpdate(updatedData);
+                                    setEditingSection(null);
+                                    setHeaderEditFields(null);
+                                }}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
+                            >
+                                💾 حفظ التعديلات
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ✏️ EXPERIENCE EDIT MODAL - Per-item fields */}
+            {editingSection === 'experience' && experienceEditItems && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingSection(null); setExperienceEditItems(null); }}>
+                    <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-xl font-bold text-gray-900">✏️ تعديل الخبرة العملية</h3>
+                            <button onClick={() => { setEditingSection(null); setExperienceEditItems(null); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+                        </div>
+
+                        <div className="space-y-6">
+                            {experienceEditItems.map((exp, idx) => (
+                                <div key={exp.id} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/50">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-gray-400 uppercase">الخبرة {idx + 1}</span>
+                                        <button
+                                            onClick={() => setExperienceEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev)}
+                                            className="text-xs text-red-400 hover:text-red-600"
+                                        >🗑 حذف</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">المنصب</label>
+                                            <input
+                                                value={exp.position}
+                                                onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, position: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="auto"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">الشركة</label>
+                                            <input
+                                                value={exp.company}
+                                                onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, company: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="auto"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">تاريخ البدء</label>
+                                            <input
+                                                value={exp.startDate}
+                                                onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, startDate: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">تاريخ الانتهاء</label>
+                                            <input
+                                                value={exp.endDate}
+                                                onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, endDate: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">الوصف</label>
+                                        <textarea
+                                            value={exp.description}
+                                            onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, description: e.target.value } : item) : prev)}
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none min-h-[80px]"
+                                            dir="auto"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2 mt-6">
+                            <button
+                                onClick={() => { setEditingSection(null); setExperienceEditItems(null); }}
+                                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!experienceEditItems) return;
+                                    const updatedData: CVData = { ...previewData, experience: experienceEditItems };
+                                    handleChatUpdate(updatedData);
+                                    setEditingSection(null);
+                                    setExperienceEditItems(null);
+                                }}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
+                            >
+                                💾 حفظ التعديلات
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ✏️ EDUCATION EDIT MODAL - Per-item fields */}
+            {editingSection === 'education' && educationEditItems && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingSection(null); setEducationEditItems(null); }}>
+                    <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-xl font-bold text-gray-900">✏️ تعديل التعليم</h3>
+                            <button onClick={() => { setEditingSection(null); setEducationEditItems(null); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+                        </div>
+
+                        <div className="space-y-5">
+                            {educationEditItems.map((edu, idx) => (
+                                <div key={edu.id} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/50">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-gray-400 uppercase">الشهادة {idx + 1}</span>
+                                        <button
+                                            onClick={() => setEducationEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev)}
+                                            className="text-xs text-red-400 hover:text-red-600"
+                                        >🗑 حذف</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">الدرجة العلمية</label>
+                                            <input
+                                                value={edu.degree}
+                                                onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, degree: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="auto"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">التخصص</label>
+                                            <input
+                                                value={edu.major || ''}
+                                                onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, major: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="auto"
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">المؤسسة التعليمية</label>
+                                            <input
+                                                value={edu.institution}
+                                                onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, institution: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="auto"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">سنة البدء</label>
+                                            <input
+                                                value={edu.startYear}
+                                                onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, startYear: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">سنة التخرج</label>
+                                            <input
+                                                value={edu.endYear}
+                                                onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, endYear: e.target.value } : item) : prev)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2 mt-6">
+                            <button
+                                onClick={() => { setEditingSection(null); setEducationEditItems(null); }}
+                                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!educationEditItems) return;
+                                    const updatedData: CVData = { ...previewData, education: educationEditItems };
+                                    handleChatUpdate(updatedData);
+                                    setEditingSection(null);
+                                    setEducationEditItems(null);
+                                }}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
+                            >
+                                💾 حفظ التعديلات
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ✏️ LANGUAGES EDIT MODAL - Per-row fields */}
+            {editingSection === 'languages' && languageEditItems && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setEditingSection(null); setLanguageEditItems(null); }}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-xl font-bold text-gray-900">✏️ تعديل اللغات</h3>
+                            <button onClick={() => { setEditingSection(null); setLanguageEditItems(null); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">✕</button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs font-bold text-gray-400 px-1">
+                                <span>اللغة</span>
+                                <span>المستوى</span>
+                                <span></span>
+                            </div>
+                            {languageEditItems.map((lang, idx) => (
+                                <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                                    <input
+                                        value={lang.name}
+                                        onChange={e => setLanguageEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, name: e.target.value } : item) : prev)}
+                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                        dir="auto"
+                                        placeholder="مثال: العربية"
+                                    />
+                                    <select
+                                        value={lang.level}
+                                        onChange={e => setLanguageEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, level: e.target.value } : item) : prev)}
+                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none bg-white"
+                                    >
+                                        <option value="لغة أم">لغة أم</option>
+                                        <option value="ممتاز">ممتاز</option>
+                                        <option value="جيد جداً">جيد جداً</option>
+                                        <option value="جيد">جيد</option>
+                                        <option value="متوسط">متوسط</option>
+                                        <option value="مبتدئ">مبتدئ</option>
+                                        <option value="Native">Native</option>
+                                        <option value="Fluent">Fluent</option>
+                                        <option value="Advanced">Advanced</option>
+                                        <option value="Intermediate">Intermediate</option>
+                                        <option value="Basic">Basic</option>
+                                    </select>
+                                    <button
+                                        onClick={() => setLanguageEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev)}
+                                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                    >✕</button>
+                                </div>
+                            ))}
+                            <button
+                                onClick={() => setLanguageEditItems(prev => prev ? [...prev, { name: '', level: 'متوسط' }] : [{ name: '', level: 'متوسط' }])}
+                                className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-primary hover:text-primary transition-all"
+                            >
+                                + إضافة لغة
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2 mt-6">
+                            <button
+                                onClick={() => { setEditingSection(null); setLanguageEditItems(null); }}
+                                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!languageEditItems) return;
+                                    const validLangs = languageEditItems.filter(l => l.name.trim());
+                                    const updatedData: CVData = { ...previewData, languages: validLangs };
+                                    handleChatUpdate(updatedData);
+                                    setEditingSection(null);
+                                    setLanguageEditItems(null);
+                                }}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
+                            >
+                                💾 حفظ التعديلات
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ✏️ SKILLS / SUMMARY / OTHER SECTION EDIT MODAL */}
+            {editingSection && !['header', 'experience', 'education', 'languages'].includes(editingSection) && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingSection(null)}>
                     <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xl font-bold text-gray-900">✏️ تعديل {LABELS.ar[editingSection as keyof typeof LABELS.ar] || editingSection}</h3>
                             <button onClick={() => setEditingSection(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
+
+                        {editingSection === 'skills' && (
+                            <p className="text-xs text-gray-400 mb-3">💡 اكتب كل مهارة في سطر منفصل أو افصل بينها بفاصلة</p>
+                        )}
                         
                         <div className="space-y-3">
                             <textarea
@@ -1365,9 +1866,9 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                         applyManualEdit(editingSection, manualEditValue, previewData, handleChatUpdate, activeLanguage);
                                         setEditingSection(null);
                                     }}
-                                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark"
+                                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
                                 >
-                                    حفظ التعديل
+                                    💾 حفظ التعديل
                                 </button>
                             </div>
                         </div>

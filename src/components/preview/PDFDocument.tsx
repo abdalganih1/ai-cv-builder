@@ -362,6 +362,11 @@ function CVPage({ data, language, showLanguageBadge = false }: CVPageProps) {
                     {data.personal.residencyExpiry && (
                         <Text style={styles.contactInfo}>انتهاء الإقامة: {data.personal.residencyExpiry}</Text>
                     )}
+                    {data.personal.headerNotes && (
+                        <Text style={{ ...styles.contactInfo, fontStyle: 'italic', color: '#6b7280', marginTop: 4 }}>
+                            {data.personal.headerNotes}
+                        </Text>
+                    )}
                 </View>
                 {data.personal.photoUrl && data.personal.photoUrl !== '__skipped__' && (
                     // eslint-disable-next-line jsx-a11y/alt-text

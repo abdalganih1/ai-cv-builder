@@ -13,6 +13,7 @@ export interface PersonalInfo {
   residencyStatus?: 'citizen' | 'resident' | 'visitor';
   residencyExpiry?: string;
   nationality?: string;
+  headerNotes?: string; // ملاحظات تظهر في رأس السيرة الذاتية (مثل: يوجد إقامة حتى 2026)
 }
 
 export interface Education {

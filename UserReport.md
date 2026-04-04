@@ -1593,3 +1593,5 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 **الاستخدام:** `https://cv.abdalgani.com/api/admin/db-fix?token=X9kF2mPq7vR4wL8sT3nB6jY0hA5dC1eG`
 
 ---
+
+| 2026-04-04 | تحديث مفاتيح الـ API وإعادة النشر عبر سكريبت النشر إلى GitHub | src/app/api/ai/chat/route.ts |
