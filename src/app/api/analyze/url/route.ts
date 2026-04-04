@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
                 'Authorization': `Bearer ${ZAI_API_KEY}`,
             },
             body: JSON.stringify({
-                model: 'GLM-4.7',
+                model: 'GLM-5-Turbo',
                 messages: [
                     { role: 'system', content: URL_ANALYSIS_PROMPT },
                     {

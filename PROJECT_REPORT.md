@@ -18,9 +18,11 @@
 ## 🎯 نظرة عامة
 
 ### الهدف
+
 تطبيق ويب لإنشاء سير ذاتية احترافية باللغة العربية باستخدام الذكاء الاصطناعي.
 
 ### المزايا الرئيسية
+
 - ✅ استيراد من PDF/نص/URL
 - ✅ معالجة نصوص عربية (RTL)
 - ✅ تصدير PDF احترافي
@@ -28,12 +30,13 @@
 - ✅ واجهة عصرية وجذابة
 
 ### التقنيات المستخدمة
+
 ```
 Frontend: Next.js 15.1.5, React 19, TypeScript
 Styling: Tailwind CSS
 PDF Generation: @react-pdf/renderer
 PDF Parsing: pdfjs-dist
-AI: Z.AI API (GLM-4.7)
+AI: Z.AI API (GLM-5-Turbo)
 Deployment: Cloudflare Pages
 ```
 
@@ -113,8 +116,10 @@ graph LR
 ### 1️⃣ مشكلة استخراج النص من PDF العربي
 
 #### المشكلة الأولى: النص المشوه
+
 **التاريخ:** 2026-02-05  
 **الأعراض:**
+
 ```
 --- DEBUG: Extracted Text Start ---
 ar º∟!Ê♥½B¹×L´»>R♠¿ÝæRÚ¹rhí▼qø¾S÷
@@ -124,38 +129,47 @@ ar º∟!Ê♥½B¹×L´»>R♠¿ÝæRÚ¹rhí▼qø¾S÷
 #### المحاولات المختبرة
 
 ##### ❌ المحاولة 1: استخدام `pdf-parse`
+
 ```typescript
 const pdf = await import('pdf-parse');
 const data = await pdf(Buffer.from(buffer));
 return data.text;
 ```
+
 **النتيجة:** فشل - المكتبة لا تعمل في Edge Runtime (Cloudflare)
 
 ##### ❌ المحاولة 2: Regex البسيط
+
 ```typescript
 const text = pdfBuffer.toString('utf8');
 return text.replace(/[^\x20-\x7E\u0600-\u06FF]/g, '');
 ```
+
 **النتيجة:** فشل - فقدان كبير للمعلومات
 
 ##### ❌ المحاولة 3: خادم Python بـ PyMuPDF
+
 ```python
 import fitz
 doc = fitz.open(stream=pdf_bytes)
 text = "\n\n".join([page.get_text() for page in doc])
 ```
+
 **النتيجة:** نجح محلياً لكن **غير متوافق مع Cloudflare Pages**
 
 ##### ❌ المحاولة 4: pdfjs-dist بدون CMaps
+
 ```typescript
 const doc = await pdfjs.getDocument({
     data: new Uint8Array(buffer),
     useSystemFonts: true
 }).promise;
 ```
+
 **النتيجة:** فشل - نص مشوه (`º∟!Ê♥½B¹×`)
 
 ##### ⚠️ المحاولة 5: pdfjs-dist مع CMaps (جاري الاختبار)
+
 ```typescript
 pdfjs.GlobalWorkerOptions.workerSrc = false; // تعطيل Worker
 const doc = await pdfjs.getDocument({
@@ -164,6 +178,7 @@ const doc = await pdfjs.getDocument({
     useSystemFonts: false
 }).promise;
 ```
+
 **الحالة:** قيد الاختبار - مشكلة Worker ما زالت موجودة
 
 ---
@@ -171,15 +186,18 @@ const doc = await pdfjs.getDocument({
 ### 2️⃣ مشكلة Web Worker في بيئة Node.js
 
 #### الخطأ
+
 ```
 PDF.js parsing error: Setting up fake worker failed
 No "GlobalWorkerOptions.workerSrc" specified
 ```
 
 #### السبب الجذري
+
 `pdfjs-dist` مصمم للمتصفح ويحتاج Web Worker. في بيئة Node.js (Next.js API Routes)، Worker غير متاح.
 
 #### الحلول المجربة
+
 1. ✅ `workerSrc = ''` → فشل (يطلب قيمة فعلية)
 2. ⏳ `workerSrc = false` → قيد الاختبار
 3. ⏳ `useWorkerFetch: false` → قيد الاختبار
@@ -189,6 +207,7 @@ No "GlobalWorkerOptions.workerSrc" specified
 ### 3️⃣ مشكلة الذكاء الاصطناعي يرجع بيانات فارغة
 
 #### المشكلة
+
 ```json
 {
   "personal": {"firstName": "", "lastName": "", ...},
@@ -198,11 +217,13 @@ No "GlobalWorkerOptions.workerSrc" specified
 ```
 
 #### الأسباب المحتملة
+
 1. **نص مشوه:** الـ AI يستقبل رموز بدلاً من نصوص
 2. **قواعد صارمة:** Prompt كان يطلب عدم "تأليف" بيانات، فترك كل شيء فارغاً
 3. **حد الطول:** كان 8000 حرف فقط (قد لا يكفي لـ 5 صفحات)
 
 #### الحلول المطبقة
+
 - ✅ تخفيف قواعد الـ Prompt
 - ✅ زيادة حد الطول من 8000 → 15000 حرف
 - ✅ **حل نهائي:** استخدام Python PyMuPDF عبر `child_process`
@@ -212,9 +233,11 @@ No "GlobalWorkerOptions.workerSrc" specified
 ### 6️⃣ الحل النهائي: PyMuPDF + child_process (2026-02-06)
 
 #### المشكلة
+
 جميع مكتبات JavaScript لاستخراج النص من PDF (pdf-parse, pdfjs-dist) أنتجت نصاً مشوهاً.
 
 #### الحل
+
 إنشاء script Python يستخدم PyMuPDF (fitz) واستدعاؤه من Node.js:
 
 ```bash
@@ -224,12 +247,14 @@ python scripts/pdf_text_extractor.py "cv.pdf"
 ```
 
 #### النتائج
+
 ```
 ✅ PyMuPDF extracted 7832 chars, 5 images
 ✅ Profile image detected!
 ```
 
 #### الملفات المُنشأة
+
 - `scripts/pdf_text_extractor.py` - استخراج النص والصور
 - `scripts/pdf_extractor.py` - أداة اختبار بسيطة
 
@@ -238,7 +263,9 @@ python scripts/pdf_text_extractor.py "cv.pdf"
 ### 7️⃣ مشكلة النشر على Cloudflare (2026-02-06)
 
 #### التحدي
+
 Cloudflare Pages لا يدعم:
+
 - ❌ Python أو أي runtime غير JavaScript
 - ❌ `child_process` (لا shell access)
 - ❌ ملفات كبيرة على الذاكرة
@@ -266,12 +293,14 @@ Cloudflare Pages لا يدعم:
 #### خطأ Stack Overflow (2026-02-06 01:38)
 
 **السبب:**
+
 ```typescript
 // ❌ هذا يسبب stack overflow مع ملفات كبيرة (>1MB)
 const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
 ```
 
 **الإصلاح:**
+
 ```typescript
 // ✅ استخدام Buffer للتحويل الآمن
 if (typeof Buffer !== 'undefined') {
@@ -327,9 +356,11 @@ if (typeof Buffer !== 'undefined') {
 ### 4️⃣ مشكلة توقيت مؤشر التقدم
 
 #### المشكلة
+
 المؤشر كان يكتمل بعد 60 ثانية، لكن الـ API يأخذ حتى 95 ثانية.
 
 #### الحل
+
 ```typescript
 // WelcomeStep.tsx
 <AnalysisProgress estimatedDuration={100} /> // كان 60
@@ -340,6 +371,7 @@ if (typeof Buffer !== 'undefined') {
 ### 5️⃣ مشكلة بناء الكود (Syntax Error)
 
 #### الخطأ
+
 ```
 Parsing ecmascript source code failed
 > 62 | 4. في حقل `summary`، لخص الخبرة والمهارات في فقرة احترافية.
@@ -348,9 +380,11 @@ Expected a semicolon
 ```
 
 #### السبب
+
 استخدام backticks (`) داخل template literal.
 
 #### الحل
+
 ```typescript
 // ❌ قبل
 4. في حقل `summary`، لخص الخبرة...
@@ -366,6 +400,7 @@ Expected a semicolon
 ### قواعد التطوير (من `.gemini/GEMINI.md`)
 
 #### 1. التفكير العميق (Deep Reasoning)
+
 ```
 عندما يكتب المستخدم "فكر"، ادخل في حلقة تفكير متكررة:
 - تحليل الأثر النفسي على المستخدم
@@ -374,6 +409,7 @@ Expected a semicolon
 ```
 
 #### 2. معايير التصميم
+
 ```
 ✅ تصميم "Avant-Garde" (طليعي)
 ✅ تناسق الألوان (HSL منسق)
@@ -383,6 +419,7 @@ Expected a semicolon
 ```
 
 #### 3. الأمان
+
 ```
 ❌ لا تعرض API Keys
 ❌ لا تستخدم eval()
@@ -391,6 +428,7 @@ Expected a semicolon
 ```
 
 #### 4. الأدوات المحلية
+
 ```bash
 # Python Tools في ~/.gemini/antigravity/tools/
 pdf_vision.py analyze <pdf> <output>
@@ -407,12 +445,14 @@ seo_auditor.py <file>
 ### التشغيل المحلي
 
 #### 1️⃣ المتطلبات
+
 ```bash
 Node.js: 24.8.0
 npm: 10.x
 ```
 
 #### 2️⃣ الإعداد
+
 ```bash
 # استنساخ المشروع
 git clone <repo-url>
@@ -428,6 +468,7 @@ cp .env.example .env.local
 ```
 
 #### 3️⃣ التشغيل
+
 ```bash
 # Development
 npm run dev
@@ -443,6 +484,7 @@ npm start
 ### النشر على Cloudflare Pages
 
 #### الإعدادات
+
 ```yaml
 Build command: npm run build
 Build output: .next
@@ -454,12 +496,14 @@ Environment Variables:
 #### خطوات النشر
 
 ##### 1️⃣ عبر Git (تلقائي)
+
 ```bash
 git push origin main
 # Cloudflare يبني ويشغّل تلقائياً
 ```
 
 ##### 2️⃣ عبر Dashboard
+
 1. اذهب إلى Cloudflare Pages
 2. اختر المشروع
 3. Settings → Environment Variables
@@ -467,6 +511,7 @@ git push origin main
 5. Deployments → Retry deployment
 
 #### الدومين
+
 ```
 Production: https://technoenjaz-pdf.pages.dev
 Custom: https://pdf.technoenjaz.com
@@ -477,6 +522,7 @@ Custom: https://pdf.technoenjaz.com
 ## 🧪 التجارب المختبرة
 
 ### تجربة 1: Python Server
+
 **الهدف:** استخراج نص PDF بدقة  
 **الحزم:** FastAPI + PyMuPDF  
 **النتيجة:** ✅ نجح محلياً / ❌ فشل على Cloudflare  
@@ -485,6 +531,7 @@ Custom: https://pdf.technoenjaz.com
 ---
 
 ### تجربة 2: pdf-parse
+
 **الهدف:** مكتبة Node.js بسيطة  
 **النتيجة:** ❌ فشل  
 **السبب:** لا تعمل في Edge Runtime
@@ -492,6 +539,7 @@ Custom: https://pdf.technoenjaz.com
 ---
 
 ### تجربة 3: pdfjs-dist (بدون CMaps)
+
 **الهدف:** استخراج نص في بيئة JavaScript خالصة  
 **النتيجة:** ⚠️ جزئي - استخراج مشوه  
 **السبب:** غياب Character Maps
@@ -499,9 +547,11 @@ Custom: https://pdf.technoenjaz.com
 ---
 
 ### تجربة 4: pdfjs-dist + CMaps (الحالية)
+
 **الهدف:** حل مشكلة النص العربي المشوه  
 **الحالة:** ⏳ قيد الاختبار  
 **التحديات:**
+
 - ❌ Worker error في Node.js
 - ⏳ محاولة تعطيل Worker
 - ⏳ اختبار `GlobalWorkerOptions.workerSrc = false`
@@ -511,6 +561,7 @@ Custom: https://pdf.technoenjaz.com
 ## 📊 حالة المشروع الحالية
 
 ### ✅ ما يعمل
+
 - [x] واجهة المستخدم كاملة
 - [x] استيراد يدوي
 - [x] استيراد من نص
@@ -520,12 +571,14 @@ Custom: https://pdf.technoenjaz.com
 - [x] نشر على Cloudflare
 
 ### ⚠️ ما يحتاج إصلاح
+
 - [ ] **استخراج PDF العربي** (المشكلة الرئيسية الحالية)
   - النص ما زال مشوهاً (`º∟!Ê♥½B¹×`)
   - Worker error في pdfjs-dist
   - CMaps لا تتحمل بشكل صحيح
 
 ### 🎯 الخطوات القادمة
+
 1. حل مشكلة Worker في pdfjs-dist
 2. التأكد من تحميل CMaps
 3. اختبار استخراج النص العربي
@@ -535,11 +588,12 @@ Custom: https://pdf.technoenjaz.com
    - استخدام OCR (Tesseract.js) كحل أخير
 
 ### 🆕 تطويرات مستقبلية
+
 1. **استخراج الصورة الشخصية تلقائياً:**
    - تم تطبيق استخراج الصور من PDF
    - اكتشاف صورة الوجه باستخدام heuristics (Portrait orientation, page 1)
    - يمكن تحسينها باستخدام OpenCV للتعرف على الوجوه
-   
+
 2. **تكامل الصورة مع CV:**
    - إضافة حقل `profileImage` في API response
    - يمكن عرضها في واجهة المعاينة
@@ -550,6 +604,7 @@ Custom: https://pdf.technoenjaz.com
 ## 🔄 سجل التحديثات
 
 ### 2026-02-06
+
 - ✅ حل مشكلة استخراج النص من PDF العربي
 - ✅ إنشاء `scripts/pdf_text_extractor.py` باستخدام PyMuPDF
 - ✅ تكامل Python مع Node.js عبر `child_process`
@@ -557,16 +612,19 @@ Custom: https://pdf.technoenjaz.com
 - ✅ تحديث API لإرجاع `profileImage`
 
 ### 2026-02-05
+
 - ✅ إضافة CMaps لـ pdfjs-dist
 - ⏳ محاولة حل Worker error
 - ✅ إنشاء هذا التقرير الشامل
 
 ### 2026-02-04
+
 - ✅ تحسين UI/UX
 - ✅ إضافة مؤشر التقدم
 - ✅ رفع مدة المؤشر لـ 100 ثانية
 
 ### 2026-01-31
+
 - ✅ إطلاق النسخة الأولى
 - ✅ النشر على Cloudflare Pages
 
@@ -576,22 +634,26 @@ Custom: https://pdf.technoenjaz.com
 
 ### كيفية تحديث هذا التقرير
 
-#### عند إضافة ميزة جديدة:
+#### عند إضافة ميزة جديدة
+
 1. حدّث قسم [الهيكلية التقنية](#الهيكلية-التقنية)
 2. أضف المسار في البنية الأساسية
 3. حدّث الـ Mermaid diagram إذا تغير التدفق
 
-#### عند حل مشكلة:
+#### عند حل مشكلة
+
 1. أضف قسم جديد في [المشاكل والحلول](#المشاكل-والحلول)
 2. وثّق الأعراض، المحاولات، والحل النهائي
 3. حدّث [حالة المشروع](#حالة-المشروع-الحالية)
 
-#### عند تجربة حل جديد:
+#### عند تجربة حل جديد
+
 1. أضف في [التجارب المختبرة](#التجارب-المختبرة)
 2. وثّق النتيجة (نجح/فشل/جزئي)
 3. اشرح السبب
 
-#### تنسيق الإضافات:
+#### تنسيق الإضافات
+
 ```markdown
 ### X️⃣ مشكلة [اسم المشكلة]
 
@@ -625,16 +687,19 @@ Custom: https://pdf.technoenjaz.com
 ### المشكلة الحالية
 
 **الوصف:**
+
 - عند تصدير PDF باللغة العربية، النقاط (`•`) تظهر لكن **النص بجانبها مفقود**
 - النسخة الإنجليزية تعمل بشكل صحيح ✅
 - الخط والتباعد يظهران بشكل جيد
 
 **الملف المتأثر:**
+
 ```
 src/components/preview/PDFDocument.tsx
 ```
 
 **الدالة المشكلة:**
+
 ```typescript
 function BulletText({ text, isRTL, styles }: BulletTextProps) {
     // هذه الدالة تحاول تحويل النص التعدادي إلى bullets منفصلة
@@ -647,26 +712,32 @@ function BulletText({ text, isRTL, styles }: BulletTextProps) {
 ### 🔴 المحاولات الفاشلة (تجنب تكرارها!)
 
 #### ❌ محاولة 1: تغيير الخط من IBMPlexSansArabic إلى TraditionalArabic
+
 - **النتيجة:** فاشلة - المستخدم يفضل الخط القديم
 - **السبب:** التغيير كان كبيراً جداً ولم يحل المشكلة الأساسية
 
 #### ❌ محاولة 2: استخدام processRTLText مع RTL markers
+
 ```typescript
 function processRTLText(text: string, isRTL: boolean): string {
     // إضافة RLM markers للنص
     return '\u200F' + text + '\u200F';
 }
 ```
+
 - **النتيجة:** فاشلة - لم تحل مشكلة ترتيب النقاط
 
 #### ❌ محاولة 3: Split بـ regex على كل `-`
+
 ```typescript
 const lines = text.split(/\n|(?=[-•●])/);
 ```
+
 - **النتيجة:** كارثية! - يفصل على كل `-` في النص حتى داخل الكلمات
 - **المشكلة:** كلمة مثل `T-shirt` تتحول لـ 3 أجزاء
 
 #### ❌ محاولة 4: BulletText component مع split على newlines فقط
+
 ```typescript
 const lines = text.split('\n');
 if (line.startsWith('-')) {
@@ -674,6 +745,7 @@ if (line.startsWith('-')) {
     // ...
 }
 ```
+
 - **النتيجة:** النقاط تظهر لكن النص بجانبها فارغ!
 - **السبب المحتمل:** البيانات لا تحتوي `\n` - كل description يأتي كسطر واحد
 
@@ -682,16 +754,21 @@ if (line.startsWith('-')) {
 ### 🟡 الفرضيات المتبقية للتحقيق
 
 #### فرضية 1: البيانات لا تحتوي newlines
+
 - **الاختبار:** تم إضافة console.log لتتبع البيانات
+
 ```typescript
 console.log('🔍 BulletText received:', { text, hasNewlines: text?.includes('\n') });
 ```
+
 - **المطلوب:** فحص Console في المتصفح عند التصدير
 
 #### فرضية 2: الـ description فارغ أصلاً
+
 - **الاختبار:** نفس الـ console.log سيكشف هذا
 
 #### فرضية 3: مشكلة في تمرير البيانات من CVData إلى PDFDocument
+
 - **الاختبار:** مقارنة البيانات في localStorage مع ما يظهر في PDF
 
 ---
@@ -699,6 +776,7 @@ console.log('🔍 BulletText received:', { text, hasNewlines: text?.includes('\n
 ### 🔧 الحالة الحالية للكود
 
 #### PDFDocument.tsx - BulletText Component (السطور 238-295)
+
 ```typescript
 function BulletText({ text, isRTL, styles }: BulletTextProps) {
     // Debug logging - مضاف للتشخيص
@@ -718,7 +796,8 @@ function BulletText({ text, isRTL, styles }: BulletTextProps) {
 }
 ```
 
-#### الاستخدام في JSX:
+#### الاستخدام في JSX
+
 ```tsx
 {/* Summary */}
 <BulletText text={data.personal.summary} isRTL={isRTL} styles={styles} />
@@ -757,7 +836,7 @@ bulletText: {
 
 ### 📝 الخطوة التالية المقترحة
 
-1. **أولاً:** فحص Console في المتصفح لرؤية ما يطبعه `console.log` 
+1. **أولاً:** فحص Console في المتصفح لرؤية ما يطبعه `console.log`
 2. **ثانياً:** بناءً على النتيجة:
    - إذا `hasNewlines: false` ➜ النص يأتي كسطر واحد، نحتاج طريقة أخرى لتجزئته
    - إذا `text: undefined/null` ➜ البيانات لا تُمرر بشكل صحيح
@@ -802,16 +881,20 @@ interface PersonalInfo {
 ### 🔴 مشاكل أخرى متبقية
 
 #### 1. خطأ atob في image-utils.ts
+
 ```
 InvalidCharacterError: Failed to execute 'atob' on 'Window'
 ```
+
 **الملف:** `src/lib/utils/image-utils.ts` السطر 44
 **السبب:** base64 غير صالح للصورة
 
 #### 2. تحذير "Unknown version 65280"
+
 ```
 Unknown version 65280
 ```
+
 **السبب:** تحذير من react-pdf عند قراءة بعض الخطوط
 
 ---

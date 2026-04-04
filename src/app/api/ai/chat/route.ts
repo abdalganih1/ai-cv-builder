@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
                     'Accept-Language': 'ar-SA,ar',
                 },
                 body: JSON.stringify({
-                    model: 'GLM-4.7',
+                    model: 'GLM-5-Turbo',
                     messages,
                     temperature: temperature || 0.7,
                     stream: stream,
@@ -141,14 +141,14 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Error in AI chat route:', error);
-        
+
         if (error instanceof Error && error.name === 'AbortError') {
             return new Response(
                 JSON.stringify({ error: "انتهت مهلة الطلب. يرجى المحاولة مرة أخرى." }),
                 { status: 504, headers: { 'Content-Type': 'application/json' } }
             );
         }
-        
+
         const errorMessage = error instanceof Error ? error.message : 'حدث خطأ داخلي في الخادم';
         return new Response(
             JSON.stringify({ error: errorMessage }),

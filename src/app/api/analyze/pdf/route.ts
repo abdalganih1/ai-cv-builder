@@ -357,7 +357,7 @@ export async function POST(request: NextRequest) {
                     'Authorization': `Bearer ${ZAI_API_KEY}`,
                 },
                 body: JSON.stringify({
-                    model: 'GLM-4.7',
+                    model: 'GLM-5-Turbo',
                     messages: [
                         { role: 'system', content: PDF_ANALYSIS_PROMPT },
                         {
@@ -420,7 +420,7 @@ export async function POST(request: NextRequest) {
                 'Authorization': `Bearer ${ZAI_API_KEY}`,
             },
             body: JSON.stringify({
-                model: 'GLM-4.7',
+                model: 'GLM-5-Turbo',
                 messages: [
                     { role: 'system', content: PDF_ANALYSIS_PROMPT },
                     { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 15000)}` }
