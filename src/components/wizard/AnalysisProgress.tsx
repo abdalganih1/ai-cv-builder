@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 
 interface AnalysisProgressProps {
-    estimatedDuration?: number; // in seconds, default 70
+    estimatedDuration?: number; // in seconds, default 35
     onComplete?: () => void;
 }
 
@@ -17,7 +17,7 @@ const STATUS_MESSAGES = [
 ];
 
 export default function AnalysisProgress({
-    estimatedDuration = 200,
+    estimatedDuration = 35,
     onComplete
 }: AnalysisProgressProps) {
     const [progress, setProgress] = useState(0);

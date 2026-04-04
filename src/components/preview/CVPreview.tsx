@@ -615,7 +615,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
             {isAnalyzing && (
                 <div className="fixed inset-0 bg-white/90 z-50 flex items-center justify-center">
                     <div className="w-full max-w-2xl mx-auto p-8">
-                        <AnalysisProgress estimatedDuration={200} />
+                        <AnalysisProgress estimatedDuration={35} />
                     </div>
                 </div>
             )}
@@ -1590,7 +1590,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={exp.position}
                                                 onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, position: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="auto"
                                             />
                                         </div>
@@ -1599,7 +1599,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={exp.company}
                                                 onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, company: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="auto"
                                             />
                                         </div>
@@ -1608,7 +1608,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={exp.startDate}
                                                 onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, startDate: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="ltr"
                                             />
                                         </div>
@@ -1617,7 +1617,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={exp.endDate}
                                                 onChange={e => setExperienceEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, endDate: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="ltr"
                                             />
                                         </div>
@@ -1684,7 +1684,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={edu.degree}
                                                 onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, degree: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="auto"
                                             />
                                         </div>
@@ -1693,7 +1693,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={edu.major || ''}
                                                 onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, major: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="auto"
                                             />
                                         </div>
@@ -1702,7 +1702,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={edu.institution}
                                                 onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, institution: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="auto"
                                             />
                                         </div>
@@ -1711,7 +1711,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={edu.startYear}
                                                 onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, startYear: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="ltr"
                                             />
                                         </div>
@@ -1720,7 +1720,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                             <input
                                                 value={edu.endYear}
                                                 onChange={e => setEducationEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, endYear: e.target.value } : item) : prev)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                                 dir="ltr"
                                             />
                                         </div>
@@ -1773,14 +1773,14 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                     <input
                                         value={lang.name}
                                         onChange={e => setLanguageEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, name: e.target.value } : item) : prev)}
-                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none"
+                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none text-gray-800"
                                         dir="auto"
                                         placeholder="مثال: العربية"
                                     />
                                     <select
                                         value={lang.level}
                                         onChange={e => setLanguageEditItems(prev => prev ? prev.map((item, i) => i === idx ? { ...item, level: e.target.value } : item) : prev)}
-                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none bg-white"
+                                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-primary outline-none bg-white text-gray-800"
                                     >
                                         <option value="لغة أم">لغة أم</option>
                                         <option value="ممتاز">ممتاز</option>

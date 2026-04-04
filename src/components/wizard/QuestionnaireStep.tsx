@@ -1035,7 +1035,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     };
 
     // ═══════════════════════════════════════════════════════════════
-    // HANDLE BACK — cursor--
+    // HANDLE BACK — cursor-- with cleanup of empty entries
     // ═══════════════════════════════════════════════════════════════
     const handleInternalBack = () => {
         if (cursorIndex <= 0) {
@@ -1043,10 +1043,65 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             return;
         }
 
+        const currentItem = sequence[cursorIndex];
         const newCursor = cursorIndex - 1;
+        const prevItem = sequence[newCursor];
+
+        // ═══ SMART BACK: If we're at the first field of a new empty entry,
+        // remove that entry and go back to the "_more" question ═══
+        if (currentItem && currentItem.entryIndex !== undefined && currentItem.entryIndex > 0) {
+            const field = currentItem.field;
+            const isFirstFieldOfEntry = (
+                (field === 'experience_company' && !data.experience?.[currentItem.entryIndex]?.company) ||
+                (field === 'education_institution' && !data.education?.[currentItem.entryIndex]?.institution) ||
+                (field === 'languages_name' && !data.languages?.[currentItem.entryIndex]?.name)
+            );
+
+            if (isFirstFieldOfEntry) {
+                // Remove the empty last entry
+                const updatedData: Partial<CVData> = {};
+                if (field.startsWith('experience_')) {
+                    const list = [...(data.experience || [])];
+                    list.pop(); // remove the empty entry
+                    updatedData.experience = list;
+                } else if (field.startsWith('education_')) {
+                    const list = [...(data.education || [])];
+                    list.pop();
+                    updatedData.education = list;
+                } else if (field.startsWith('languages_')) {
+                    const list = [...(data.languages || [])];
+                    list.pop();
+                    updatedData.languages = list;
+                }
+
+                // Update state
+                onUpdate(updatedData);
+
+                // Rebuild sequence with the cleaned data
+                const mergedData = { ...data, ...updatedData } as CVData;
+                const newSeq = buildSequence(mergedData);
+                setSequence(newSeq);
+
+                // Find the "_more" question in the new sequence
+                const moreField = field.split('_')[0] + '_more';
+                const moreIndex = newSeq.findIndex(item => item.field === moreField);
+                if (moreIndex >= 0) {
+                    setCursorIndex(moreIndex);
+                    showQuestionAtCursor(newSeq, moreIndex, mergedData);
+                } else {
+                    // Fallback: just go back one step in new sequence
+                    const fallbackCursor = Math.max(0, newSeq.length - 1);
+                    setCursorIndex(fallbackCursor);
+                    showQuestionAtCursor(newSeq, fallbackCursor, mergedData);
+                }
+                console.log('🔙 Smart back: removed empty entry, returned to _more question');
+                return;
+            }
+        }
+
         setCursorIndex(newCursor);
         showQuestionAtCursor(sequence, newCursor, data);
-        console.log('🔙 Back to cursor:', newCursor, 'field:', sequence[newCursor]?.field);
+        console.log('🔙 Back to cursor:', newCursor, 'field:', prevItem?.field);
     };
 
     // ═══════════════════════════════════════════════════════════════

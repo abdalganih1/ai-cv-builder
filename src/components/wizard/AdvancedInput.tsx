@@ -254,7 +254,7 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
 
     // عرض مؤشر التحليل
     if (isAnalyzing) {
-        return <AnalysisProgress estimatedDuration={120} />;
+        return <AnalysisProgress estimatedDuration={35} />;
     }
 
     return (
