@@ -1,13 +1,13 @@
 /**
  * PDF Text Extraction - استخراج النص من ملفات PDF
  *
- * يدعم ثلاث أوضاع:
- * 1. Self-hosted API (PDF_API_URL) - لنشر على VPS
- * 2. OCR.space API (OCR_SPACE_API_KEY) - لنشر على Cloudflare
- * 3. Python PyMuPDF - تطوير محلي (fallback لـ Edge Runtime)
+ * يدعم الأوضاع التالية:
+ * 1. Fast regex extraction (fallback) - سريع جداً، يُجرَّب أولاً
+ * 2. Self-hosted API (PDF_API_URL) - لنشر على VPS
+ * 3. OCR.space API (OCR_SPACE_API_KEY) - لنشر على Cloudflare
  *
- * التحسين: يجرّب fallbackExtractText أولاً (سريع جداً <1 ثانية)
- * قبل استدعاء APIs خارجية بطيئة.
+ * ⚠️ ملاحظة: لا يستخدم أي وحدات Node.js (fs, child_process, etc.)
+ * لضمان التوافق مع Cloudflare Edge Runtime
  */
 
 export interface ExtractionResult {
@@ -52,11 +52,9 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
         return { text: fastText, profileImage: result.profileImage };
     }
 
-    // Mode 3: Python child_process (local development)
-    console.log('🐍 Using Python PyMuPDF (local)');
-    const result = await extractViaPython(buffer);
-    if (result.text.length > fastText.length) return result;
-    return { text: fastText, profileImage: result.profileImage };
+    // Mode 3: No API configured — return fast extraction result
+    console.log('📝 No PDF API configured, using fast text extraction only');
+    return { text: fastText };
 }
 
 // Method 1: Self-hosted FastAPI server
@@ -165,61 +163,6 @@ async function extractViaOCRSpace(
         throw new Error('No text extracted');
     } catch (error) {
         console.error('OCR.space API error:', error);
-        return { text: fallbackExtractText(buffer) };
-    }
-}
-
-// Method 3: Python PyMuPDF (local development)
-async function extractViaPython(buffer: ArrayBuffer): Promise<ExtractionResult> {
-    // Edge Runtime doesn't support fs, path, child_process, os modules
-    // Always return fallback in Edge Runtime
-    try {
-        // Check if we're in Edge Runtime by checking for unavailable APIs
-        if (typeof process !== 'undefined' && process.env.NEXT_RUNTIME === 'edge') {
-            console.log('⚠️ Python extraction not available in Edge Runtime');
-            return { text: fallbackExtractText(buffer) };
-        }
-
-        // Try to use Node.js modules if available
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const fs = require('fs');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const path = require('path');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { execSync } = require('child_process');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const os = require('os');
-
-        const tempDir = os.tmpdir();
-        const tempPdfPath = path.join(tempDir, `cv_upload_${Date.now()}.pdf`);
-        // Use process.cwd() only in Node.js runtime where it's available
-        const cwd = typeof process.cwd === 'function' ? process.cwd() : '.';
-        const scriptPath = path.join(cwd, 'scripts', 'pdf_text_extractor.py');
-
-        try {
-            fs.writeFileSync(tempPdfPath, Buffer.from(buffer));
-
-            const result = execSync(`python "${scriptPath}" "${tempPdfPath}"`, {
-                encoding: 'utf-8',
-                maxBuffer: 50 * 1024 * 1024,
-                timeout: 60000
-            });
-
-            const parsed = JSON.parse(result);
-
-            if (parsed.success && parsed.text) {
-                console.log(`✅ PyMuPDF extracted ${parsed.text_length} chars, ${parsed.images_count} images`);
-                return {
-                    text: parsed.text,
-                    profileImage: parsed.profile_image_base64
-                };
-            }
-            throw new Error(parsed.error || 'Unknown extraction error');
-        } finally {
-            try { fs.unlinkSync(tempPdfPath); } catch { /* ignore */ }
-        }
-    } catch (error) {
-        console.error('Python extraction error:', error);
         return { text: fallbackExtractText(buffer) };
     }
 }
