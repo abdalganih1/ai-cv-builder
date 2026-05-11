@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdf/extract-text';
+import { callAI, parseAIJson } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
-
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const PDF_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية. سأعطيك نصاً مستخرجاً من ملف PDF لسيرة ذاتية.
 مهمتك هي تحليل هذا النص بعناية واستخراج **جميع** البيانات المهيكلة بدون اختصار.
@@ -94,15 +93,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
-
-        if (!ZAI_API_KEY) {
-            return new Response(
-                JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة" }),
-                { status: 503, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
         // Read file as ArrayBuffer and extract text
         const arrayBuffer = await file.arrayBuffer();
         const extractedData = await extractTextFromPDF(arrayBuffer);
@@ -114,120 +104,31 @@ export async function POST(request: NextRequest) {
         console.log(`--- DEBUG: Total Length: ${extractedText.length} chars ---`);
         if (profileImage) console.log('✅ Profile image detected!');
 
-        // If extraction failed or got too little text, try base64 approach
+        // If extraction failed or got too little text, ask user to paste text
         if (extractedText.length < 100) {
-            // Convert to base64 using chunk-based method (Edge Runtime compatible)
-            const uint8Arr = new Uint8Array(arrayBuffer).slice(0, 50000);
-            const CHUNK_SIZE = 32768;
-            const chunks: string[] = [];
-            for (let i = 0; i < uint8Arr.length; i += CHUNK_SIZE) {
-                const chunk = uint8Arr.slice(i, i + CHUNK_SIZE);
-                chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
-            }
-            const base64 = btoa(chunks.join(''));
-
-            // Ask AI to try to understand the PDF structure
-            const response = await fetch(`${BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ZAI_API_KEY}`,
-                },
-                body: JSON.stringify({
-                    model: 'GLM-5-Turbo',
-                    messages: [
-                        { role: 'system', content: PDF_ANALYSIS_PROMPT },
-                        {
-                            role: 'user',
-                            content: `لم أتمكن من استخراج نص كافٍ من ملف PDF (النص المستخرج: "${extractedText}"). 
-                            يرجى تحليل الملف المرفق (Base64) واستخراج البيانات.`
-                        },
-                        {
-                            role: 'user',
-                            content: base64 // Sending base64 as content logic (simplified for prompt)
-                        }
-                    ],
-                    temperature: 0.3,
-                    stream: false,
+            return new Response(
+                JSON.stringify({
+                    error: "لم نتمكن من قراءة محتوى الملف. جرب لصق محتوى السيرة كنص.",
+                    fallback: true
                 }),
-            });
-
-            if (!response.ok) {
-                return new Response(
-                    JSON.stringify({
-                        error: "لم نتمكن من قراءة محتوى الملف. جرب لصق محتوى السيرة كنص.",
-                        fallback: true
-                    }),
-                    { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-            }
-
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content || '';
-            // Try to parse JSON from content
-            try {
-                const jsonMatch = content.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    const cvData = JSON.parse(jsonMatch[0]);
-                    return new Response(
-                        JSON.stringify({
-                            cvData,
-                            warning: "تم استخراج محتوى محدود من الملف. يُنصح بمراجعة البيانات.",
-                            debug_text_preview: "Fallback Base64 Vision Used"
-                        }),
-                        { status: 200, headers: { 'Content-Type': 'application/json' } }
-                    );
-                }
-            } catch (e) {
-                console.error("Failed to parse fallback JSON", e);
-            }
-
-            // If parsing failed
-            return new Response(
-                JSON.stringify({ error: "فشل في تحليل هيكل الملف." }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
+                { status: 200, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
-        // Analyze extracted text with AI
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'GLM-5-Turbo',
-                messages: [
-                    { role: 'system', content: PDF_ANALYSIS_PROMPT },
-                    { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 15000)}` }
-                ],
-                temperature: 0.3,
-                stream: false,
-            }),
-        });
-
-        if (!response.ok) {
-            return new Response(
-                JSON.stringify({ error: "فشل في تحليل الملف" }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '';
-
+        // Analyze extracted text with AI (with fallback chain)
         let cvData;
         try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cvData = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found');
-            }
-        } catch {
+            const aiResult = await callAI([
+                { role: 'system', content: PDF_ANALYSIS_PROMPT },
+                { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 15000)}` }
+            ], { temperature: 0.3 });
+
+            console.log(`✅ AI responded via ${aiResult.provider} in ${aiResult.elapsed}ms`);
+            cvData = parseAIJson(aiResult.content);
+        } catch (error) {
+            console.error('AI analysis failed:', error);
             return new Response(
-                JSON.stringify({ error: "فشل في تحليل استجابة الذكاء الاصطناعي" }),
+                JSON.stringify({ error: "فشل في تحليل الملف" }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }

@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
+import { callAI, parseAIJson } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
-
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const TEXT_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية والمعلومات الشخصية. مهمتك هي استخراج البيانات المهيكلة من النص المُعطى.
 
@@ -93,54 +92,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
-
-        if (!ZAI_API_KEY) {
-            return new Response(
-                JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة" }),
-                { status: 503, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'GLM-5-Turbo',
-                messages: [
-                    { role: 'system', content: TEXT_ANALYSIS_PROMPT },
-                    { role: 'user', content: `حلل النص التالي واستخرج البيانات:\n\n${text}` }
-                ],
-                temperature: 0.3,
-                stream: false,
-            }),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`ZAI API Error (${response.status}):`, errorText);
+        // Call AI with fallback chain
+        let content: string;
+        try {
+            const aiResult = await callAI([
+                { role: 'system', content: TEXT_ANALYSIS_PROMPT },
+                { role: 'user', content: `حلل النص التالي واستخرج البيانات:\n\n${text}` }
+            ], { temperature: 0.3 });
+            content = aiResult.content;
+        } catch (error) {
+            console.error('AI analysis failed:', error);
             return new Response(
                 JSON.stringify({ error: "فشل في تحليل النص" }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '';
-
-        // Try to parse the JSON from the response
+        // Parse JSON from AI response
         let cvData;
         try {
-            // Find JSON in the response (in case there's extra text)
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cvData = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found in response');
-            }
+            cvData = parseAIJson(content);
         } catch (parseError) {
             console.error('Failed to parse AI response:', parseError);
             return new Response(
@@ -150,7 +121,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Extract missingRequiredFields from AI response
-        const aiMissingFields: string[] = cvData.missingRequiredFields || [];
+        const aiMissingFields: string[] = (cvData.missingRequiredFields as string[]) || [];
         delete cvData.missingRequiredFields; // Remove from cvData since it's metadata
 
         // Field metadata for missing fields form

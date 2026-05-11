@@ -11,22 +11,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdf/extract-text';
+import { callAI, parseAIJson } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
 
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
-
-const SMART_ANALYSIS_PROMPT = `حلل المعلومات التالية واستخرج بيانات سيرة ذاتية بصيغة JSON.
-استخرج: الاسم، البريد، الهاتف، الموقع، المسمى الوظيفي، الملخص، الخبرات، التعليم، المهارات، اللغات، الهوايات.
-لا تترك حقلاً فارغاً إذا كانت المعلومات متوفرة. خمّن الحقول الناقصة بشكل منطقي.
-أرجع JSON فقط بالشكل:
-{
-  "personal": { "firstName": "", "lastName": "", "email": "", "phone": "", "location": "", "jobTitle": "" },
-  "summary": "ملخص احترافي",
-  "experience": [{ "id": "exp-1", "company": "", "position": "", "startDate": "", "endDate": "", "description": "" }],
-  "education": [{ "id": "edu-1", "institution": "", "degree": "", "major": "", "startYear": "", "endYear": "" }],
-  "skills": [], "languages": [{ "name": "", "level": "" }], "hobbies": []
-}`;
+const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية. حلل المعلومات التالية واستخرج كل البيانات الممكنة.
+إذا كان هناك رابط وظيفة — ركز السيرة على متطلبات تلك الوظيفة.
+لا تترك أي حقل فارغاً إذا كانت المعلومات متوفرة.
+أرجع JSON فقط بدون أي نص إضافي بالشكل:
+{"personal":{"firstName":"","lastName":"","email":"","phone":"","location":"","jobTitle":""},"summary":"","experience":[{"id":"exp-1","company":"","position":"","startDate":"","endDate":"","description":""}],"education":[{"id":"edu-1","institution":"","degree":"","major":"","startYear":"","endYear":""}],"skills":[],"languages":[{"name":"","level":""}],"hobbies":[]}`;
 
 export async function POST(request: NextRequest) {
     try {
@@ -149,79 +142,24 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // إرسال كل المعلومات للـ AI (استدعاء واحد فقط)
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
-        if (!ZAI_API_KEY) {
-            return NextResponse.json({
-                success: false,
-                error: 'خدمة الذكاء الاصطناعي غير مفعلة'
-            }, { status: 503 });
-        }
-
+        // إرسال كل المعلومات للـ AI (مع fallback chain)
         const fullContext = allInfo.join('\n');
-        console.log('--- Smart Analysis Context ---');
-        console.log(fullContext.substring(0, 500));
-        console.log(`--- Total length: ${fullContext.length} chars ---`);
+        console.log(`--- Smart Analysis: ${fullContext.length} chars ---`);
 
-        // AI API call - محاولة واحدة مع timeout 55 ثانية
-        let aiResponse: Response;
-        try {
-            aiResponse = await fetch(`${BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ZAI_API_KEY}`,
-                },
-                body: JSON.stringify({
-                    model: 'GLM-5-Turbo',
-                    messages: [
-                        { role: 'system', content: SMART_ANALYSIS_PROMPT },
-                        { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
-                    ],
-                    temperature: 0.3,
-                    stream: false,
-                }),
-                signal: AbortSignal.timeout(55000),
-            });
-        } catch (fetchError) {
-            const errorMsg = fetchError instanceof Error ? fetchError.message : 'Network error';
-            console.error('AI API error:', errorMsg);
-
-            return NextResponse.json({
-                success: false,
-                error: `فشل في تحليل المصادر: ${errorMsg}`,
-                details: `AI API error: ${errorMsg}`
-            }, { status: 500 });
-        }
-
-        if (!aiResponse.ok) {
-            const errorBody = await aiResponse.text().catch(() => 'unknown');
-            console.error('AI API error:', aiResponse.status, errorBody);
-
-            return NextResponse.json({
-                success: false,
-                error: `فشل في تحليل المصادر: AI API returned ${aiResponse.status}`,
-                details: `AI API error: ${errorBody}`
-            }, { status: 500 });
-        }
-
-        const data = await aiResponse.json();
-        const content = data.choices?.[0]?.message?.content || '';
-
-        // استخراج JSON من الرد
         let cvData;
         try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cvData = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found in AI response');
-            }
-        } catch {
-            console.error('Failed to parse AI response:', content.substring(0, 200));
+            const aiResult = await callAI([
+                { role: 'system', content: SMART_ANALYSIS_PROMPT },
+                { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
+            ], { temperature: 0.3 });
+
+            console.log(`✅ AI responded via ${aiResult.provider} in ${aiResult.elapsed}ms`);
+            cvData = parseAIJson(aiResult.content);
+        } catch (error) {
+            console.error('AI analysis failed:', error);
             return NextResponse.json({
                 success: false,
-                error: 'فشل في تحليل استجابة الذكاء الاصطناعي'
+                error: error instanceof Error ? error.message : 'فشل في تحليل المصادر'
             }, { status: 500 });
         }
 

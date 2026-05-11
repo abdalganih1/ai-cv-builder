@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
+import { callAI, parseAIJson } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
-
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const URL_ANALYSIS_PROMPT = `أنت خبير في تحليل صفحات الويب والملفات الشخصية على السوشال ميديا.
 مهمتك هي استخراج البيانات الشخصية والمهنية من محتوى الصفحة المُعطى.
@@ -133,15 +132,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
-
-        if (!ZAI_API_KEY) {
-            return new Response(
-                JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة" }),
-                { status: 503, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
         const platform = detectPlatform(url);
 
         // Fetch URL content
@@ -156,49 +146,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Analyze with AI
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'GLM-5-Turbo',
-                messages: [
-                    { role: 'system', content: URL_ANALYSIS_PROMPT },
-                    {
-                        role: 'user',
-                        content: `حلل محتوى هذه الصفحة من ${platform} واستخرج البيانات الشخصية والمهنية:\n\n${pageContent}`
-                    }
-                ],
-                temperature: 0.3,
-                stream: false,
-            }),
-        });
-
-        if (!response.ok) {
-            return new Response(
-                JSON.stringify({ error: "فشل في تحليل المحتوى" }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '';
-
-        // Parse JSON from response
+        // Analyze with AI (with fallback chain)
         let cvData;
         try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cvData = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found');
-            }
-        } catch {
+            const aiResult = await callAI([
+                { role: 'system', content: URL_ANALYSIS_PROMPT },
+                {
+                    role: 'user',
+                    content: `حلل محتوى هذه الصفحة من ${platform} واستخرج البيانات الشخصية والمهنية:\n\n${pageContent}`
+                }
+            ], { temperature: 0.3 });
+
+            console.log(`✅ AI responded via ${aiResult.provider} in ${aiResult.elapsed}ms`);
+            cvData = parseAIJson(aiResult.content);
+        } catch (error) {
+            console.error('AI analysis failed:', error);
             return new Response(
-                JSON.stringify({ error: "فشل في تحليل استجابة الذكاء الاصطناعي" }),
+                JSON.stringify({ error: "فشل في تحليل المحتوى" }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }

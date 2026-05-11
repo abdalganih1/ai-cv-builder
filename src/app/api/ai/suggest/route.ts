@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
+import { callAI } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
-
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 // System prompts - SIMPLE and DIRECT to avoid thinking mode
 const FIELD_PROMPTS: Record<string, string> = {
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
+        const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.OPENROUTER_API_KEY;
         if (!ZAI_API_KEY) {
             console.log('[suggest] No API key - returning hardcoded');
             // Return hardcoded suggestions when no API key
@@ -84,25 +83,16 @@ export async function POST(request: NextRequest) {
 
         const prompt = `اقترح 5 خيارات مشابهة لـ: ${FIELD_PROMPTS[fieldType] || 'خيارات مهنية'}. أعطِ الخيارات فقط مفصولة بفاصلة بدون ترقيم.`;
 
-        console.log('[suggest] Calling ZAI API:', prompt);
+        console.log('[suggest] Calling AI with fallback chain:', prompt);
 
-        const response = await fetch(`${BASE_URL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'GLM-4.5-Flash',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.3,
-                stream: false,
-                max_tokens: 100,
-            }),
-        });
-
-        if (!response.ok) {
-            console.error('[suggest] API error:', response.status);
+        let content: string;
+        try {
+            const aiResult = await callAI([
+                { role: 'user', content: prompt }
+            ], { temperature: 0.3, maxTokens: 100 });
+            content = aiResult.content;
+        } catch (error) {
+            console.error('[suggest] AI error:', error);
             // Fallback to hardcoded
             const hardcoded = FIELD_PROMPTS[fieldType] || FIELD_PROMPTS['jobTitle'];
             return new Response(
@@ -110,9 +100,6 @@ export async function POST(request: NextRequest) {
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
             );
         }
-
-        const data = await response.json();
-        const content = data?.choices?.[0]?.message?.content || '';
 
         console.log('[suggest] AI response:', content);
 

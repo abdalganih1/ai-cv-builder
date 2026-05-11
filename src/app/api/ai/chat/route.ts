@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
+import { callAIStream } from '@/lib/ai/ai-client';
 
 export const runtime = 'edge';
-
-const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = 15;
@@ -60,10 +59,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const ZAI_API_KEY = process.env.ZAI_API_KEY;
-
-        if (!ZAI_API_KEY) {
-            console.error("ZAI_API_KEY not found in environment variables");
+        // Validate at least one AI key is available
+        if (!process.env.ZAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+            console.error("No AI API key found in environment variables");
             return new Response(
                 JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة حالياً" }),
                 { status: 503, headers: { 'Content-Type': 'application/json' } }
@@ -74,51 +72,19 @@ export async function POST(request: NextRequest) {
         const timeoutId = setTimeout(() => controller.abort(), 180000);
 
         try {
-            const response = await fetch(`${BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ZAI_API_KEY}`,
-                    'Accept-Language': 'ar-SA,ar',
-                },
-                body: JSON.stringify({
-                    model: 'GLM-5-Turbo',
-                    messages,
-                    temperature: temperature || 0.7,
-                    stream: stream,
-                }),
-                signal: controller.signal,
-            });
+            // Use streaming with fallback chain
+            const aiResponse = await callAIStream(
+                messages.map((m: { role: string; content: string }) => ({
+                    role: m.role as 'system' | 'user' | 'assistant',
+                    content: m.content,
+                })),
+                { temperature: temperature || 0.7 }
+            );
 
             clearTimeout(timeoutId);
 
-            if (response.status === 429) {
-                return new Response(
-                    JSON.stringify({
-                        choices: [{
-                            message: {
-                                content: JSON.stringify({
-                                    _fallback: true,
-                                    message: "عذراً، الخدمة مشغولة حالياً. يرجى المحاولة بعد قليل."
-                                })
-                            }
-                        }]
-                    }),
-                    { status: 200, headers: { 'Content-Type': 'application/json' } }
-                );
-            }
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`ZAI API Error (${response.status}):`, errorText);
-                return new Response(
-                    JSON.stringify({ error: `AI Request failed: ${response.status}` }),
-                    { status: response.status, headers: { 'Content-Type': 'application/json' } }
-                );
-            }
-
-            if (stream && response.body) {
-                return new Response(response.body, {
+            if (stream && aiResponse.body) {
+                return new Response(aiResponse.body, {
                     status: 200,
                     headers: {
                         'Content-Type': 'text/event-stream',
@@ -128,7 +94,8 @@ export async function POST(request: NextRequest) {
                 });
             }
 
-            const data = await response.json();
+            // Non-streaming response
+            const data = await aiResponse.json();
             return new Response(JSON.stringify(data), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
@@ -136,6 +103,15 @@ export async function POST(request: NextRequest) {
 
         } catch (fetchError) {
             clearTimeout(timeoutId);
+            
+            // Check if it's a "all providers failed" error
+            if (fetchError instanceof Error && fetchError.message.includes('فشل جميع مزودي AI')) {
+                return new Response(
+                    JSON.stringify({ error: fetchError.message }),
+                    { status: 503, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
             throw fetchError;
         }
 
