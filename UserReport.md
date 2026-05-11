@@ -1777,3 +1777,33 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 | CV generation | JSON مقطوع (981 حرف) → SyntaxError ❌ | JSON كامل (~8000 token) ✅ |
 | Streaming timeout | يقطع بعد 20-30s | يكمل حتى 60s ✅ |
 | PDF عربي + CV gen | بيانات فارغة + JSON مقطوع | بيانات كاملة من OCR + JSON كامل ✅ |
+
+---
+
+## 📋 تقرير 2026-05-11 (3): إضافة Gemini Vision لاستخراج PDF عربي
+
+### المشكلة
+OCR.space لا يستطيع قراءة ملفات PDF العربية ذات الـ fonts المشفرة بشكل موثوق. النتيجة كانت garbage أو نص ناقص رغم تفعيل OCR.
+
+### الحل المطبق
+إضافة **Gemini Vision عبر LiteLLM proxy** كأولوية ثانية في سلسلة الاستخراج:
+
+```
+PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted → OCR.space → fallback
+```
+
+| الملف | التغيير |
+|-------|---------|
+| `src/lib/pdf/extract-text.ts` | إضافة `extractViaGeminiVision()` — يرسل PDF كـ base64 لـ Gemini عبر LiteLLM proxy + تحديث سلسلة الأولوية |
+| `.env.local` | إضافة `LITELLM_BASE_URL` + `LITELLM_API_KEY` |
+| Cloudflare secrets | رفع `LITELLM_BASE_URL` + `LITELLM_API_KEY` |
+| `src/app/api/analyze/pdf/route.ts` | إضافة `getRequestContext()` + تمرير `keys` لـ `callAI()` |
+
+### 📊 النتيجة المتوقعة
+
+| السيناريو | قبل | بعد |
+|-----------|------|------|
+| PDF عربي (fonts مشفرة) | ❌ garbage 39K → لا بيانات | ✅ Gemini Vision → 1484 حرف → اسم + إيميل + هاتف |
+| PDF إنكليزي عادي | ✅ regex يعمل | ✅ regex أسرع (يتخطى Gemini) |
+| PDF صورة (scan) | ❌ فشل كلي | ✅ Gemini يقرأ الصورة |
+| سرعة الاستجابة | ~1s regex فقط | regex <1s أو Gemini ~5s (فقط عند الحاجة) |

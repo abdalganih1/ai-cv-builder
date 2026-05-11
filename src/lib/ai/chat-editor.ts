@@ -295,23 +295,23 @@ English CV JSON:`;
 
         const content = response.choices[0].message.content;
 
+        // Merge to preserve IDs and metadata - map each item to keep original IDs
+        const mergeWithIds = <T extends { id?: string }>(
+            original: T[] | undefined,
+            translated: T[] | undefined
+        ): T[] => {
+            if (!translated || !Array.isArray(translated)) return original || [];
+            if (!original || !Array.isArray(original)) return translated;
+
+            return translated.map((item, idx) => ({
+                ...item,
+                id: original[idx]?.id || `item-${idx}-${Date.now()}`
+            }));
+        };
+
         try {
             const cleanJson = extractJSON(content);
             const translatedData = JSON.parse(cleanJson);
-
-            // Merge to preserve IDs and metadata - map each item to keep original IDs
-            const mergeWithIds = <T extends { id?: string }>(
-                original: T[] | undefined,
-                translated: T[] | undefined
-            ): T[] => {
-                if (!translated || !Array.isArray(translated)) return original || [];
-                if (!original || !Array.isArray(original)) return translated;
-
-                return translated.map((item, idx) => ({
-                    ...item,
-                    id: original[idx]?.id || `item-${idx}-${Date.now()}`
-                }));
-            };
 
             return {
                 ...data,
@@ -335,7 +335,22 @@ English CV JSON:`;
 
             const retryContent = retryResponse.choices[0].message.content;
             const cleanRetryJson = extractJSON(retryContent);
-            return JSON.parse(cleanRetryJson);
+            const retryData = JSON.parse(cleanRetryJson);
+
+            // نفس منطق الدمج — الحفاظ على photoUrl و metadata و IDs
+            return {
+                ...data,
+                personal: {
+                    ...data.personal,
+                    ...retryData.personal,
+                    photoUrl: data.personal.photoUrl, // ✅ الحفاظ على الصورة
+                },
+                education: mergeWithIds(data.education, retryData.education),
+                experience: mergeWithIds(data.experience, retryData.experience),
+                skills: retryData.skills || data.skills || [],
+                hobbies: retryData.hobbies || data.hobbies || [],
+                languages: retryData.languages || data.languages || [],
+            };
         }
 
     } catch (error) {
