@@ -1,10 +1,11 @@
 /**
  * PDF Text Extraction - استخراج النص من ملفات PDF
  *
- * يدعم الأوضاع التالية:
+ * سلسلة الاستخراج:
  * 1. Fast regex extraction (fallback) - سريع جداً، يُجرَّب أولاً
- * 2. Self-hosted API (PDF_API_URL) - لنشر على VPS
- * 3. OCR.space API (OCR_SPACE_API_KEY) - لنشر على Cloudflare
+ * 2. Gemini Vision via LiteLLM (الأفضل للعربي)
+ * 3. Self-hosted API (PDF_API_URL) - لنشر على VPS
+ * 4. OCR.space API (OCR_SPACE_API_KEY) - احتياطي
  *
  * ⚠️ ملاحظة: لا يستخدم أي وحدات Node.js (fs, child_process, etc.)
  * لضمان التوافق مع Cloudflare Edge Runtime
@@ -37,8 +38,7 @@ function isReadableText(text: string): boolean {
 /**
  * استخراج النص من PDF - يختار أفضل طريقة تلقائياً
  *
- * التحسين الجديد: يجرّب fallbackExtractText أولاً
- * إذا النص كافي (> 200 حرف) ويحتوي على نص مقروء يستخدمه مباشرة بدون OCR
+ * السلسلة: regex → Gemini Vision → Self-hosted → OCR.space → fallback
  */
 export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<ExtractionResult> {
     // قراءة المفاتيح من Cloudflare secrets + process.env
@@ -48,8 +48,10 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
     const OCR_SPACE_API_KEY = (cfEnv?.OCR_SPACE_API_KEY as string) || process.env.OCR_SPACE_API_KEY;
     const PDF_API_URL = (cfEnv?.PDF_API_URL as string) || process.env.PDF_API_URL;
     const PDF_API_KEY = (cfEnv?.PDF_API_KEY as string) || process.env.PDF_API_KEY;
+    const LITELLM_BASE_URL = (cfEnv?.LITELLM_BASE_URL as string) || process.env.LITELLM_BASE_URL;
+    const LITELLM_API_KEY = (cfEnv?.LITELLM_API_KEY as string) || process.env.LITELLM_API_KEY;
 
-    // جرّب الاستخراج السريع أولاً
+    // 1️⃣ جرّب الاستخراج السريع أولاً
     const fastText = fallbackExtractText(buffer);
     const isFastUsable = fastText.length > 200 && isReadableText(fastText);
 
@@ -58,18 +60,29 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
         return { text: fastText };
     }
 
-    console.log(`⚠️ Fast extraction: ${fastText.length} chars but ${isFastUsable ? 'usable' : 'GARBAGE — trying OCR...'}`);
+    console.log(`⚠️ Fast extraction: ${fastText.length} chars but GARBAGE — trying alternatives...`);
 
-    // Mode 1: Self-hosted API (VPS with Docker)
+    // 2️⃣ Gemini Vision عبر LiteLLM (الأفضل للعربي)
+    if (LITELLM_BASE_URL && LITELLM_API_KEY) {
+        try {
+            console.log('🔍 Using Gemini Vision via LiteLLM...');
+            const result = await extractViaGeminiVision(buffer, LITELLM_BASE_URL, LITELLM_API_KEY);
+            if (result.text.length > 50 && isReadableText(result.text)) return result;
+            console.log('⚠️ Gemini Vision result not usable, trying next method...');
+        } catch {
+            console.log('⚠️ Gemini Vision failed, trying next method...');
+        }
+    }
+
+    // 3️⃣ Self-hosted API (VPS with Docker)
     if (PDF_API_URL) {
         console.log('🔧 Using Self-hosted PDF API');
         const result = await extractViaSelfHostedAPI(buffer, PDF_API_URL, PDF_API_KEY || '', OCR_SPACE_API_KEY);
         if (result.text.length > fastText.length && isReadableText(result.text)) return result;
-        // إذا النتيجة أسوأ من fallback، أرجع fallback
         return { text: fastText, profileImage: result.profileImage };
     }
 
-    // Mode 2: OCR.space API (Cloudflare deployment)
+    // 4️⃣ OCR.space API (احتياطي)
     if (OCR_SPACE_API_KEY) {
         console.log('☁️ Using OCR.space API');
         const result = await extractViaOCRSpace(buffer, OCR_SPACE_API_KEY);
@@ -77,12 +90,75 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
         return { text: fastText, profileImage: result.profileImage };
     }
 
-    // Mode 3: No API configured — return fast extraction result
+    // 5️⃣ لا API — إرجاع النص الخام
     console.log('📝 No PDF API configured, using fast text extraction only');
     return { text: fastText };
 }
 
-// Method 1: Self-hosted FastAPI server
+// Method 1: Gemini Vision via LiteLLM proxy (الأفضل للعربي)
+async function extractViaGeminiVision(
+    buffer: ArrayBuffer,
+    baseUrl: string,
+    apiKey: string
+): Promise<ExtractionResult> {
+    // تحويل PDF لـ base64 (Edge Runtime compatible)
+    const uint8Array = new Uint8Array(buffer);
+    const CHUNK_SIZE = 32768;
+    const chunks: string[] = [];
+    for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+        const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
+        chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
+    }
+    const base64 = btoa(chunks.join(''));
+
+    console.log(`🔍 Gemini Vision: sending ${base64.length} base64 chars...`);
+
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'gemini/gemini-3.1-flash-lite-preview',
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: 'استخرج كل النص الموجود في هذا الملف PDF بالكامل. أرجع النص فقط بدون أي تعليقات أو إضافات.'
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:application/pdf;base64,${base64}`
+                        }
+                    }
+                ]
+            }],
+            max_tokens: 4000,
+            temperature: 0.1,
+        }),
+        signal: AbortSignal.timeout(25000), // 25s timeout
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(`Gemini Vision API error: ${response.status} ${errorBody.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+
+    if (text.length > 50) {
+        console.log(`✅ Gemini Vision extracted ${text.length} chars`);
+        return { text };
+    }
+
+    throw new Error('Gemini Vision returned empty text');
+}
+
+// Method 2: Self-hosted FastAPI server
 async function extractViaSelfHostedAPI(
     buffer: ArrayBuffer,
     apiUrl: string,
@@ -126,7 +202,7 @@ async function extractViaSelfHostedAPI(
     }
 }
 
-// Method 2: OCR.space API (Cloudflare compatible)
+// Method 3: OCR.space API (Cloudflare compatible)
 async function extractViaOCRSpace(
     buffer: ArrayBuffer,
     apiKey: string
