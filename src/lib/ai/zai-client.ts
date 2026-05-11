@@ -106,13 +106,7 @@ export async function chatWithAI(
             const errorData = await response.json().catch(() => ({}));
             console.error(`AI API Error (${response.status}):`, errorData);
 
-            if ((response.status >= 500 || response.status === 429) && retryCount < MAX_RETRIES) {
-                const delay = INITIAL_DELAY * Math.pow(2, retryCount);
-                console.log(`Server error. Retrying in ${delay}ms...`);
-                await sleep(delay);
-                return chatWithAI(messages, { ...options, retryCount: retryCount + 1 });
-            }
-
+            // لا retry هنا — الـ fallback chain يتولى
             throw new Error(`AI Request failed: ${response.status}`);
         }
 
@@ -122,6 +116,12 @@ export async function chatWithAI(
             console.log('📡 Receiving streaming response...');
             const content = await parseSSEStream(response);
             console.log('✅ Stream complete, content length:', content.length);
+
+            // إذا الـ stream رجع فارغ، لا تعمل retry — أرمي خطأ مباشرة
+            // الـ fallback chain في ai-client.ts سيتولى الأمر
+            if (!content || content.trim().length < 5) {
+                throw new Error('Empty AI stream response');
+            }
 
             return {
                 choices: [{
@@ -143,15 +143,6 @@ export async function chatWithAI(
         }
 
         console.error('Error calling AI API:', error);
-
-        // Retry on network errors (but not on timeout)
-        if (retryCount < MAX_RETRIES && !(error instanceof Error && error.name === 'AbortError')) {
-            const delay = INITIAL_DELAY * Math.pow(2, retryCount);
-            console.log(`Network error. Retrying in ${delay}ms...`);
-            await sleep(delay);
-            return chatWithAI(messages, { ...options, retryCount: retryCount + 1 });
-        }
-
         throw error;
     } finally {
         clearTimeout(timeoutId); // Always clear timeout

@@ -10,36 +10,61 @@
  * لضمان التوافق مع Cloudflare Edge Runtime
  */
 
+import { getRequestContext } from '@cloudflare/next-on-pages';
+
 export interface ExtractionResult {
     text: string;
     profileImage?: string;
 }
 
 /**
+ * يكتشف إذا النص المستخرج هو garbage (بيانات مشفرة)
+ * يحسب نسبة الأحرف القابلة للقراءة (عربي + إنكليزي + أرقام + رموز شائعة)
+ */
+function isReadableText(text: string): boolean {
+    if (text.length < 50) return false;
+
+    // عدّ الأحرف القابلة للقراءة
+    const readableChars = text.replace(/[^\u0600-\u06FF\u0750-\u077Fa-zA-Z0-9\s@.\-+(),;:!?\/\\\[\]{}'"]/g, '');
+    const ratio = readableChars.length / text.length;
+
+    console.log(`📊 Text readability: ${(ratio * 100).toFixed(1)}% readable (${readableChars.length}/${text.length})`);
+
+    // إذا أقل من 40% أحرف قابلة للقراءة → garbage
+    return ratio > 0.4;
+}
+
+/**
  * استخراج النص من PDF - يختار أفضل طريقة تلقائياً
  *
  * التحسين الجديد: يجرّب fallbackExtractText أولاً
- * إذا النص كافي (> 200 حرف) يستخدمه مباشرة بدون OCR
+ * إذا النص كافي (> 200 حرف) ويحتوي على نص مقروء يستخدمه مباشرة بدون OCR
  */
 export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<ExtractionResult> {
-    // 🔥 تحسين: جرّب الاستخراج السريع أولاً
+    // قراءة المفاتيح من Cloudflare secrets + process.env
+    let cfEnv: Record<string, unknown> | undefined;
+    try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch { /* local dev */ }
+
+    const OCR_SPACE_API_KEY = (cfEnv?.OCR_SPACE_API_KEY as string) || process.env.OCR_SPACE_API_KEY;
+    const PDF_API_URL = (cfEnv?.PDF_API_URL as string) || process.env.PDF_API_URL;
+    const PDF_API_KEY = (cfEnv?.PDF_API_KEY as string) || process.env.PDF_API_KEY;
+
+    // جرّب الاستخراج السريع أولاً
     const fastText = fallbackExtractText(buffer);
-    if (fastText.length > 200) {
-        console.log(`⚡ Fast extraction succeeded: ${fastText.length} chars (skipping OCR)`);
+    const isFastUsable = fastText.length > 200 && isReadableText(fastText);
+
+    if (isFastUsable) {
+        console.log(`⚡ Fast extraction succeeded: ${fastText.length} readable chars`);
         return { text: fastText };
     }
 
-    console.log(`⚠️ Fast extraction got only ${fastText.length} chars, trying full extraction...`);
-
-    const PDF_API_URL = process.env.PDF_API_URL;
-    const PDF_API_KEY = process.env.PDF_API_KEY;
-    const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY;
+    console.log(`⚠️ Fast extraction: ${fastText.length} chars but ${isFastUsable ? 'usable' : 'GARBAGE — trying OCR...'}`);
 
     // Mode 1: Self-hosted API (VPS with Docker)
     if (PDF_API_URL) {
         console.log('🔧 Using Self-hosted PDF API');
-        const result = await extractViaSelfHostedAPI(buffer, PDF_API_URL, PDF_API_KEY || '');
-        if (result.text.length > fastText.length) return result;
+        const result = await extractViaSelfHostedAPI(buffer, PDF_API_URL, PDF_API_KEY || '', OCR_SPACE_API_KEY);
+        if (result.text.length > fastText.length && isReadableText(result.text)) return result;
         // إذا النتيجة أسوأ من fallback، أرجع fallback
         return { text: fastText, profileImage: result.profileImage };
     }
@@ -48,7 +73,7 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
     if (OCR_SPACE_API_KEY) {
         console.log('☁️ Using OCR.space API');
         const result = await extractViaOCRSpace(buffer, OCR_SPACE_API_KEY);
-        if (result.text.length > fastText.length) return result;
+        if (result.text.length > fastText.length && isReadableText(result.text)) return result;
         return { text: fastText, profileImage: result.profileImage };
     }
 
@@ -61,7 +86,8 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<Extractio
 async function extractViaSelfHostedAPI(
     buffer: ArrayBuffer,
     apiUrl: string,
-    apiKey: string
+    apiKey: string,
+    ocrSpaceApiKey?: string
 ): Promise<ExtractionResult> {
     try {
         const formData = new FormData();
@@ -93,9 +119,8 @@ async function extractViaSelfHostedAPI(
     } catch (error) {
         console.error('Self-hosted API error:', error);
         // Fallback to OCR.space if configured
-        const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY;
-        if (OCR_SPACE_API_KEY) {
-            return extractViaOCRSpace(buffer, OCR_SPACE_API_KEY);
+        if (ocrSpaceApiKey) {
+            return extractViaOCRSpace(buffer, ocrSpaceApiKey);
         }
         return { text: fallbackExtractText(buffer) };
     }

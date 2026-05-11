@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { callAIStream } from '@/lib/ai/ai-client';
+import { callAIStream, resolveKeys } from '@/lib/ai/ai-client';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate at least one AI key is available
-        if (!process.env.ZAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+        let cfEnv: Record<string, unknown> | undefined;
+        try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch {}
+        const keys = resolveKeys(cfEnv);
+
+        if (!keys.zaiKey && !keys.openrouterKey) {
             console.error("No AI API key found in environment variables");
             return new Response(
                 JSON.stringify({ error: "خدمة الذكاء الاصطناعي غير مفعلة حالياً" }),
@@ -78,7 +83,8 @@ export async function POST(request: NextRequest) {
                     role: m.role as 'system' | 'user' | 'assistant',
                     content: m.content,
                 })),
-                { temperature: temperature || 0.7 }
+                { temperature: temperature || 0.7 },
+                keys
             );
 
             clearTimeout(timeoutId);
