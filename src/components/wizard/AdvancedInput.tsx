@@ -214,10 +214,15 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
             const response = await fetch('/api/analyze/smart', {
                 method: 'POST',
                 body: formData,
+                signal: AbortSignal.timeout(90000), // 90 ثانية - حد Cloudflare أقل بقليل من 100 ثانية
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                // تحسين رسالة الخطأ لخطأ 524 (timeout من Cloudflare)
+                if (response.status === 524 || response.status === 504) {
+                    throw new Error('انتهت مهلة الخادم. يرجى المحاولة مرة أخرى أو استخدام "لصق النص" بدلاً من رفع ملف PDF.');
+                }
                 throw new Error(errorData.error || 'فشل في تحليل المصادر');
             }
 
@@ -243,7 +248,16 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
 
         } catch (err) {
             console.error('Analysis error:', err);
-            const errorMsg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
+            let errorMsg: string;
+            if (err instanceof Error) {
+                if (err.name === 'TimeoutError' || err.message.includes('timeout') || err.message.includes('aborted')) {
+                    errorMsg = 'انتهت مهلة التحليل. يرجى المحاولة مرة أخرى أو تقليل حجم الملف.';
+                } else {
+                    errorMsg = err.message;
+                }
+            } else {
+                errorMsg = 'حدث خطأ غير متوقع';
+            }
             trackAnalysisFailed(errorMsg);
             setError(errorMsg);
         } finally {
@@ -280,9 +294,20 @@ export default function AdvancedInput({ data, onNext, onBack }: AdvancedInputPro
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
+                        className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm space-y-2"
                     >
-                        ⚠️ {error}
+                        <p>⚠️ {error}</p>
+                        {error.includes('مهلة') || error.includes('timeout') || error.includes('524') ? (
+                            <p className="text-xs text-red-500">
+                                💡 نصيحة: جرب تقليل حجم ملف PDF أو استخدام "لصق النص" بدلاً من رفع الملف
+                            </p>
+                        ) : null}
+                        <button
+                            onClick={analyzeAllSources}
+                            className="mt-1 px-4 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition"
+                        >
+                            🔄 حاول مرة أخرى
+                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>

@@ -1,9 +1,16 @@
 /**
  * Smart Analysis API - تحليل ذكي لمصادر متعددة
  * يجمع كل المصادر (روابط، PDF، نص) ويرسلها للـ AI لتحليلها
+ *
+ * تحسينات:
+ * - استخراج نص PDF مباشرة بدون استدعاء HTTP لـ /api/analyze/pdf
+ * - استدعاء AI واحد فقط (بدلاً من اثنين)
+ * - الاحتفاظ باستخراج صورة الملف الشخصي (profileImage)
+ * - تقليل timeout وإزالة retry loop
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { extractTextFromPDF } from '@/lib/pdf/extract-text';
 
 export const runtime = 'edge';
 
@@ -11,7 +18,7 @@ const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
 const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية.
 
-سأعطيك معلومات من مصادر متعددة (نص، روابط مُضافة من المستخدم، ملفات PDF محللة).
+سأعطيك معلومات من مصادر متعددة (نص، روابط مُضافة من المستخدم، محتوى ملفات PDF).
 مهمتك: استخراج **كل** البيانات المُمكنة وتحويلها لسيرة ذاتية منظمة.
 
 **ملاحظات مهمة:**
@@ -63,7 +70,7 @@ export async function POST(request: NextRequest) {
 
         // جمع كل المعلومات
         const allInfo: string[] = [];
-        let pdfData: Record<string, unknown> | null = null;
+        let profileImage: string | undefined;
 
         // 1. معالجة الروابط
         const urlsJson = formData.get('urls');
@@ -117,7 +124,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 2. معالجة ملفات PDF
+        // 2. معالجة ملفات PDF - استخراج مباشر بدون HTTP call
         const fileKeys = Array.from(formData.keys()).filter(k => k.startsWith('file_') && !k.endsWith('_type'));
 
         for (const key of fileKeys) {
@@ -132,24 +139,22 @@ export async function POST(request: NextRequest) {
                 allInfo.push(`📎 **${typeLabel}:** ${file.name}`);
 
                 try {
-                    // استخدام الـ PDF analyzer الموجود
-                    const pdfFormData = new FormData();
-                    pdfFormData.append('file', file);
+                    // 🔥 تحسين: استخراج نص PDF مباشرة بدون استدعاء /api/analyze/pdf
+                    const arrayBuffer = await file.arrayBuffer();
+                    const extractedData = await extractTextFromPDF(arrayBuffer);
 
-                    const pdfResponse = await fetch(`${request.nextUrl.origin}/api/analyze/pdf`, {
-                        method: 'POST',
-                        body: pdfFormData,
-                    });
+                    if (extractedData.text.length > 0) {
+                        allInfo.push(`  محتوى الملف (مستخرج): ${extractedData.text.substring(0, 3000)}`);
+                    }
 
-                    if (pdfResponse.ok) {
-                        const pdfResult = await pdfResponse.json();
-                        if (pdfResult.cvData) {
-                            pdfData = pdfResult.cvData;
-                            allInfo.push(`  محتوى الملف (محلل): ${JSON.stringify(pdfResult.cvData).substring(0, 2000)}`);
-                        }
+                    // الاحتفاظ بصورة الملف الشخصي إن وُجدت
+                    if (extractedData.profileImage) {
+                        profileImage = extractedData.profileImage;
+                        console.log('✅ Profile image extracted from PDF');
                     }
                 } catch (error) {
-                    console.error(`Error analyzing PDF ${file.name}:`, error);
+                    console.error(`Error extracting text from PDF ${file.name}:`, error);
+                    allInfo.push(`  ⚠️ لم يتم استخراج النص من الملف`);
                 }
                 allInfo.push('');
             }
@@ -171,7 +176,7 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // إرسال كل المعلومات للـ AI
+        // إرسال كل المعلومات للـ AI (استدعاء واحد فقط)
         const ZAI_API_KEY = process.env.ZAI_API_KEY;
         if (!ZAI_API_KEY) {
             return NextResponse.json({
@@ -185,66 +190,45 @@ export async function POST(request: NextRequest) {
         console.log(fullContext.substring(0, 500));
         console.log(`--- Total length: ${fullContext.length} chars ---`);
 
-        // AI API call with retry
-        let aiResponse: Response | null = null;
-        let lastError = '';
-
-        for (let attempt = 1; attempt <= 2; attempt++) {
-            try {
-                aiResponse = await fetch(`${BASE_URL}/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${ZAI_API_KEY}`,
-                    },
-                    body: JSON.stringify({
-                        model: 'GLM-5-Turbo',
-                        messages: [
-                            { role: 'system', content: SMART_ANALYSIS_PROMPT },
-                            { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
-                        ],
-                        temperature: 0.3,
-                        stream: false,
-                    }),
-                    signal: AbortSignal.timeout(45000),
-                });
-
-                if (aiResponse.ok) break;
-
-                lastError = `AI API returned ${aiResponse.status}`;
-                console.error(`AI API attempt ${attempt} failed:`, aiResponse.status);
-
-                if (attempt < 2) {
-                    await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
-                }
-            } catch (fetchError) {
-                lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
-                console.error(`AI API attempt ${attempt} error:`, lastError);
-
-                if (attempt < 2) {
-                    await new Promise(r => setTimeout(r, 2000));
-                }
-            }
-        }
-
-        if (!aiResponse || !aiResponse.ok) {
-            const errorBody = aiResponse ? await aiResponse.text().catch(() => 'unknown') : 'no response';
-            console.error('AI API final error:', errorBody);
-
-            // إذا عندنا بيانات PDF، استخدمها كـ fallback
-            if (pdfData) {
-                return NextResponse.json({
-                    success: true,
-                    cvData: pdfData,
-                    sourcesAnalyzed: 1,
-                    message: 'تم استخراج البيانات من ملف PDF (التحليل الذكي غير متوفر حالياً)',
-                });
-            }
+        // AI API call - محاولة واحدة مع timeout 30 ثانية
+        let aiResponse: Response;
+        try {
+            aiResponse = await fetch(`${BASE_URL}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ZAI_API_KEY}`,
+                },
+                body: JSON.stringify({
+                    model: 'GLM-5-Turbo',
+                    messages: [
+                        { role: 'system', content: SMART_ANALYSIS_PROMPT },
+                        { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
+                    ],
+                    temperature: 0.3,
+                    stream: false,
+                }),
+                signal: AbortSignal.timeout(30000),
+            });
+        } catch (fetchError) {
+            const errorMsg = fetchError instanceof Error ? fetchError.message : 'Network error';
+            console.error('AI API error:', errorMsg);
 
             return NextResponse.json({
                 success: false,
-                error: `فشل في تحليل المصادر: ${lastError}`,
-                details: `AI API error after 2 attempts: ${lastError}`
+                error: `فشل في تحليل المصادر: ${errorMsg}`,
+                details: `AI API error: ${errorMsg}`
+            }, { status: 500 });
+        }
+
+        if (!aiResponse.ok) {
+            const errorBody = await aiResponse.text().catch(() => 'unknown');
+            console.error('AI API error:', aiResponse.status, errorBody);
+
+            return NextResponse.json({
+                success: false,
+                error: `فشل في تحليل المصادر: AI API returned ${aiResponse.status}`,
+                details: `AI API error: ${errorBody}`
             }, { status: 500 });
         }
 
@@ -262,15 +246,10 @@ export async function POST(request: NextRequest) {
             }
         } catch {
             console.error('Failed to parse AI response:', content.substring(0, 200));
-            // إذا فشل التحليل وعندنا بيانات PDF، نستخدمها
-            if (pdfData) {
-                cvData = pdfData;
-            } else {
-                return NextResponse.json({
-                    success: false,
-                    error: 'فشل في تحليل استجابة الذكاء الاصطناعي'
-                }, { status: 500 });
-            }
+            return NextResponse.json({
+                success: false,
+                error: 'فشل في تحليل استجابة الذكاء الاصطناعي'
+            }, { status: 500 });
         }
 
         // تأكد من وجود البنية الأساسية
@@ -295,6 +274,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             cvData: finalCvData,
+            // الاحتفاظ بصورة الملف الشخصي إن وُجدت
+            ...(profileImage ? { profileImage } : {}),
             sourcesAnalyzed: allInfo.filter(l => l.startsWith('📌') || l.startsWith('📎') || l.startsWith('📝')).length,
             message: 'تم تحليل المصادر بنجاح',
         });
@@ -305,7 +286,7 @@ export async function POST(request: NextRequest) {
         let errorMsg = 'فشل في تحليل المصادر';
         if (error instanceof Error) {
             if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
-                errorMsg = 'انتهت مهلة التحليل - يرجى المحاولة مرة أخرى';
+                errorMsg = 'انتهت مهلة التحليل - يرجى المحاولة مرة أخرى أو تقليل حجم الملف';
             } else if (error.message.includes('fetch') || error.message.includes('network')) {
                 errorMsg = 'مشكلة في الاتصال بالخادم - يرجى التحقق من الإنترنت';
             } else {
