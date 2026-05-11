@@ -1750,3 +1750,30 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 | PDF إنكليزي | يعمل (regex) ✅ | نفس الشيء ✅ |
 | Z.AI فارغ → retry | ~60s (30s + 30s retry) ❌ | ~2s (يفشل فوراً → minimax) ✅ |
 | كل المزودين فشلوا | ~90s (3 retries × 30s) | فشل فوري مع رسالة واضحة |
+
+---
+
+## 📋 تقرير 2026-05-11 (2): إصلاح JSON مقطوع + رفع timeouts
+
+### المشكلة
+1. **JSON مقطوع** — `callAIStream()` لا يرسل `max_tokens` في body الطلب → النموذج يتوقف بعد ~1000 حرف (الافتراضي) → JSON ناقص → `SyntaxError` → retry → فشل مرة ثانية.
+2. **Timeouts قصيرة** — المزودين كانوا على 20-30 ثانية، غير كافية لاستجابة streaming بـ 8000 token.
+
+### السبب الجذري
+- `callAIStream()` يرسل `{ model, messages, temperature, stream: true }` بدون `max_tokens` — بعض المزودين يحددون default منخفض جداً.
+- أوقات الانتهاء (20s/25s/30s) كانت مصممة لردود قصيرة، لكن CV JSON يحتاج ~4000-8000 token.
+
+### الحل المطبق
+| الملف | التغيير |
+|-------|---------|
+| `src/lib/ai/ai-client.ts` | إضافة `max_tokens: options?.maxTokens ?? 8000` في `callAIStream()` + رفع default `callAI()` من 3000 → 8000 |
+| `src/lib/ai/ai-client.ts` | رفع timeouts: Z.AI 30→60s, minimax 20→45s, gemini 25→50s |
+| `src/app/api/ai/chat/route.ts` | تمرير `{ maxTokens: 8000 }` لـ `callAIStream()` |
+
+### 📊 النتيجة المتوقعة
+
+| السيناريو | قبل | بعد |
+|-----------|------|------|
+| CV generation | JSON مقطوع (981 حرف) → SyntaxError ❌ | JSON كامل (~8000 token) ✅ |
+| Streaming timeout | يقطع بعد 20-30s | يكمل حتى 60s ✅ |
+| PDF عربي + CV gen | بيانات فارغة + JSON مقطوع | بيانات كاملة من OCR + JSON كامل ✅ |

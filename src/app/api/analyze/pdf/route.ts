@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdf/extract-text';
-import { callAI, parseAIJson } from '@/lib/ai/ai-client';
+import { callAI, parseAIJson, resolveKeys } from '@/lib/ai/ai-client';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -116,12 +117,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Analyze extracted text with AI (with fallback chain)
+        // قراءة المفاتيح من Cloudflare secrets
+        let cfEnv: Record<string, unknown> | undefined;
+        try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch {}
+        const keys = resolveKeys(cfEnv);
+
         let cvData;
         try {
             const aiResult = await callAI([
                 { role: 'system', content: PDF_ANALYSIS_PROMPT },
                 { role: 'user', content: `حلل النص التالي المستخرج من سيرة ذاتية PDF:\n\n${extractedText.substring(0, 15000)}` }
-            ], { temperature: 0.3 });
+            ], { temperature: 0.3 }, keys);
 
             console.log(`✅ AI responded via ${aiResult.provider} in ${aiResult.elapsed}ms`);
             cvData = parseAIJson(aiResult.content);
