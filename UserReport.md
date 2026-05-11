@@ -1664,3 +1664,22 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 | `src/app/api/analyze/smart/route.ts` | **إعادة كتابة** — إزالة HTTP call + AI مزدوج |
 | `src/app/api/analyze/pdf/route.ts` | **إعادة كتابة** — استيراد من الملف المشترك |
 | `src/components/wizard/AdvancedInput.tsx` | **تعديل** — timeout + رسائل خطأ محسّنة |
+
+---
+
+## [2026-05-11] - إصلاح Edge Runtime Crash بعد نقل extract-text.ts
+
+### 🔴 المشكلة
+بعد نشر الإصلاح السابق، `/api/analyze/smart` يُرجع `statusCode: 0` + `Failed to fetch` (بدون رد HTTP أصلاً).
+
+### 🔍 السبب الجذري
+1. **`Buffer.from()` في `extract-text.ts` السطر 115-116**: Cloudflare Workers V8 isolate لا يحتوي `Buffer` — الـ Worker يتعطل عند التشغيل
+2. **`btoa(String.fromCharCode(...spread))` في `pdf/route.ts` السطر 120**: spread operator على Uint8Array يسبب stack overflow لملفات أكبر من ~50KB
+3. **الفرق عن الكود القديم**: عندما كان الكود في `pdf/route.ts` منفصلاً، الـ bundler يعامله كـ dead code path. بعد النقل لـ `@/lib/pdf/extract-text.ts` واستيراده في `smart/route.ts`، أصبح في bundle الرئيسي للـ Worker
+
+### ✅ الحل المطبق
+
+| الملف | التعديل |
+|-------|---------|
+| `src/lib/pdf/extract-text.ts` | إزالة `Buffer.from()` بالكامل — استخدام chunk-based `btoa()` فقط |
+| `src/app/api/analyze/pdf/route.ts` | إزالة `btoa(String.fromCharCode(...spread))` — تحويل لـ chunk-based بدون stack overflow |
