@@ -1,6 +1,9 @@
 /**
  * AI Client with Fallback Chain
  * يحاول Z.AI أولاً → OpenRouter مجاني → OpenRouter مدفوع
+ *
+ * ⚠️ ملاحظة: في Cloudflare Pages، الـ secrets لا تُقرأ من process.env
+ * بل يجب تمريرها من الـ route handler عبر getRequestContext().env
  */
 
 interface AIProvider {
@@ -11,12 +14,27 @@ interface AIProvider {
     timeout: number;
 }
 
-function getProviders(): AIProvider[] {
+export interface AIKeys {
+    zaiKey?: string;
+    openrouterKey?: string;
+}
+
+/**
+ * يجمع المفاتيح من process.env + المفاتيح المُمررة (Cloudflare secrets)
+ */
+export function resolveKeys(cfEnv?: Record<string, unknown>): AIKeys {
+    return {
+        zaiKey: (cfEnv?.ZAI_API_KEY as string) || process.env.ZAI_API_KEY || undefined,
+        openrouterKey: (cfEnv?.OPENROUTER_API_KEY as string) || process.env.OPENROUTER_API_KEY || undefined,
+    };
+}
+
+function getProviders(keys: AIKeys): AIProvider[] {
     const providers: AIProvider[] = [];
 
     // 1️⃣ Z.AI (أساسي)
-    const zaiKey = process.env.ZAI_API_KEY;
-    if (zaiKey) {
+    if (keys.zaiKey) {
+        const zaiKey = keys.zaiKey;
         providers.push({
             name: 'Z.AI (GLM-4.7)',
             url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
@@ -30,8 +48,8 @@ function getProviders(): AIProvider[] {
     }
 
     // 2️⃣ OpenRouter مجاني + مدفوع (احتياطي)
-    const orKey = process.env.OPENROUTER_API_KEY;
-    if (orKey) {
+    if (keys.openrouterKey) {
+        const orKey = keys.openrouterKey;
         providers.push({
             name: 'OpenRouter (minimax-m2.5:free)',
             url: 'https://openrouter.ai/api/v1/chat/completions',
@@ -77,9 +95,10 @@ export interface AIResult {
  */
 export async function callAI(
     messages: AIMessage[],
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number },
+    keys?: AIKeys
 ): Promise<AIResult> {
-    const providers = getProviders();
+    const providers = getProviders(keys ?? resolveKeys());
 
     if (providers.length === 0) {
         throw new Error('لا يوجد مفتاح AI مُعدّ — أضف ZAI_API_KEY أو OPENROUTER_API_KEY');
@@ -142,9 +161,10 @@ export async function callAI(
  */
 export async function callAIStream(
     messages: AIMessage[],
-    options?: { temperature?: number }
+    options?: { temperature?: number },
+    keys?: AIKeys
 ): Promise<Response> {
-    const providers = getProviders();
+    const providers = getProviders(keys ?? resolveKeys());
 
     if (providers.length === 0) {
         throw new Error('لا يوجد مفتاح AI مُعدّ — أضف ZAI_API_KEY أو OPENROUTER_API_KEY');

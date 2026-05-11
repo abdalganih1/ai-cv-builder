@@ -11,7 +11,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdf/extract-text';
-import { callAI, parseAIJson } from '@/lib/ai/ai-client';
+import { callAI, parseAIJson, resolveKeys } from '@/lib/ai/ai-client';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -146,12 +147,17 @@ export async function POST(request: NextRequest) {
         const fullContext = allInfo.join('\n');
         console.log(`--- Smart Analysis: ${fullContext.length} chars ---`);
 
+        // قراءة المفاتيح من Cloudflare secrets
+        let cfEnv: Record<string, unknown> | undefined;
+        try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch { /* local dev */ }
+        const keys = resolveKeys(cfEnv);
+
         let cvData;
         try {
             const aiResult = await callAI([
                 { role: 'system', content: SMART_ANALYSIS_PROMPT },
                 { role: 'user', content: `حلل المعلومات التالية واستخرج بيانات السيرة الذاتية:\n\n${fullContext}` }
-            ], { temperature: 0.3 });
+            ], { temperature: 0.3 }, keys);
 
             console.log(`✅ AI responded via ${aiResult.provider} in ${aiResult.elapsed}ms`);
             cvData = parseAIJson(aiResult.content);
