@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
                     role: m.role as 'system' | 'user' | 'assistant',
                     content: m.content,
                 })),
-                { temperature: temperature || 0.7 },
+                { temperature: temperature || 0.7, maxTokens: 8000 },
                 keys
             );
 

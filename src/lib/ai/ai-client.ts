@@ -46,7 +46,7 @@ function getProviders(keys: AIKeys): AIProvider[] {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${zaiKey}`,
             }),
-            timeout: 30000,
+            timeout: 60000,
         });
     }
 
@@ -62,7 +62,7 @@ function getProviders(keys: AIKeys): AIProvider[] {
                 'Authorization': `Bearer ${orKey}`,
                 'HTTP-Referer': 'https://cv.abdalgani.com',
             }),
-            timeout: 20000,
+            timeout: 45000,
         });
 
         // 3️⃣ OpenRouter مدفوع (آخر خيار)
@@ -75,7 +75,7 @@ function getProviders(keys: AIKeys): AIProvider[] {
                 'Authorization': `Bearer ${orKey}`,
                 'HTTP-Referer': 'https://cv.abdalgani.com',
             }),
-            timeout: 25000,
+            timeout: 50000,
         });
     }
 
@@ -123,7 +123,7 @@ export async function callAI(
                     model: provider.model,
                     messages,
                     temperature: options?.temperature ?? 0.3,
-                    max_tokens: options?.maxTokens ?? 3000,
+                    max_tokens: options?.maxTokens ?? 8000,
                     stream: false,
                 }),
                 signal: AbortSignal.timeout(provider.timeout),
@@ -166,7 +166,7 @@ export async function callAI(
  */
 export async function callAIStream(
     messages: AIMessage[],
-    options?: { temperature?: number },
+    options?: { temperature?: number; maxTokens?: number },
     keys?: AIKeys
 ): Promise<Response> {
     const providers = getProviders(keys ?? resolveKeys());
@@ -189,6 +189,7 @@ export async function callAIStream(
                     model: provider.model,
                     messages,
                     temperature: options?.temperature ?? 0.7,
+                    max_tokens: options?.maxTokens ?? 8000,
                     stream: true,
                 }),
                 signal: AbortSignal.timeout(provider.timeout),
