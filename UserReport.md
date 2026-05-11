@@ -1683,3 +1683,39 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 |-------|---------|
 | `src/lib/pdf/extract-text.ts` | إزالة `Buffer.from()` بالكامل — استخدام chunk-based `btoa()` فقط |
 | `src/app/api/analyze/pdf/route.ts` | إزالة `btoa(String.fromCharCode(...spread))` — تحويل لـ chunk-based بدون stack overflow |
+
+---
+
+## [2026-05-11] - إصلاح Timeout عند تحليل PDF (المرحلة 3)
+
+### 🔴 المشكلة
+بعد إصلاح الـ crash، `/api/analyze/smart` يُرجع `statusCode: 500` بسبب timeout — الـ AI API (GLM-5-Turbo) يحتاج 30-40 ثانية أحياناً، لكن الـ timeout الداخلي مضبوط على 30 ثانية فقط.
+
+### 🔍 تحليل المشكلة
+المشكلة انتقلت من **Worker crash** (`statusCode: 0`) إلى **timeout عادي** (`statusCode: 500`) — يعني الكود يعمل، المشكلة فقط سرعة الاستجابة.
+
+3 نقاط اختناق:
+1. **AI timeout = 30s** (ضيق جداً — API يحتاج حتى 40s)
+2. **URLs تُجلب بالتتابع** (3 روابط × 8s = 24s ضائعة)
+3. **System prompt طويل** (~1200 حرف — يزيد وقت AI بـ 3-5s)
+
+### ✅ الحل المطبق
+
+| الإصلاح | التفاصيل |
+|---------|----------|
+| رفع AI timeout من 30s → 55s | `AbortSignal.timeout(55000)` — هامش أمان كافي بدون تجاوز حد العميل (90s) |
+| جلب URLs بالتوازي | `Promise.allSettled` بدل `for` loop — من 8s×عدد إلى 8s فقط |
+| تقصير System Prompt | من ~1200 حرف إلى ~600 حرف — توفير 3-5 ثوانٍ |
+
+### 📊 التأثير المتوقع
+
+| السيناريو | قبل الإصلاح | بعد الإصلاح |
+|-----------|-------------|-------------|
+| PDF فقط | timeout بعد 30s | ✅ ينجح (~20-35s) |
+| PDF + رابط واحد | timeout بعد 30s | ✅ ينجح (~25-40s) |
+| PDF + 3 روابط | timeout بعد 30s | ✅ ينجح (~30-50s) |
+
+### الملفات المعدلة
+| الملف | التغيير |
+|-------|---------|
+| `src/app/api/analyze/smart/route.ts` | رفع timeout + URLs بالتوازي + تقصير prompt (~50 سطر) |

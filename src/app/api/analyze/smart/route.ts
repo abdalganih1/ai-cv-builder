@@ -16,52 +16,16 @@ export const runtime = 'edge';
 
 const BASE_URL = 'https://api.z.ai/api/coding/paas/v4';
 
-const SMART_ANALYSIS_PROMPT = `أنت خبير في تحليل السير الذاتية.
-
-سأعطيك معلومات من مصادر متعددة (نص، روابط مُضافة من المستخدم، محتوى ملفات PDF).
-مهمتك: استخراج **كل** البيانات المُمكنة وتحويلها لسيرة ذاتية منظمة.
-
-**ملاحظات مهمة:**
-1. الروابط التي يضيفها المستخدم هي مصادر قيمة - استخدم عناوينها لفهم السياق
-2. إذا كان هناك رابط LinkedIn أو GitHub - استخدم ذلك لفهم الخبرة
-3. إذا كان هناك رابط وظيفة - ركز السيرة على متطلبات تلك الوظيفة
-4. **لا تترك أي حقل فارغاً إذا كانت المعلومات متوفرة**
-5. **خمّن الحقول الناقصة بشكل منطقي** من السياق
-
-**النتيجة المطلوبة:** أرجع JSON فقط بالشكل التالي:
+const SMART_ANALYSIS_PROMPT = `حلل المعلومات التالية واستخرج بيانات سيرة ذاتية بصيغة JSON.
+استخرج: الاسم، البريد، الهاتف، الموقع، المسمى الوظيفي، الملخص، الخبرات، التعليم، المهارات، اللغات، الهوايات.
+لا تترك حقلاً فارغاً إذا كانت المعلومات متوفرة. خمّن الحقول الناقصة بشكل منطقي.
+أرجع JSON فقط بالشكل:
 {
-  "personal": {
-    "firstName": "الاسم الأول",
-    "lastName": "الاسم الأخير",
-    "email": "البريد الإلكتروني",
-    "phone": "رقم الهاتف",
-    "location": "الموقع/البلد",
-    "jobTitle": "المسمى الوظيفي"
-  },
-  "summary": "ملخص احترافي عن الشخص",
-  "experience": [
-    {
-      "id": "exp-1",
-      "company": "اسم الشركة",
-      "position": "المنصب",
-      "startDate": "تاريخ البدء",
-      "endDate": "تاريخ الانتهاء أو 'حتى الآن'",
-      "description": "وصف المهام"
-    }
-  ],
-  "education": [
-    {
-      "id": "edu-1",
-      "institution": "الجامعة/المعهد",
-      "degree": "الدرجة",
-      "major": "التخصص",
-      "startYear": "سنة البدء",
-      "endYear": "سنة التخرج"
-    }
-  ],
-  "skills": ["مهارة 1", "مهارة 2"],
-  "languages": [{"name": "العربية", "level": "اللغة الأم"}, {"name": "الإنجليزية", "level": "جيد جداً"}],
-  "hobbies": []
+  "personal": { "firstName": "", "lastName": "", "email": "", "phone": "", "location": "", "jobTitle": "" },
+  "summary": "ملخص احترافي",
+  "experience": [{ "id": "exp-1", "company": "", "position": "", "startDate": "", "endDate": "", "description": "" }],
+  "education": [{ "id": "edu-1", "institution": "", "degree": "", "major": "", "startYear": "", "endYear": "" }],
+  "skills": [], "languages": [{ "name": "", "level": "" }], "hobbies": []
 }`;
 
 export async function POST(request: NextRequest) {
@@ -79,13 +43,15 @@ export async function POST(request: NextRequest) {
                 const urls = JSON.parse(urlsJson as string);
                 if (urls.length > 0) {
                     allInfo.push('📌 **روابط المستخدم:**');
-                    for (const urlItem of urls) {
+
+                    // جلب كل الروابط بالتوازي (8s للجميع بدل 8s×عدد)
+                    const urlFetchPromises = urls.map(async (urlItem: { url: string; type: string }) => {
                         const typeLabel = urlItem.type === 'personal' ? '👤 بيانات شخصية' :
                             urlItem.type === 'job' ? '💼 وظيفة شاغرة' :
                                 '❓ غير محدد';
-                        allInfo.push(`- ${typeLabel}: ${urlItem.url}`);
 
-                        // محاولة جلب محتوى الرابط (قد تفشل لكن نحاول)
+                        const lines: string[] = [`- ${typeLabel}: ${urlItem.url}`];
+
                         try {
                             const response = await fetch(urlItem.url, {
                                 headers: {
@@ -98,7 +64,6 @@ export async function POST(request: NextRequest) {
                                 const contentType = response.headers.get('content-type') || '';
                                 if (contentType.includes('text/html')) {
                                     const html = await response.text();
-                                    // استخراج النص المفيد فقط
                                     const textContent = html
                                         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
                                         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -108,13 +73,21 @@ export async function POST(request: NextRequest) {
                                         .substring(0, 3000);
 
                                     if (textContent.length > 50) {
-                                        allInfo.push(`  محتوى الصفحة: ${textContent}`);
+                                        lines.push(`  محتوى الصفحة: ${textContent}`);
                                     }
                                 }
                             }
                         } catch {
-                            // تجاهل أخطاء الجلب
                             console.log(`Could not fetch ${urlItem.url}`);
+                        }
+
+                        return lines;
+                    });
+
+                    const results = await Promise.allSettled(urlFetchPromises);
+                    for (const result of results) {
+                        if (result.status === 'fulfilled') {
+                            allInfo.push(...result.value);
                         }
                     }
                     allInfo.push('');
@@ -190,7 +163,7 @@ export async function POST(request: NextRequest) {
         console.log(fullContext.substring(0, 500));
         console.log(`--- Total length: ${fullContext.length} chars ---`);
 
-        // AI API call - محاولة واحدة مع timeout 30 ثانية
+        // AI API call - محاولة واحدة مع timeout 55 ثانية
         let aiResponse: Response;
         try {
             aiResponse = await fetch(`${BASE_URL}/chat/completions`, {
@@ -208,7 +181,7 @@ export async function POST(request: NextRequest) {
                     temperature: 0.3,
                     stream: false,
                 }),
-                signal: AbortSignal.timeout(30000),
+                signal: AbortSignal.timeout(55000),
             });
         } catch (fetchError) {
             const errorMsg = fetchError instanceof Error ? fetchError.message : 'Network error';
