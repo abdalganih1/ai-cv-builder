@@ -23,10 +23,13 @@ export interface AIKeys {
  * يجمع المفاتيح من process.env + المفاتيح المُمررة (Cloudflare secrets)
  */
 export function resolveKeys(cfEnv?: Record<string, unknown>): AIKeys {
-    return {
-        zaiKey: (cfEnv?.ZAI_API_KEY as string) || process.env.ZAI_API_KEY || undefined,
-        openrouterKey: (cfEnv?.OPENROUTER_API_KEY as string) || process.env.OPENROUTER_API_KEY || undefined,
-    };
+    const zaiKey = (cfEnv?.ZAI_API_KEY as string) || process.env.ZAI_API_KEY || undefined;
+    const openrouterKey = (cfEnv?.OPENROUTER_API_KEY as string) || process.env.OPENROUTER_API_KEY || undefined;
+    
+    console.log(`🔑 resolveKeys: ZAI=${zaiKey ? `${zaiKey.substring(0, 8)}...` : 'MISSING'}, OR=${openrouterKey ? `${openrouterKey.substring(0, 12)}...` : 'MISSING'}`);
+    console.log(`🔑 Sources: cfEnv=${!!cfEnv}, cfEnv.OR=${!!(cfEnv?.OPENROUTER_API_KEY)}, process.env.OR=${!!process.env.OPENROUTER_API_KEY}`);
+    
+    return { zaiKey, openrouterKey };
 }
 
 function getProviders(keys: AIKeys): AIProvider[] {
@@ -111,9 +114,11 @@ export async function callAI(
         console.log(`🤖 Trying ${provider.name}...`);
 
         try {
+            const headers = provider.getHeaders();
+            console.log(`📤 ${provider.name} headers:`, JSON.stringify(Object.keys(headers)), 'Auth:', headers['Authorization']?.substring(0, 20) + '...');
             const response = await fetch(provider.url, {
                 method: 'POST',
-                headers: provider.getHeaders(),
+                headers,
                 body: JSON.stringify({
                     model: provider.model,
                     messages,

@@ -1719,3 +1719,34 @@ Cloudflare Pages cache يحتفظ بالنسخة القديمة. تم عمل ن�
 | الملف | التغيير |
 |-------|---------|
 | `src/app/api/analyze/smart/route.ts` | رفع timeout + URLs بالتوازي + تقصير prompt (~50 سطر) |
+
+---
+
+## 📋 تقرير 2026-05-11: إصلاح استخراج نص PDF العربي + إزالة التكرار المزدوج
+
+### المشكلة
+1. **فشل استخراج نص PDF العربي** — الدالة `fallbackExtractText()` تستخدم regex على binary PDF مشفّر (latin1 decode)، مما ينتج ~39,705 حرف garbage بدلاً من نص عربي حقيقي. النتيجة تتجاوز حد الـ 200 حرف فيتخطى OCR.space → AI يستلم garbage → يرجع JSON فارغ.
+2. **التكرار المزدوج (Double Wait)** — `chatWithAI()` في `zai-client.ts` يستخدم retry loop داخلي. عندما Z.AI يرجع stream فارغ (30 ثانية ضائعة)، الـ `extractJSON()` يرمي Error → يدخل catch → يعيد المحاولة كاملة (30 ثانية إضافية) → إجمالي ~60 ثانية ضائعة.
+3. **مفاتيح Cloudflare غير مقروءة** — `chat/route.ts` يقرأ `process.env` فقط بدون `getRequestContext()`، مما يمنع قراءة الـ secrets على Cloudflare Pages.
+
+### السبب الجذري
+- **PDF**: `fallbackExtractText` regex يعمل للإنكليزي لكن يعطي garbage للعربي (CMAP encoding, embedded fonts). الدالة لا تتحقق من جودة النص.
+- **Double Wait**: retry loop في `zai-client.ts` يتعارض مع fallback chain في `ai-client.ts` — كل واحد يعيد المحاولة بشكل مستقل.
+- **Keys**: `chat/route.ts` لا يستخدم `getRequestContext()` لقراءة Cloudflare secrets.
+
+### الحل المطبق
+| الملف | التغيير |
+|-------|---------|
+| `src/lib/pdf/extract-text.ts` | إضافة `isReadableText()` لكشف garbage (نسبة 40% أحرف مقروءة) + `getRequestContext()` لقراءة OCR_SPACE_API_KEY من Cloudflare + تمرير المفاتيح للدوال المساعدة |
+| `src/lib/ai/zai-client.ts` | إضافة فحص stream فارغ (`content.trim().length < 5` → throw) + إزالة retry loop كامل (الـ fallback chain في `ai-client.ts` يتولى) |
+| `src/app/api/ai/chat/route.ts` | إضافة `getRequestContext()` + `resolveKeys()` وتمرير `keys` لـ `callAIStream()` |
+| Cloudflare secret | إضافة `OCR_SPACE_API_KEY` عبر `wrangler pages secret put` |
+
+### 📊 النتيجة المتوقعة
+
+| السيناريو | قبل | بعد |
+|-----------|------|------|
+| PDF عربي | 39K garbage → AI فارغ ❌ | يكتشف garbage → OCR.space → 1741 نص حقيقي ✅ |
+| PDF إنكليزي | يعمل (regex) ✅ | نفس الشيء ✅ |
+| Z.AI فارغ → retry | ~60s (30s + 30s retry) ❌ | ~2s (يفشل فوراً → minimax) ✅ |
+| كل المزودين فشلوا | ~90s (3 retries × 30s) | فشل فوري مع رسالة واضحة |
