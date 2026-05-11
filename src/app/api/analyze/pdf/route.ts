@@ -116,8 +116,15 @@ export async function POST(request: NextRequest) {
 
         // If extraction failed or got too little text, try base64 approach
         if (extractedText.length < 100) {
-            // Convert to base64 for AI to analyze (Vision)
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer).slice(0, 50000)));
+            // Convert to base64 using chunk-based method (Edge Runtime compatible)
+            const uint8Arr = new Uint8Array(arrayBuffer).slice(0, 50000);
+            const CHUNK_SIZE = 32768;
+            const chunks: string[] = [];
+            for (let i = 0; i < uint8Arr.length; i += CHUNK_SIZE) {
+                const chunk = uint8Arr.slice(i, i + CHUNK_SIZE);
+                chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
+            }
+            const base64 = btoa(chunks.join(''));
 
             // Ask AI to try to understand the PDF structure
             const response = await fetch(`${BASE_URL}/chat/completions`, {

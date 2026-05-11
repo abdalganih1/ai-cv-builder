@@ -107,23 +107,16 @@ async function extractViaOCRSpace(
     apiKey: string
 ): Promise<ExtractionResult> {
     try {
-        // Convert to base64 safely (avoid stack overflow on large files)
+        // Convert to base64 using chunk-based method (Edge Runtime compatible)
+        // Avoids: Buffer.from() (not in Cloudflare Workers), spread operator stack overflow
         const uint8Array = new Uint8Array(buffer);
-        let base64 = '';
-
-        // Use Buffer if available (Node.js), otherwise chunk manually
-        if (typeof Buffer !== 'undefined') {
-            base64 = Buffer.from(uint8Array).toString('base64');
-        } else {
-            // Fallback: chunk-based conversion for Edge runtime
-            const CHUNK_SIZE = 32768; // 32KB chunks
-            const chunks: string[] = [];
-            for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
-                const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
-                chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
-            }
-            base64 = btoa(chunks.join(''));
+        const CHUNK_SIZE = 32768; // 32KB chunks
+        const chunks: string[] = [];
+        for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+            const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
+            chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
         }
+        const base64 = btoa(chunks.join(''));
 
         const formData = new FormData();
         formData.append('base64Image', `data:application/pdf;base64,${base64}`);
