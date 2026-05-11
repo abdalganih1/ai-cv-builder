@@ -1062,7 +1062,7 @@ export default function CVPreview({ data, onUpdate, onBack }: StepProps) {
                                 )}
                                 <div className="flex flex-wrap gap-2">
                                     {previewData.skills.map((skill, idx) => (
-                                        <span key={idx} className="bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg text-sm text-gray-700 font-medium">
+                                        <span key={idx} className="bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg text-sm text-gray-700 font-medium" dir={isRTL ? 'rtl' : 'ltr'}>
                                             {skill}
                                         </span>
                                     ))}

@@ -184,7 +184,9 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
     },
     skillBadgeText: {
         fontSize: 9,
-        color: '#374151'
+        color: '#374151',
+        direction: isRTL ? 'rtl' : 'ltr',
+        textAlign: isRTL ? 'right' : 'left'
     },
     photo: {
         width: 80,
@@ -204,7 +206,8 @@ const createStyles = (isRTL: boolean) => StyleSheet.create({
     },
     languageBadgeText: {
         fontSize: 8,
-        color: '#ffffff'
+        color: '#ffffff',
+        direction: isRTL ? 'rtl' : 'ltr'
     }
 });
 
