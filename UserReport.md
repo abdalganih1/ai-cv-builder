@@ -1807,3 +1807,40 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 | PDF إنكليزي عادي | ✅ regex يعمل | ✅ regex أسرع (يتخطى Gemini) |
 | PDF صورة (scan) | ❌ فشل كلي | ✅ Gemini يقرأ الصورة |
 | سرعة الاستجابة | ~1s regex فقط | regex <1s أو Gemini ~5s (فقط عند الحاجة) |
+
+
+---
+
+## 📋 تقرير 2026-08-20: إصلاح مسارات AI المعطلة + بطء الاقتراحات + تنظيف LiteLLM
+
+### المشكلة
+1. **ثلاثة مسارات AI ترجع فاضي بصمت**: `smart-suggestions` و`work-date-suggestions` و`year-suggestions` تستدعي z.ai مباشرة بنموذج `glm-4-flash` — النداء يفشل (~1.5s) فترجع `suggestions: []` بـ HTTP 200
+2. **بطء 30 ثانية على /api/ai/suggest**: الطلب يذهب لنموذج thinking (GLM-4.7) بدون streaming فينتظر التفكير كاملاً قبل الجواب
+3. **LiteLLM ميت بس باقي بالسلسلة**: مفاتيح LITELLM_BASE_URL/KEY مضبوطة بالـ Pages فيمر شرط `if (LITELLM_BASE_URL && ...)` — كل PDF عربي يضيع ~20s بمحاولة اتصال ببروكسي معطل قبل ال fallback لـ OCR.space
+4. **مفتاح ZAI المحلي ميت**: `.env.local` يرجع 401 (production secret سليم — الفحص live أثبت glm-4.7 يرد)
+
+### السبب الجذري
+- المسارات الثلاثة ما كانت تمر عبر سلسلة fallback الموحدة (`callAI`) ولا تقرأ secrets عبر `getRequestContext()`
+- لا يوجد وضع "سريع" لطلبات الاقتراحات القصيرة — كلها تنتظر thinking بنموذج heavyweight
+
+### الحل المطبق
+| الملف | التغيير |
+|-------|---------|
+| `src/lib/ai/ai-client.ts` | إضافة خيار `fast` لـ `callAI()` — يرسل `thinking: {type: 'disabled'}` لمزودي z.ai |
+| `src/app/api/ai/smart-suggestions/route.ts` | تحويل النداء المباشر إلى `callAI` بنمط fast + `getRequestContext()` |
+| `src/app/api/ai/work-date-suggestions/route.ts` | نفس التحويل |
+| `src/app/api/ai/year-suggestions/route.ts` | نفس التحويل |
+| `src/app/api/ai/suggest/route.ts` | تفعيل `fast: true` |
+| Cloudflare Pages | حذف secrets: `LITELLM_BASE_URL` + `LITELLM_API_KEY` (مؤكد بالتحقق بعد الحذف) |
+
+### 📊 النتيجة المتوقعة
+| السيناريو | قبل | بعد |
+|-----------|------|------|
+| smart/work-date/year suggestions | `[]` فاضي دائماً | اقتراحات فعلية عبر سلسلة fallback |
+| زمن /api/ai/suggest | ~30s | ثوانٍ (thinking معطل) |
+| PDF عربي | +20s محاولة LiteLLM ميت | يتخطى مباشرة لـ OCR.space |
+| فشل مزود | مسارات الاقتراحات تموت | fallback تلقائي GLM-4.7 → OpenRouter |
+
+### ملاحظات
+- الفحص live قبل الإصلاح أثبت: `/api/ai/suggest` 30.0s/30.6s، والمسارات الثلاثة فاضية بـ ~1.5s
+- `process.env` يعمل فعلاً على Pages هنا (على خلاف الشائع) لكن المفتاح اللي يقرأه المسار المباشر يرفض نموذج glm-4-flash على endpoint الـ coding

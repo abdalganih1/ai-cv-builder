@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         try {
             const aiResult = await callAI([
                 { role: 'user', content: prompt }
-            ], { temperature: 0.3, maxTokens: 100 });
+            ], { temperature: 0.3, maxTokens: 100, fast: true });
             content = aiResult.content;
         } catch (error) {
             console.error('[suggest] AI error:', error);

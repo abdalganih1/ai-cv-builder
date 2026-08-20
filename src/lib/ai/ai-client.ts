@@ -98,7 +98,7 @@ export interface AIResult {
  */
 export async function callAI(
     messages: AIMessage[],
-    options?: { temperature?: number; maxTokens?: number },
+    options?: { temperature?: number; maxTokens?: number; fast?: boolean },
     keys?: AIKeys
 ): Promise<AIResult> {
     const providers = getProviders(keys ?? resolveKeys());
@@ -125,6 +125,8 @@ export async function callAI(
                     temperature: options?.temperature ?? 0.3,
                     max_tokens: options?.maxTokens ?? 8000,
                     stream: false,
+                    // fast mode: تعطيل thinking لنماذج GLM — لطلبات الاقتراحات القصيرة
+                    ...(options?.fast && provider.url.includes('z.ai') ? { thinking: { type: 'disabled' } } : {}),
                 }),
                 signal: AbortSignal.timeout(provider.timeout),
             });

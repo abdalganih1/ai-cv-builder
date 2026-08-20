@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callAI, resolveKeys } from '@/lib/ai/ai-client';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -7,8 +9,11 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { birthDate, education, experience, fieldType, currentCompany, currentStartDate } = body;
 
-        const apiKey = process.env.ZAI_API_KEY;
-        if (!apiKey) {
+        // Cloudflare Pages secrets تُقرأ عبر getRequestContext وليس process.env
+        let cfEnv: Record<string, unknown> | undefined;
+        try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch { /* local dev */ }
+        const keys = resolveKeys(cfEnv);
+        if (!keys.zaiKey && !keys.openrouterKey) {
             return NextResponse.json({ suggestions: [] }, { status: 200 });
         }
 
@@ -52,32 +57,21 @@ export async function POST(request: NextRequest) {
 `;
         }
 
-        const aiResponse = await fetch('https://api.z.ai/api/coding/paas/v4/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'glm-4-flash',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'أنت مساعد ذكي. تُرجع JSON array فقط بدون أي نص إضافي.'
-                    },
+        let content: string;
+        try {
+            const aiResult = await callAI(
+                [
+                    { role: 'system', content: 'أنت مساعد ذكي. تُرجع JSON array فقط بدون أي نص إضافي.' },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.3,
-                max_tokens: 300,
-            }),
-        });
-
-        if (!aiResponse.ok) {
+                { temperature: 0.3, maxTokens: 300, fast: true },
+                keys
+            );
+            content = aiResult.content;
+        } catch (error) {
+            console.error('Work date suggestions AI error:', error);
             return NextResponse.json({ suggestions: [] }, { status: 200 });
         }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '';
 
         const jsonMatch = content.match(/\[[\s\S]*?\]/);
         if (jsonMatch) {

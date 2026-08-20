@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callAI, resolveKeys } from '@/lib/ai/ai-client';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -94,41 +96,29 @@ ${completedEducation.length > 0
 `;
         }
 
-        // Call AI
-        const apiKey = process.env.ZAI_API_KEY;
-        if (!apiKey) {
+        // Call AI — Cloudflare secrets عبر getRequestContext
+        let cfEnv: Record<string, unknown> | undefined;
+        try { cfEnv = getRequestContext().env as unknown as Record<string, unknown>; } catch { /* local dev */ }
+        const keys = resolveKeys(cfEnv);
+        if (!keys.zaiKey && !keys.openrouterKey) {
             return NextResponse.json({ suggestions: null }, { status: 200 });
         }
 
-        const aiResponse = await fetch('https://api.z.ai/api/coding/paas/v4/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'glm-4-flash',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'أنت مساعد ذكي متخصص في تحليل البيانات الأكاديمية. تُرجع JSON فقط بدون أي نص إضافي.'
-                    },
-                    {
-                        role: 'user',
-                        content: analysisContext
-                    }
+        let content: string;
+        try {
+            const aiResult = await callAI(
+                [
+                    { role: 'system', content: 'أنت مساعد ذكي متخصص في تحليل البيانات الأكاديمية. تُرجع JSON فقط بدون أي نص إضافي.' },
+                    { role: 'user', content: analysisContext }
                 ],
-                temperature: 0.3,
-                max_tokens: 500,
-            }),
-        });
-
-        if (!aiResponse.ok) {
+                { temperature: 0.3, maxTokens: 500, fast: true },
+                keys
+            );
+            content = aiResult.content;
+        } catch (error) {
+            console.error('AI year suggestions error:', error);
             return NextResponse.json({ suggestions: null }, { status: 200 });
         }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '';
 
         // Extract JSON from response
         const jsonMatch = content.match(/\[[\s\S]*?\]/);
