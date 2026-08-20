@@ -1844,3 +1844,20 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 ### ملاحظات
 - الفحص live قبل الإصلاح أثبت: `/api/ai/suggest` 30.0s/30.6s، والمسارات الثلاثة فاضية بـ ~1.5s
 - `process.env` يعمل فعلاً على Pages هنا (على خلاف الشائع) لكن المفتاح اللي يقرأه المسار المباشر يرفض نموذج glm-4-flash على endpoint الـ coding
+
+
+### ✅ نتائج التحقق الفعلي بعد النشر (deployment 47ee2a16)
+| المسار | قبل | بعد (قياس فعلي) |
+|--------|-----|-----------------|
+| `/api/ai/smart-suggestions` | `[]` فاضي دائماً | اقتراحات فعلية، ~5s |
+| `/api/ai/work-date-suggestions` | `[]` فaginator دائماً | اقتراحات فعلية، ~5s |
+| `/api/ai/year-suggestions` | `null` دائماً | اقتراحات فعلية، ~5s |
+| `/api/ai/suggest` | ~30s (thinking wait) | ~4s |
+| `/api/analyze/pdf` (عربي مشفر) | تعليق LiteLLM الميت | يتخطاه فوراً → OCR → GLM-4.7 fallback يعمل |
+| `/api/ai/chat` (stream) | شغال | شغال (glm-4.7 chunks فورية) |
+
+**ملاحظات فحص:**
+- تتبع `wrangler pages deployment tail` أثبت: smart-suggestions صار يصل للـ AI فعلاً (resolveKeys يقرأ cfEnv بنجاح)
+- خطأ قديم مكتشف أثناء الفحص ولم يُعالج: OCR.space يرفض parameter `language` (E201) — يحتاج إصلاح منفصل
+- خطأ أثناء التحقق: curl على ويندوز يفسّر `--data @/tmp/f.json` كـ `C:	mp.json` فيرسل body فاضي — استخدام `-d` مباشر أو مسار windowsي
+- ESLint معطل في المشروع (eslint-config-next module resolution) — مشكلة قديمة، tsc نظيف
