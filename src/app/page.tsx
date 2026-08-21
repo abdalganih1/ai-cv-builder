@@ -1,17 +1,21 @@
 "use client";
 
-export const runtime = 'edge';
+// NOTE: 'export const runtime = "edge"' was removed — it forced "/" to be
+// server-rendered on demand at the edge, where SSR threw a 500 on Cloudflare
+// Pages. The page is a fully client-side wizard, so it now prerenders at
+// build time (static HTML) and is served without edge SSR.
+export const dynamic = 'force-static';
 
 
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import ProgressBar from '@/components/wizard/ProgressBar';
 import WelcomeStep from '@/components/wizard/WelcomeStep';
 import ContactStep from '@/components/wizard/ContactStep';
 import QuestionnaireStep from '@/components/wizard/QuestionnaireStep';
 
 // Dynamically import CVPreview to reduce Edge Worker bundle size
-const CVPreview = dynamic(() => import('@/components/preview/CVPreview'), {
+const CVPreview = nextDynamic(() => import('@/components/preview/CVPreview'), {
   ssr: false,
   loading: () => (
     <div className="flex flex-col items-center justify-center p-20">

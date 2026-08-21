@@ -738,6 +738,20 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
     }, [initialized, data, buildSequence, hasStoredValue, showQuestionAtCursor]);
 
     // ═══════════════════════════════════════════════════════════════
+    // SCROLL TO TOP OF QUESTION — tall questions (e.g. photo upload)
+    // used to push navigation buttons below the fold on mobile
+    // ═══════════════════════════════════════════════════════════════
+    const questionRef = useRef<HTMLDivElement>(null);
+    const questionKey = currentQuestion
+        ? currentQuestion.id + '-' + (activeEntryIndex ?? 'null') + '-' + cursorIndex
+        : '';
+    useEffect(() => {
+        if (questionKey) {
+            questionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [questionKey]);
+
+    // ═══════════════════════════════════════════════════════════════
     // SECTION STATUS — determine which sections are complete/active
     // ═══════════════════════════════════════════════════════════════
     const getSectionStatus = useCallback((sectionId: string): 'completed' | 'active' | 'locked' => {
@@ -1407,6 +1421,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
             <div
                 key={currentQuestion.id + '-' + (activeEntryIndex ?? 'null') + '-' + cursorIndex}
+                ref={questionRef}
                 className="space-y-8 animate-in fade-in duration-300"
             >
                 <div className="space-y-2">
@@ -1580,7 +1595,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                     )}
 
                     {currentQuestion.type === 'file' && (
-                        <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl p-10 hover:bg-gray-50 transition-colors cursor-pointer relative"
+                        <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl p-5 sm:p-8 hover:bg-gray-50 transition-colors cursor-pointer relative max-h-56 sm:max-h-64 overflow-hidden"
                             onClick={() => document.getElementById('file-upload')?.click()}
                         >
                             <input
@@ -1592,7 +1607,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             />
                             {response ? (
                                 <div className="text-center">
-                                    <div className="w-32 h-32 rounded-full overflow-hidden mx-auto mb-4 border-4 border-primary relative">
+                                    <div className="w-24 h-24 rounded-full overflow-hidden mx-auto mb-3 border-4 border-primary relative">
                                         <NextImage
                                             src={response}
                                             alt="Preview"
@@ -1605,9 +1620,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 </div>
                             ) : (
                                 <div className="text-center">
-                                    <span className="text-4xl mb-2 block">📷</span>
+                                    <span className="text-3xl mb-1 block">📷</span>
                                     <p className="text-gray-600 font-medium">اضغط هنا لرفع صورة شخصية</p>
-                                    <p className="text-xs text-gray-400 mt-2">JPG, PNG بحد أقصى 2 ميغابايت</p>
+                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG بحد أقصى 2 ميغابايت</p>
                                 </div>
                             )}
                         </div>
