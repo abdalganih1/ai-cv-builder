@@ -2087,5 +2087,6 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 - `npm run build` ✓
 
 ### النشر والتحقق المباشر
-- push إلى main → التحقق الحي من https://cv.abdalgani.com أدناه.
+- push إلى main (commit `5c20ee9`) → commit `7f457df..5c20ee9` على GitHub.
+- **التحقق الحي تم بنجاح**: استطلاع https://cv.abdalgani.com أثبت تغيّر بصمة ملفات JS للبناء الجديد (`page-29962e2d…` → `page-205e1898…`) أي أن نشر Cloudflare Pages الجديد فعلاً حي، مع HTTP 200 ✓، لا يوجد `__next_error__` ✓، والعنوان يحوي «ذكاء السيرة» ✓.
 
