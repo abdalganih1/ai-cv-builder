@@ -149,7 +149,6 @@ interface SmartTagInputProps {
 
 export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, placeholder, onBack, context }: SmartTagInputProps) {
     const [inputValue, setInputValue] = useState('');
-    const [showSuggestions, setShowSuggestions] = useState(true);
     const [highlightIndex, setHighlightIndex] = useState(-1);
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
     const [aiLoading, setAiLoading] = useState(false);
@@ -303,13 +302,11 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                 prev > 0 ? prev - 1 : filteredSuggestions.length - 1
             );
         } else if (e.key === 'Escape') {
-            setShowSuggestions(false);
         }
     };
 
     // إظهار الاقتراحات عند الكتابة
     useEffect(() => {
-        setShowSuggestions(true);
         setHighlightIndex(-1);
     }, [inputValue]);
 
@@ -317,8 +314,7 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                setShowSuggestions(false);
-            }
+                }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -350,14 +346,6 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={(e) => {
-                        // أغلق المنسدلة عند فقدان التركيز — إلا إذا الضغط كان على عنصر داخل الحاوية
-                        // (المنسدلة أخو الحقل داخل نفس containerRef، فحالياً onClick بالاقتراحات يسجل طبيعي)
-                        if (!containerRef.current?.contains(e.relatedTarget as Node)) {
-                            setShowSuggestions(false);
-                        }
-                    }}
                     placeholder={tags.length === 0 ? (placeholder || 'ابدأ بالكتابة...') : 'أضف المزيد...'}
                     className="smart-tag-input"
                     dir="auto"
@@ -378,61 +366,48 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                 </div>
             )}
 
-            {/* قائمة الاقتراحات المنسدلة */}
-            {showSuggestions && (filteredSuggestions.length > 0 || canAddCustom) && (
-                <div className="smart-tag-suggestions">
-                    <div className="smart-tag-suggestions-header">
-                        💡 {inputValue ? 'نتائج البحث' : 'اقتراحات ذكية'} — اضغط للإضافة
+            {/* ═══ قائمة اقتراحات موحّدة (وحدة بس) — inline مع الصفحة، بلا منسدلة فوق المحتوى ═══ */}
+            {(filteredSuggestions.length > 0 || canAddCustom) && (
+                <div className="smart-suggest-inline">
+                    <div className="smart-suggest-inline-title">
+                        💡 {inputValue ? 'نتائج البحث' : 'اقتراحات ذكية'}
+                        {aiLoading && <span className="smart-suggest-loading"> …جاري توليد المزيد</span>}
                     </div>
-                    <div className="smart-tag-suggestions-list">
+                    <div className="smart-suggest-inline-chips">
                         {canAddCustom && (
                             <button
                                 type="button"
-                                className="smart-tag-suggestion-item smart-tag-add-custom"
+                                className="smart-chip smart-chip-add"
                                 onClick={() => addTag(inputValue)}
                             >
-                                <span className="smart-tag-suggestion-plus">+</span>
-                                إضافة «{inputValue.trim()}» يدوياً
+                                + «{inputValue.trim()}»
                             </button>
                         )}
-                        {filteredSuggestions.map((suggestion, idx) => (
+                        {filteredSuggestions.map((suggestion) => (
                             <button
-                                key={idx}
+                                key={suggestion}
                                 type="button"
-                                className={`smart-tag-suggestion-item ${idx === highlightIndex ? 'highlighted' : ''}`}
+                                className={`smart-chip ${tags.includes(suggestion) ? 'smart-chip-selected' : ''}`}
                                 onClick={() => addTag(suggestion)}
-                                onMouseEnter={() => setHighlightIndex(idx)}
                             >
-                                <span className="smart-tag-suggestion-plus">+</span>
-                                {suggestion}
+                                {tags.includes(suggestion) ? '✓ ' : '+ '}{suggestion}
                             </button>
                         ))}
+                        {aiSuggestions
+                            .filter(s => !filteredSuggestions.includes(s))
+                            .map((s) => (
+                                <button
+                                    key={`ai-${s}`}
+                                    type="button"
+                                    className={`smart-chip smart-chip-ai ${tags.includes(s) ? 'smart-chip-selected' : ''}`}
+                                    onClick={() => addTag(s)}
+                                >
+                                    {tags.includes(s) ? '✓ ' : '+ '}{s}
+                                </button>
+                            ))}
                     </div>
                 </div>
             )}
-
-            {/* اقتراحات AI إضافية — تتجدد كل ما أضاف المستخدم المزيد */}
-            {aiSuggestions.length > 0 && (
-                <div className="smart-ai-extra">
-                    <div className="smart-ai-extra-header">
-                        🤖 اقتراحات AI إضافية {aiLoading && <span className="animate-pulse">…</span>}
-                    </div>
-                    <div className="smart-ai-extra-chips">
-                        {aiSuggestions.map((s) => (
-                            <button
-                                key={s}
-                                type="button"
-                                className="smart-ai-extra-chip"
-                                onClick={() => addTag(s)}
-                            >
-                                + {s}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* عدّاد ورسالة مساعدة */}
             <div className="smart-tag-footer">
                 <span className="smart-tag-count">
                     {tags.length > 0 ? `${tags.length} ${fieldType === 'skills' ? 'مهارة' : 'هواية'}` : ''}
@@ -549,138 +524,63 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                     color: rgba(148, 163, 184, 0.6);
                 }
 
-                .smart-tag-suggestions {
-                    position: absolute;
-                    top: calc(100% + 4px);
-                    left: 0;
-                    right: 0;
-                    background: #1e1b4b;
-                    border: 1.5px solid rgba(99, 102, 241, 0.4);
-                    border-radius: 14px;
-                    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-                    z-index: 50;
-                    overflow: hidden;
-                    animation: dropdownAppear 0.2s ease;
+                .smart-suggest-inline {
+                    margin-top: 12px;
                 }
 
-                @keyframes dropdownAppear {
-                    from {
-                        opacity: 0;
-                        transform: translateY(-8px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-
-                .smart-tag-suggestions-header {
-                    padding: 10px 14px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: #a5b4fc;
-                    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
-                }
-
-                .smart-tag-suggestions-list {
-                    max-height: 240px;
-                    overflow-y: auto;
-                    padding: 6px;
-                    /* سكرول سلس على الموبايل — momentum يسمح بالتمرير الطبيعي */
-                    -webkit-overflow-scrolling: touch;
-                    overscroll-behavior: contain;
-                }
-
-                @media (max-width: 640px) {
-                    .smart-tag-suggestions-list {
-                        max-height: 200px;
-                    }
-                }
-
-                .smart-tag-suggestions-list::-webkit-scrollbar {
-                    width: 4px;
-                }
-
-                .smart-tag-suggestions-list::-webkit-scrollbar-thumb {
-                    background: rgba(99, 102, 241, 0.3);
-                    border-radius: 2px;
-                }
-
-                .smart-tag-suggestion-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    width: 100%;
-                    padding: 10px 12px;
-                    background: transparent;
-                    border: none;
-                    border-radius: 10px;
-                    color: #e2e8f0;
-                    font-size: 14px;
-                    cursor: pointer;
-                    transition: all 0.15s;
-                    text-align: right;
-                    direction: rtl;
-                }
-
-                .smart-tag-suggestion-item:hover,
-                .smart-tag-suggestion-item.highlighted {
-                    background: rgba(99, 102, 241, 0.2);
-                    color: #c7d2fe;
-                }
-
-                .smart-tag-suggestion-plus {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 22px;
-                    height: 22px;
-                    background: rgba(99, 102, 241, 0.3);
-                    border-radius: 6px;
-                    font-size: 16px;
+                .smart-suggest-inline-title {
+                    font-size: 13px;
                     font-weight: 700;
-                    color: #a5b4fc;
-                    flex-shrink: 0;
+                    color: #6b7280;
+                    margin-bottom: 8px;
                 }
 
-                .smart-tag-add-custom {
-                    background: rgba(99, 102, 241, 0.15);
-                    border: 1px dashed rgba(99, 102, 241, 0.6);
-                }
-
-                .smart-ai-extra {
-                    margin-top: 10px;
-                }
-
-                .smart-ai-extra-header {
-                    font-size: 12px;
-                    font-weight: 600;
+                .smart-suggest-loading {
                     color: #8b5cf6;
-                    margin-bottom: 6px;
+                    font-weight: 500;
                 }
 
-                .smart-ai-extra-chips {
+                .smart-suggest-inline-chips {
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 6px;
+                    gap: 8px;
                 }
 
-                .smart-ai-extra-chip {
-                    padding: 6px 12px;
-                    font-size: 13px;
-                    font-weight: 500;
-                    color: #7c3aed;
-                    background: rgba(139, 92, 246, 0.12);
-                    border: 1.5px solid rgba(139, 92, 246, 0.35);
-                    border-radius: 16px;
+                .smart-chip {
+                    padding: 8px 14px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #374151;
+                    background: #f9fafb;
+                    border: 1.5px solid #e5e7eb;
+                    border-radius: 9999px;
                     cursor: pointer;
-                    transition: all 0.2s;
+                    transition: all 0.15s;
                     white-space: nowrap;
                 }
 
-                .smart-ai-extra-chip:hover {
-                    background: rgba(139, 92, 246, 0.25);
-                    border-color: #8b5cf6;
+                .smart-chip:hover {
+                    border-color: #6366f1;
+                    background: #eef2ff;
+                    color: #4f46e5;
+                }
+
+                .smart-chip-selected {
+                    background: #eef2ff;
+                    border-color: #6366f1;
+                    color: #4f46e5;
+                }
+
+                .smart-chip-ai {
+                    background: rgba(139, 92, 246, 0.08);
+                    border-color: rgba(139, 92, 246, 0.35);
+                    color: #7c3aed;
+                }
+
+                .smart-chip-add {
+                    background: #ecfdf5;
+                    border: 1.5px dashed #10b981;
+                    color: #047857;
                 }
 
                 .smart-tag-footer {

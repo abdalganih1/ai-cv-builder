@@ -13,6 +13,7 @@ import { getWorkDateSuggestions, getAIWorkDateSuggestions } from '@/lib/utils/wo
 import type { DateSuggestion } from '@/lib/utils/work-date-suggestions';
 import SmartDateInput from '@/components/ui/SmartDateInput';
 import SmartTagInput from '@/components/ui/SmartTagInput';
+import UniversityCarousel from '@/components/ui/UniversityCarousel';
 import ImageCropper from '@/components/preview/ImageCropper';
 
 // ═══════════════════════════════════════════════════════════════
@@ -1435,6 +1436,16 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'text' && (
                         <div>
+                            {/* كاروسيل الجامعات — شعارات كبيرة قابلة للسحب */}
+                            {currentQuestion.field === 'education_institution' && (
+                                <div className="mb-4">
+                                    <div className="text-xs font-bold text-gray-500 mb-2">اختر جامعتك سريعاً:</div>
+                                    <UniversityCarousel
+                                        value={response}
+                                        onSelect={(name) => setResponse(name)}
+                                    />
+                                </div>
+                            )}
                             <input
                                 type="text"
                                 value={response}

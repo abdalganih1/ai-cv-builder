@@ -452,10 +452,11 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
 
         const STATIC_SUGGESTIONS: Record<string, string[]> = {
             university: [
-                'جامعة حمص', 'جامعة دمشق', 'جامعة حلب', 'جامعة تشرين',
+                'جامعة دمشق', 'جامعة حلب', 'جامعة حمص', 'جامعة تشرين',
                 'جامعة حماة', 'جامعة الفرات', 'جامعة طرطوس',
-                'الجامعة الافتراضية السورية', 'WPU', 'AUST',
-                'الجامعة العربية الدولية', 'جامعة القلمون',
+                'الجامعة الافتراضية السورية', 'الجامعة الوطنية الخاصة (WPU)',
+                'الجامعة العربية الدولية (IUST)', 'جامعة القلمون الخاصة',
+                'جامعة الحواش الخاصة',
             ],
             language: [
                 'الإنجليزية', 'الفرنسية', 'الألمانية', 'التركية',
@@ -578,13 +579,16 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
         'جامعة الشهباء': { emoji: '🕌', color: '#166534' },
     };
 
-    // شعارات جامعات فعلية من مشروع WPU-Book (public/logos) — fallback لايموجي ملون
+    // شعارات جامعات فعلية (WPU-Book نظيفة + Wikipedia رسمية) — fallback ايموجي/اختصار ملون
     const UNIVERSITY_LOGOS: Record<string, string> = {
+        'جامعة دمشق': '/logos/damascus_sq.png',
         'جامعة حلب': '/logos/aleppo.png',
         'جامعة حمص': '/logos/homs.webp',
         'جامعة حماة': '/logos/hama.png',
-        'الجامعة الوطنية الخاصة': '/logos/watuaniya.png',
-        'الجامعة العربية الدولية': '/logos/arabia.png',
+        'الجامعة الافتراضية السورية': '/logos/svu_sq.png',
+        'الجامعة الوطنية الخاصة (WPU)': '/logos/watuaniya.png',
+        'الجامعة العربية الدولية (IUST)': '/logos/arabia.png',
+        'جامعة القلمون الخاصة': '/logos/qalamoun_sq.png',
         'جامعة الحواش الخاصة': '/logos/hawash.png',
     };
 
