@@ -578,11 +578,32 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
         'جامعة الشهباء': { emoji: '🕌', color: '#166534' },
     };
 
+    // شعارات جامعات فعلية من مشروع WPU-Book (public/logos) — fallback لايموجي ملون
+    const UNIVERSITY_LOGOS: Record<string, string> = {
+        'جامعة حلب': '/logos/aleppo.png',
+        'جامعة حمص': '/logos/homs.webp',
+        'جامعة حماة': '/logos/hama.png',
+        'الجامعة الوطنية الخاصة': '/logos/watuaniya.png',
+        'الجامعة العربية الدولية': '/logos/arabia.png',
+        'جامعة الحواش الخاصة': '/logos/hawash.png',
+    };
+
     const renderSuggestion = (suggestion: string) => {
         if (fieldType !== 'university') {
             return <>{suggestion}</>;
         }
+        // شعار فعلي إذا موجود، وإلا ايموجي بلون الجامعة
+        const logo = UNIVERSITY_LOGOS[suggestion];
         const brand = UNIVERSITY_BRANDS[suggestion];
+        if (logo) {
+            return (
+                <span className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={logo} alt="" className="w-7 h-7 object-contain shrink-0" />
+                    <span>{suggestion}</span>
+                </span>
+            );
+        }
         return (
             <span className="flex items-center gap-2">
                 <span
