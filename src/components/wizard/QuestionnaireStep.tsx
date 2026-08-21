@@ -1513,6 +1513,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                 setResponse(newTags.join('، '));
                             }}
                             onSubmit={handleAnswer}
+                            onBack={handleInternalBack}
                             fieldType={currentQuestion.field === 'hobbies_text' ? 'hobbies' : 'skills'}
                             placeholder={currentQuestion.field === 'hobbies_text' ? 'ابحث عن هواياتك...' : 'ابحث عن مهاراتك...'}
                             context={{

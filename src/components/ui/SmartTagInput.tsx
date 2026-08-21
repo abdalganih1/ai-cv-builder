@@ -137,6 +137,7 @@ interface SmartTagInputProps {
     onSubmit: () => void;
     fieldType: 'skills' | 'hobbies';
     placeholder?: string;
+    onBack?: () => void; // زر رجوع داخلي — يظهر فوق الاقتراحات دائماً
     // سياق لتخصيص الاقتراحات
     context?: {
         major?: string;
@@ -146,7 +147,7 @@ interface SmartTagInputProps {
     };
 }
 
-export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, placeholder, context }: SmartTagInputProps) {
+export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, placeholder, onBack, context }: SmartTagInputProps) {
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(true);
     const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -350,11 +351,32 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onFocus={() => setShowSuggestions(true)}
+                    onBlur={(e) => {
+                        // أغلق المنسدلة عند فقدان التركيز — إلا إذا الضغط كان على عنصر داخل الحاوية
+                        // (المنسدلة أخو الحقل داخل نفس containerRef، فحالياً onClick بالاقتراحات يسجل طبيعي)
+                        if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+                            setShowSuggestions(false);
+                        }
+                    }}
                     placeholder={tags.length === 0 ? (placeholder || 'ابدأ بالكتابة...') : 'أضف المزيد...'}
                     className="smart-tag-input"
                     dir="auto"
                 />
             </div>
+
+            {/* زر رجوع داخلي — فوق الاقتراحات، ظاهر دائماً حتى لو المنسدلة مفتوحة */}
+            {onBack && (
+                <div className="flex justify-start mt-2">
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                    >
+                        <span>←</span>
+                        <span>رجوع</span>
+                    </button>
+                </div>
+            )}
 
             {/* قائمة الاقتراحات المنسدلة */}
             {showSuggestions && (filteredSuggestions.length > 0 || canAddCustom) && (
