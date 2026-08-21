@@ -2118,3 +2118,9 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 - `npm run test` → 7/7 نجحت.
 - `npm run build` → نجح، `/` تُولَّد Static.
 - (تحقق حي لاحق أدناه)
+
+### التحقق الحي بعد النشر (728e29d)
+فحص SSE مباشر من سيرفر خارجي على `/api/ai/chat` الحي:
+- قبل: `total 60.2s | content 0 chars | reasoning 10,808 chars | finish_reason: None`
+- بعد: `total 13.8s | content 2,344 chars | reasoning 0 chars | finish_reason: stop | usage: 529 completion tokens`
+- المحتوى JSON صالح لسيرة كاملة (personal/skills...). التوليد يعمل، أسرع 4.3x.
