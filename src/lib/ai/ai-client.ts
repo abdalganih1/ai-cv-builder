@@ -46,7 +46,7 @@ function getProviders(keys: AIKeys): AIProvider[] {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${zaiKey}`,
             }),
-            timeout: 60000,
+            timeout: 150000,
         });
     }
 
@@ -168,7 +168,7 @@ export async function callAI(
  */
 export async function callAIStream(
     messages: AIMessage[],
-    options?: { temperature?: number; maxTokens?: number },
+    options?: { temperature?: number; maxTokens?: number; fast?: boolean },
     keys?: AIKeys
 ): Promise<Response> {
     const providers = getProviders(keys ?? resolveKeys());
@@ -193,6 +193,9 @@ export async function callAIStream(
                     temperature: options?.temperature ?? 0.7,
                     max_tokens: options?.maxTokens ?? 8000,
                     stream: true,
+                    // تعطيل thinking للـ GLM بنمط streaming — بدون هذا العلم الموديل يصرف
+                    // المدة كاملة بـ reasoning_content والعميل يرجع بمحتوى فارغ بعد مهلة البث
+                    ...(options?.fast && provider.url.includes('z.ai') ? { thinking: { type: 'disabled' } } : {}),
                 }),
                 signal: AbortSignal.timeout(provider.timeout),
             });

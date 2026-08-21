@@ -2090,3 +2090,31 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 - push إلى main (commit `5c20ee9`) → commit `7f457df..5c20ee9` على GitHub.
 - **التحقق الحي تم بنجاح**: استطلاع https://cv.abdalgani.com أثبت تغيّر بصمة ملفات JS للبناء الجديد (`page-29962e2d…` → `page-205e1898…`) أي أن نشر Cloudflare Pages الجديد فعلاً حي، مع HTTP 200 ✓، لا يوجد `__next_error__` ✓، والعنوان يحوي «ذكاء السيرة» ✓.
 
+---
+
+## تقرير: النموذج لا يولّد بيانات — التفكير الخفي يلتهم التوليد (2026-08-21)
+
+### المشكلة
+عند الضغط على «الانتقال للمعاينة» ينتظر المستخدم 40-60 ثانية على شاشة التحميل ثم تفتح المعاينة ببيانات خام دون أي تحسين — النموذج "لا يقدم بيانات ولا يتجاوب".
+
+### السبب الجذري (مؤكد بفحص حي من شبكة نظيفة)
+- مسار التوليد `/api/ai/chat` يمرر `stream: true` إلى GLM-4.7 **بدون تعطيل التفكير**. الموديل reasoning-only: بث كامل 60 ثانية أنتج **10,808 حرف reasoning_content مقابل 0 حرف content** — والعميل (`zai-client.ts`) يجمع `delta.content` فقط.
+- عامل مضاعف: صاعق Z.AI في `callAIStream` كان **60 ثانية** (`AbortSignal.timeout`) يقطع البث قبل ظهور أي محتوى حتى لو تأخر التفكير قليلاً.
+
+الأدلة: فحصان مستقلان من سيرفر خارجي على نقطة `/api/ai/chat` الحية: `total ~60s | content 0 chars | reasoning ~10.8k chars | finish_reason: None` (المصدر: قياس مباشر للبث SSE).
+
+### الحل المطبق (3 ملفات... بل ملفان + route)
+1. **`src/lib/ai/ai-client.ts`**:
+   - `callAIStream` يقبل الآن علم `fast` ويمرر `thinking: { type: 'disabled' }` لمزود z.ai — نفس الآلية المثبتة في مسارات الاقتراحات السريعة.
+   - مهلة Z.AI للبث: 60s → **150s** (المزود الاحتياطي الثاني 45s كما هو).
+2. **`src/app/api/ai/chat/route.ts`**: تمرير `fast: true` من الـroute إلى `callAIStream`.
+
+### الملفات المعدلة
+- `src/lib/ai/ai-client.ts`
+- `src/app/api/ai/chat/route.ts`
+
+### التحقق
+- `tsc --noEmit` → نظيف.
+- `npm run test` → 7/7 نجحت.
+- `npm run build` → نجح، `/` تُولَّد Static.
+- (تحقق حي لاحق أدناه)
