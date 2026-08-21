@@ -1327,7 +1327,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             onChange={setResponse}
                             onSubmit={handleAnswer}
                             minYear={1950}
-                            maxYear={new Date().getFullYear() - 10}
+                            maxYear={new Date().getFullYear() - 20}
                             label="تاريخ الميلاد"
                         />
                     )}

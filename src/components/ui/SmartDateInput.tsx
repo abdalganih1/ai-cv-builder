@@ -24,7 +24,7 @@ const MONTHS_EN = [
 
 const currentYear = new Date().getFullYear();
 const DEFAULT_MIN_YEAR = 1950;
-const DEFAULT_MAX_YEAR = currentYear - 10;
+const DEFAULT_MAX_YEAR = currentYear - 20;
 
 export default function SmartDateInput({
     value,

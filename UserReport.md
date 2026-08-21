@@ -1884,3 +1884,25 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 - `tsc --noEmit` نظيف
 - اختبار منطقي 6 حالات عبر vitest (نسخة مؤقتة حُذفت بعد التشغيل): تقسيم إيميل كامل / مزود مخصص / اسم فقط / @ متأخرة بدون مزود / @ متعددة / أحرف عربية
 - `npm run build` ✓ و `npm run test` 2/2 ✓
+
+
+---
+
+## 📋 تقرير 2026-08-21: اقتراحات سنة الميلاد تبدأ من 20 سنة للوراء
+
+### المشكلة
+اقتراحات سنة الميلاد بالاستبيان كانت تسمح حتى `currentYear - 10` (أي مواليد 2016) — لا يوجد طفل عمره 10 سنوات يبني CV.
+
+### السبب الجذري
+- `SmartDateInput.tsx`: `DEFAULT_MAX_YEAR = currentYear - 10`
+- `QuestionnaireStep.tsx`: تمرير صريح `maxYear={new Date().getFullYear() - 10}`
+
+### الحل المطبق
+| الملف | التغيير |
+|-------|---------|
+| `src/components/ui/SmartDateInput.tsx` | `DEFAULT_MAX_YEAR = currentYear - 20` |
+| `src/components/wizard/QuestionnaireLook.tsx` → `QuestionnaireStep.tsx` | `maxYear={new Date().getFullYear() - 20}` |
+
+### التحقق
+- `tsc --noEmit` نظيف، `npm run test` 2/2 ✓، `npm run build` ✓
+- أقصى سنة مقترحة الآن: 2026 - 20 = **2006**، والقائمة تنزل للأقدم
