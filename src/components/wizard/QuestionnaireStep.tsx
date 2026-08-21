@@ -15,6 +15,7 @@ import SmartDateInput from '@/components/ui/SmartDateInput';
 import SmartTagInput from '@/components/ui/SmartTagInput';
 import UniversityCarousel from '@/components/ui/UniversityCarousel';
 import ImageCropper from '@/components/preview/ImageCropper';
+import AnalysisProgress from './AnalysisProgress';
 
 // ═══════════════════════════════════════════════════════════════
 // AI SUGGEST FIELD MAPPING
@@ -1294,6 +1295,11 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
             <p className="font-bold text-primary">جاري تحليل الإجابات وتوليد السؤال التالي...</p>
         </div>
     );
+
+    // ═══════════════════════════════════════════════════════════════
+    // RENDER: CV generation in progress — full progress UI (matches all other generation screens)
+    // ═══════════════════════════════════════════════════════════════
+    if (!currentQuestion && isGenerating) return <AnalysisProgress estimatedDuration={50} />;
 
     // ═══════════════════════════════════════════════════════════════
     // RENDER: All questions done

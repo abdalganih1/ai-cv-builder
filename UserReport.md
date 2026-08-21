@@ -2060,3 +2060,32 @@ PDF → Regex (سريع) → Gemini Vision (عربي ممتاز) → Self-hosted
 
 ### النشر والتحقق المباشر
 - push إلى main → Cloudflare Pages نبني تلقائي → التحقق من https://cv.abdalgani.com (تفاصيل النتيجة في الأسفل بعد التحقق).
+
+---
+
+## 📋 تقرير 2026-08-21 (جلسة ثالثة): واجهة تقدم كاملة أثناء توليد السيرة الذاتية
+
+### المشكلة
+شاشة «تم الانتهاء من جميع الأسئلة» عند الضغط على زر «الانتقال للمعاينة» كانت تعرض فقط سبينر صغير داخل الزر («جاري توليد السيرة الذاتية...») لمدة 40-60 ثانية أثناء استدعاء `generateProfessionalCV` — بدون أي شريط تقدم أو رسائل مراحل أو وقت متبقٍ. هذه كانت الشاشة الوحيدة في المشروع بدون مكوّن `AnalysisProgress` رغم استخدامه في كل شاشات التوليد الأخرى (WelcomeStep, AdvancedInput, CVPreview×2, ShamCashPayment).
+
+### السبب الجذري
+حالة `isGenerating` كانت تُستخدم فقط لتعطيل الزر وتبديل نصه، ولا يوجد أي مسار رندر مبكر يعترض العرض عند تفعيلها.
+
+### الحل المطبق
+في `QuestionnaireStep.tsx`:
+1. استيراد `AnalysisProgress` مع باقي الاستيرادات.
+2. إضافة return مبكر **بعد** بلوك `if (loading)` وقبل `if (!currentQuestion)`: `if (!currentQuestion && isGenerating) return <AnalysisProgress estimatedDuration={50} />;` — يعرض شريط نسبة مئوية + رسائل مراحل متجددة + وقت متبقٍ + shimmer، مطابق لبقية شاشات التوليد.
+3. `estimatedDuration={50}` لأن التوليد الفعلي يستغرق 40-60 ثانية (نفس قيمة ShamCashPayment لنفس عملية التوليد).
+- منطق الزر (`handleGenerate`) لم يُمَس إطلاقاً، وزر الرجوع معطّل تلقائياً أثناء التوليد (`disabled={isGenerating}` موجود مسبقاً).
+
+### الملفات المعدلة
+- `src/components/wizard/QuestionnaireStep.tsx` (استيراد + 3 أسطر رندر مبكر مع تعليق)
+
+### التحقق (البوابات)
+- `./node_modules/.bin/tsc --noEmit` ✓ نظيف
+- `npm run test` ✓ 7/7
+- `npm run build` ✓
+
+### النشر والتحقق المباشر
+- push إلى main → التحقق الحي من https://cv.abdalgani.com أدناه.
+
