@@ -1444,7 +1444,18 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     type="email"
                                     value={emailUsername}
                                     onChange={(e) => {
-                                        const val = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+                                        const raw = e.target.value.toLowerCase();
+                                        // تنبؤ الجوال بالإيميل الكامل — افصله تلقائياً لمستخدم + مزود
+                                        if (raw.includes('@')) {
+                                            const atIdx = raw.indexOf('@');
+                                            const user = raw.substring(0, atIdx).replace(/[^a-z0-9._-]/g, '');
+                                            const domain = raw.substring(atIdx + 1).replace(/[^a-z0-9.\-]/g, '');
+                                            setEmailUsername(user);
+                                            if (domain) setEmailDomain(domain);
+                                            setResponse(user ? `${user}@${domain || emailDomain}` : '');
+                                            return;
+                                        }
+                                        const val = raw.replace(/[^a-z0-9._-]/g, '');
                                         setEmailUsername(val);
                                         setResponse(val ? `${val}@${emailDomain}` : '');
                                     }}
@@ -1480,6 +1491,9 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     <option value="icloud.com">icloud.com</option>
                                     <option value="outlook.com">outlook.com</option>
                                     <option value="hotmail.com">hotmail.com</option>
+                                    {!['gmail.com', 'icloud.com', 'outlook.com', 'hotmail.com'].includes(emailDomain) && (
+                                        <option value={emailDomain}>{emailDomain}</option>
+                                    )}
                                 </select>
                             </div>
                             {emailUsername && (
