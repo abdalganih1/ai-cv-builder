@@ -466,12 +466,20 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                 'معهد', 'كلية تطبيقية', 'شهادة مهنية',
             ],
             major: [
-                'هندسة برمجيات', 'علوم الحاسوب', 'هندسة كهربائية',
+                'هندسة برمجيات', 'علوم الحاسوب', 'هندسة الاتصالات', 'هندسة المعلوماتية',
+                'هندسة الحواسيب', 'هندسة التحكم الآلي', 'هندسة كهربائية',
                 'هندسة مدنية', 'هندسة ميكانيكية', 'هندسة معمارية',
                 'طب بشري', 'صيدلة', 'حقوق', 'إدارة أعمال', 'محاسبة',
             ],
             company: [
-                'شركة سيريتل', 'MTN سوريا', 'بنك سورية والخليج',
+                'شركة سيرياتيل', 'شركة MTN سوريا', 'المؤسسة العامة للاتصالات',
+                'بنك سورية الدولي الإسلامي', 'بنك بيمو السعودي الفرنسي', 'بنك سورية والمهجر',
+                'شركة الفرات للصناعات الغذائية', 'الشركة السورية للتجارة',
+                'وزارة التربية', 'وزارة الصحة', 'الجامعة الحكومية',
+                'شركة كلكتا للبرمجيات', 'شركة تكنو سوليوشنز', 'شركة ديار بكس',
+                'مؤسسة الإسكان العسكرية', 'الشركة العامة للكهرباء',
+                'جمعية الهلال الأحمر العربي السوري', 'منظمة أممية (UN)',
+                'عمل حر / فريلانس', 'متجر خاص / مشروع خاص',
             ],
             skills: [
                 'JavaScript', 'Python', 'React', 'Node.js', 'TypeScript',
@@ -489,6 +497,27 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
         };
 
         const staticList = STATIC_SUGGESTIONS[fieldType] || [];
+        // خيار "لا يوجد" لسؤال جهة العمل — يظهر دائماً
+        if (fieldType === 'company') {
+            const noneOption = 'لا يوجد';
+            const rest = staticList.filter(s => s !== noneOption);
+            const list = [noneOption, ...rest];
+            if (currentValue && currentValue.trim().length >= 2) {
+                const q = currentValue.trim();
+                const starts = list.filter(s => s.includes(q));
+                const others = list.filter(s => !s.includes(q));
+                return [noneOption, ...starts.filter(s => s !== noneOption), ...others.filter(s => s !== noneOption)].slice(0, 12);
+            }
+            return list.slice(0, 12);
+        }
+        // فلترة ذكية أثناء الكتابة: أعد المطابق للمدخل أولاً
+        if (currentValue && currentValue.trim().length >= 2 && ['major', 'university', 'degree'].includes(fieldType)) {
+            const q = currentValue.trim();
+            const starts = staticList.filter(s => s.includes(q));
+            const rest = staticList.filter(s => !s.includes(q));
+            const smart = [...starts, ...rest].slice(0, 12);
+            return smart;
+        }
         return staticList.slice(0, 12);
     }, [fieldType, currentValue, fullContext]);
 
@@ -526,6 +555,46 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
     }, [fieldType, currentValue, fullContext?.education, fullContext?.targetJobTitle]);
 
     const suggestions = aiSuggestions.length > 0 ? aiSuggestions : localSuggestions;
+
+    // هوية بصرية للجامعات السورية — ايموجي + لون رسمي (بدون صور خارجية)
+    const UNIVERSITY_BRANDS: Record<string, { emoji: string; color: string }> = {
+        'جامعة دمشق': { emoji: '🏛️', color: '#1d4ed8' },
+        'جامعة حلب': { emoji: '🏛️', color: '#b91c1c' },
+        'جامعة تشرين': { emoji: '⚓', color: '#0e7490' },
+        'جامعة البعث': { emoji: '🏛️', color: '#7c3aed' },
+        'جامعة حماة': { emoji: '🏛️', color: '#15803d' },
+        'جامعة الفرات': { emoji: '🌾', color: '#a16207' },
+        'جامعة طرطوس': { emoji: '🏝️', color: '#0369a1' },
+        'الجامعة الافتراضية السورية': { emoji: '💻', color: '#4f46e5' },
+        'الجامعة الوطنية الخاصة': { emoji: '🎓', color: '#be185d' },
+        'الجامعة السورية الخاصة': { emoji: '🎓', color: '#0f766e' },
+        'الجامعة العربية الدولية': { emoji: '🌍', color: '#c2410c' },
+        'الجامعة الدولية للعلوم والتكنولوجيا': { emoji: '🔬', color: '#3730a3' },
+        'جامعة القلمون': { emoji: '🏔️', color: '#065f46' },
+        'جامعة اليرموك الخاصة': { emoji: '🎓', color: '#9a3412' },
+        'جامعة الوادي الدولية': { emoji: '🏔️', color: '#1e3a8a' },
+        'المعهد العالي للعلوم التطبيقية والتكنولوجيا': { emoji: '⚙️', color: '#4338ca' },
+        'المعهد العالي لإدارة الأعمال': { emoji: '💼', color: '#334155' },
+        'جامعة الشهباء': { emoji: '🕌', color: '#166534' },
+    };
+
+    const renderSuggestion = (suggestion: string) => {
+        if (fieldType !== 'university') {
+            return <>{suggestion}</>;
+        }
+        const brand = UNIVERSITY_BRANDS[suggestion];
+        return (
+            <span className="flex items-center gap-2">
+                <span
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm shrink-0"
+                    style={{ background: brand ? `${brand.color}1a` : '#eef2ff' }}
+                >
+                    {brand?.emoji || '🎓'}
+                </span>
+                <span>{suggestion}</span>
+            </span>
+        );
+    };
 
     const UNIVERSITY_ALIASES: Record<string, string> = {
         'WPU': 'الجامعة الوطنية الخاصة',
@@ -580,7 +649,7 @@ export default function AISuggestButton({ fieldType, context, currentValue, onSe
                         onClick={() => handleSelect(suggestion)}
                         className={`ai-suggest-chip ${isItemSelected(suggestion) ? 'ai-suggest-chip-selected' : ''}`}
                     >
-                        {isItemSelected(suggestion) && '✓ '}{suggestion}
+                        {isItemSelected(suggestion) && '✓ '}{renderSuggestion(suggestion)}
                     </button>
                 ))}
             </div>

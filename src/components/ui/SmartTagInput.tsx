@@ -150,6 +150,8 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(true);
     const [highlightIndex, setHighlightIndex] = useState(-1);
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+    const [aiLoading, setAiLoading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -215,6 +217,46 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
 
         return results.slice(0, 12);
     }, [allSuggestions, inputValue, tags]);
+
+    // إظهار زر الإضافة اليدوية إذا المدخل جديد (غير موجود بالقائمة)
+    const canAddCustom = inputValue.trim().length > 0 &&
+        !allSuggestions.some(s => s.toLowerCase() === inputValue.trim().toLowerCase()) &&
+        !tags.some(t => t.toLowerCase() === inputValue.trim().toLowerCase());
+
+    // اقتراحات AI إضافية — كل ما زادت الوسوم، يتغير التنبؤ (لا يكرر الموجود)
+    const tagsKey = tags.join('|');
+    useEffect(() => {
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            setAiLoading(true);
+            try {
+                const res = await fetch('/api/ai/smart-suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fieldType,
+                        currentValue: '',
+                        context: {
+                            education: context?.education,
+                            targetJobTitle: context?.targetJobTitle,
+                            experience: context?.experience,
+                            existingTags: tags,
+                        },
+                    }),
+                });
+                if (!cancelled && res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.suggestions)) {
+                        const existing = new Set([...tags.map(x => x.toLowerCase()), ...inputValue.trim() ? [inputValue.trim().toLowerCase()] : []]);
+                        setAiSuggestions((data.suggestions as string[]).filter(s => !existing.has(s.toLowerCase())).slice(0, 8));
+                    }
+                }
+            } catch { /* silent */ }
+            if (!cancelled) setAiLoading(false);
+        }, 400);
+        return () => { cancelled = true; clearTimeout(t); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fieldType, tagsKey, context?.targetJobTitle]);
 
     // إضافة tag جديد
     const addTag = useCallback((value: string) => {
@@ -315,12 +357,22 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
             </div>
 
             {/* قائمة الاقتراحات المنسدلة */}
-            {showSuggestions && filteredSuggestions.length > 0 && (
+            {showSuggestions && (filteredSuggestions.length > 0 || canAddCustom) && (
                 <div className="smart-tag-suggestions">
                     <div className="smart-tag-suggestions-header">
                         💡 {inputValue ? 'نتائج البحث' : 'اقتراحات ذكية'} — اضغط للإضافة
                     </div>
                     <div className="smart-tag-suggestions-list">
+                        {canAddCustom && (
+                            <button
+                                type="button"
+                                className="smart-tag-suggestion-item smart-tag-add-custom"
+                                onClick={() => addTag(inputValue)}
+                            >
+                                <span className="smart-tag-suggestion-plus">+</span>
+                                إضافة «{inputValue.trim()}» يدوياً
+                            </button>
+                        )}
                         {filteredSuggestions.map((suggestion, idx) => (
                             <button
                                 key={idx}
@@ -331,6 +383,27 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                             >
                                 <span className="smart-tag-suggestion-plus">+</span>
                                 {suggestion}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* اقتراحات AI إضافية — تتجدد كل ما أضاف المستخدم المزيد */}
+            {aiSuggestions.length > 0 && (
+                <div className="smart-ai-extra">
+                    <div className="smart-ai-extra-header">
+                        🤖 اقتراحات AI إضافية {aiLoading && <span className="animate-pulse">…</span>}
+                    </div>
+                    <div className="smart-ai-extra-chips">
+                        {aiSuggestions.map((s) => (
+                            <button
+                                key={s}
+                                type="button"
+                                className="smart-ai-extra-chip"
+                                onClick={() => addTag(s)}
+                            >
+                                + {s}
                             </button>
                         ))}
                     </div>
@@ -491,6 +564,15 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                     max-height: 240px;
                     overflow-y: auto;
                     padding: 6px;
+                    /* سكرول سلس على الموبايل — momentum يسمح بالتمرير الطبيعي */
+                    -webkit-overflow-scrolling: touch;
+                    overscroll-behavior: contain;
+                }
+
+                @media (max-width: 640px) {
+                    .smart-tag-suggestions-list {
+                        max-height: 200px;
+                    }
                 }
 
                 .smart-tag-suggestions-list::-webkit-scrollbar {
@@ -537,6 +619,46 @@ export default function SmartTagInput({ tags, onChange, onSubmit, fieldType, pla
                     font-weight: 700;
                     color: #a5b4fc;
                     flex-shrink: 0;
+                }
+
+                .smart-tag-add-custom {
+                    background: rgba(99, 102, 241, 0.15);
+                    border: 1px dashed rgba(99, 102, 241, 0.6);
+                }
+
+                .smart-ai-extra {
+                    margin-top: 10px;
+                }
+
+                .smart-ai-extra-header {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #8b5cf6;
+                    margin-bottom: 6px;
+                }
+
+                .smart-ai-extra-chips {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                }
+
+                .smart-ai-extra-chip {
+                    padding: 6px 12px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: #7c3aed;
+                    background: rgba(139, 92, 246, 0.12);
+                    border: 1.5px solid rgba(139, 92, 246, 0.35);
+                    border-radius: 16px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    white-space: nowrap;
+                }
+
+                .smart-ai-extra-chip:hover {
+                    background: rgba(139, 92, 246, 0.25);
+                    border-color: #8b5cf6;
                 }
 
                 .smart-tag-footer {

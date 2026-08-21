@@ -44,7 +44,23 @@ export async function POST(request: NextRequest) {
         let prompt = '';
 
         if (fieldType === 'position' || fieldType === 'jobTitle') {
-            prompt = `
+            // اقتراح حي أثناء الكتابة — بادئة قصيرة (مثل "مه") → مسميات محتملة
+            const typed = (context as { typed?: string }).typed || currentValue || '';
+            if (typed.trim().length >= 2 && typed.trim().length <= 20) {
+                prompt = `
+أنت مساعد ذكي متخصص في المسميات الوظيفية العربية.
+المستخدم بدأ يكتب: "${typed.trim()}"
+${context.education?.length ? `- تخصصاته: ${context.education.map((e: EducationEntry) => e.major).filter(Boolean).join('، ')}` : ''}
+
+المطلوب: أكمل تخمين المسمى الوظيفي الذي يقصده.
+قواعد:
+- كل اقتراح يجب أن يبدأ بنفس ما كتبه (مثل "مه" → "مهندس ...")
+- إذا ما نطابق منطقي، اقترح مسميات شائعة قريبة صوتياً/إملائياً
+- 4-6 اقتراحات
+- أرجع JSON array فقط: ["مهندس برمجيات", "مهندس مدني", ...]
+`;
+            } else {
+                prompt = `
 أنت مساعد ذكي متخصص في تحليل السير الذاتية.
 
 بيانات المستخدم:
@@ -67,6 +83,7 @@ export async function POST(request: NextRequest) {
 - أضف مسميات عامة كخيار أخير
 - أرجع JSON array فقط: ["مهندس كهربائي", "مهندس طاقة", ...]
 `;
+            }
         } else if (fieldType === 'workStartDate') {
             prompt = `
 أنت مساعد ذكي متخصص في تحليل السير الذاتية.
@@ -101,6 +118,24 @@ export async function POST(request: NextRequest) {
 - مدة العمل المتوسطة: 2-4 سنوات
 - الصيغة: YYYY/MM
 - أرجع JSON array: ["حالياً (لا أزال أعمل)", "2024/06 (4 سنوات)", ...]
+`;
+        } else if (fieldType === 'skills') {
+            const existing = (context as { existingTags?: string[] }).existingTags || [];
+            prompt = `
+أنت مساعد ذكي متخصص في السير الذاتية.
+
+بيانات المستخدم:
+- التخصصات الدراسية: ${context.education?.map(e => e.major).filter(Boolean).join('، ') || 'غير محدد'}
+- المسمى الوظيفي المستهدف: ${context.targetJobTitle || 'غير محدد'}
+- الخبرات: ${context.experience?.map(e => e.position).filter(Boolean).join('، ') || 'غير محدد'}
+${existing.length ? `- مهارات أضافها بالفعل (لا تكررها): ${existing.join('، ')}` : ''}
+
+المطلوب: اقتراح 6-10 مهارات جديدة مناسبة لم يجدها المستخدم بالقائمة
+قواعد:
+- لا تكرر أي مهارة من القائمة الموجودة أعلاه
+- ركز على مهارات تقنية ومهنية متوافقة مع التخصص
+- اخلط مهارات تقنية (Soft/Hard)
+- أرجع JSON array فقط: ["مهارة 1", "مهارة 2", ...]
 `;
         } else if (fieldType === 'hobbies') {
             prompt = `

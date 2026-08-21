@@ -56,7 +56,7 @@ const DEGREE_ORDER: Record<string, number> = {
 };
 
 const DEGREE_DURATIONS: Record<string, number> = {
-    'بكالوريوس': 5,
+    'بكالوريوس': 4, // بكالوريوس عادي = 4 سنوات (الهندسة تتخطى لـ 5 عبر فحص التخصص)
     'كلية تطبيقية': 4,
     'معهد': 2,
     'دبلوم': 2,
@@ -311,9 +311,13 @@ export function getEndYearSuggestions(
     const start = parseYear(startYear);
 
     if (start) {
-        let estimatedDuration = DEGREE_DURATIONS[normalizeDegree(degree || '')] || 4;
+        let estimatedDuration = DEGREE_DURATIONS[normalizeDegree(degree || '')] || 0;
 
-        if (!degree || !DEGREE_DURATIONS[normalizeDegree(degree)]) {
+        // الهندسة في سوريا = 5 سنوات دائماً (حتى لو الشهادة "بكالوريوس" فقط)
+        const isEngineering = (major && /هندس|هندسة|الاتصالات|المعلوماتية|الحواسيب|التحكم|المعمار/i.test(major)) || false;
+        if (isEngineering && (degree || '').includes('بكالوريوس')) {
+            estimatedDuration = 5;
+        } else if (!degree || !DEGREE_DURATIONS[normalizeDegree(degree)]) {
             const baseDuration = UNIVERSITY_DURATIONS[university || ''] || 4;
             estimatedDuration = baseDuration;
 

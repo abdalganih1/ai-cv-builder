@@ -10,6 +10,7 @@ interface SmartDateInputProps {
     maxYear?: number;
     placeholder?: string;
     label?: string;
+    dayOptional?: boolean; // لتواريخ العمل: يسمح "بدون يوم" → YYYY/MM
 }
 
 const MONTHS_AR = [
@@ -33,7 +34,8 @@ export default function SmartDateInput({
     minYear = DEFAULT_MIN_YEAR,
     maxYear = DEFAULT_MAX_YEAR,
     placeholder = 'مثال: 1990/05/15',
-    label = 'تاريخ الميلاد'
+    label = 'تاريخ الميلاد',
+    dayOptional = false
 }: SmartDateInputProps) {
     const [step, setStep] = useState<'year' | 'month' | 'day'>('year');
     const [yearInput, setYearInput] = useState('');
@@ -258,6 +260,18 @@ export default function SmartDateInput({
                             );
                         })}
                     </div>
+                    {dayOptional && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onChange(`${selectedYear}/${selectedMonth}`);
+                                setTimeout(() => onSubmit(), 300);
+                            }}
+                            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20 transition-all"
+                        >
+                            ✓ بدون تحديد يوم — أكمل بـ {selectedYear}/{selectedMonth}
+                        </button>
+                    )}
                 </div>
             )}
 

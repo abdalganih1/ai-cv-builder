@@ -1,7 +1,7 @@
 "use client";
 
 import { CVData, Question } from '@/lib/types/cv-schema';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import questionnaireAgent from '@/lib/ai/questionnaire-agent';
 import NextImage from 'next/image';
 import VoiceRecorder from '@/components/ui/VoiceRecorder';
@@ -254,6 +254,172 @@ function DateInputWithAI({ suggestions: initialSuggestions, value, onChange, onS
                     اقتراحات {aiLoading ? '(جاري التحليل...)' : ''}:
                 </span>
                 {suggestions.filter(s => s.date !== 'حتى الآن' || aiContext.fieldType !== 'end').map((s, i) => (
+                    <button
+                        key={i}
+                        type="button"
+                        onClick={() => onChange(s.date)}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${value === s.date
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-primary/50'
+                            }`}
+                    >
+                        {s.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE JOB TITLE SUGGESTIONS — اقتراحات فورية أثناء الكتابة
+// ═══════════════════════════════════════════════════════════════
+// قاعدة محلية: بادئة عربية → مسميات شائعة (تعمل بدون إنترنت/AI)
+const JOB_PREFIX_HINTS: Record<string, string[]> = {
+    'مه': ['مهندس برمجيات', 'مهندس مدني', 'مهندس كهربائي', 'مهندس شبكات', 'مهندس معماري', 'مهندس ميكانيكي'],
+    'مح': ['محاسب', 'محلل بيانات', 'محلل نظم', 'محرر', 'محامي'],
+    'مط': ['مطور برمجي', 'مطور ويب', 'مطور تطبيقات', 'مطور واجهات'],
+    'مص': ['مصمم جرافيك', 'مصمم واجهات', 'مصمم أزياء', 'مصور فوتوغرافي'],
+    'مع': ['معلم', 'مدرس', 'مصمم داخلي'],
+    'مدي': ['مدير', 'مدير مشاريع', 'مدير تسويق', 'مدير مبيعات'],
+    'بر': ['مبرمج', 'باحث بيانات'],
+    'طبي': ['طبيب', 'طبيب أسنان', 'طبيب بيطري'],
+    'صيد': ['صيدلي'],
+    'ممر': ['ممرض', 'ممرضة'],
+    'تدري': ['مدرس', 'معلم'],
+    'تسوي': ['مسؤول تسويق', 'مدير تسويق'],
+    'مبيع': ['مندوب مبيعات', 'مدير مبيعات'],
+    'إدار': ['مدير إداري', 'موظف إداري', 'مسؤول إداري'],
+    'مترج': ['مترجم', 'مترجم فوري'],
+    'كتا': ['كاتب محتوى', 'كاتب إبداعي'],
+};
+
+function LiveJobTitleSuggestions({ query, onSelect }: { query: string; onSelect: (v: string) => void }) {
+    const [aiItems, setAiItems] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // بادئات محلية فورية (بدون شبكة)
+    const localItems = useMemo(() => {
+        const q = query.trim();
+        if (q.length < 2) return [];
+        const hits: string[] = [];
+        for (const [prefix, jobs] of Object.entries(JOB_PREFIX_HINTS)) {
+            if (prefix.startsWith(q) || q.startsWith(prefix)) {
+                for (const j of jobs) if (!hits.includes(j)) hits.push(j);
+            }
+        }
+        return hits.slice(0, 6);
+    }, [query]);
+
+    // AI أثناء الكتابة (debounce 500ms) — يشتغل بعد حرفين
+    useEffect(() => {
+        const q = query.trim();
+        if (q.length < 2 || q === '__unknown__') { setAiItems([]); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            setLoading(true);
+            try {
+                const res = await fetch('/api/ai/smart-suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fieldType: 'jobTitle', currentValue: q, context: { typed: q } }),
+                });
+                if (!cancelled && res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.suggestions)) setAiItems(data.suggestions.slice(0, 6));
+                }
+            } catch { /* silent */ }
+            if (!cancelled) setLoading(false);
+        }, 500);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [query]);
+
+    const items = aiItems.length > 0 ? aiItems : localItems;
+    if (query.trim().length < 2 || items.length === 0) return null;
+
+    return (
+        <div className="mt-3">
+            <div className="text-sm font-bold text-gray-500 mb-2">
+                💡 اقتراحات {loading && <span className="animate-pulse text-primary">(جاري التحليل...)</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+                {items.map((s: string) => (
+                    <button
+                        key={s}
+                        type="button"
+                        onClick={() => onSelect(s)}
+                        className="px-4 py-2 text-sm font-medium rounded-full border-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary transition-all"
+                        dir="auto"
+                    >
+                        {s}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WORK DATE — نفس منتقي الميلاد (سنة→شهر→يوم اختياري) + اقتراحات AI
+// ═══════════════════════════════════════════════════════════════
+function WorkDateAIWrapper({ suggestions: initialSuggestions, value, onChange, onSubmit, fieldType, aiContext }: {
+    suggestions: DateSuggestion[];
+    value: string;
+    onChange: (v: string) => void;
+    onSubmit: () => void;
+    fieldType: 'start' | 'end';
+    aiContext: {
+        birthDate?: string;
+        education: any[];
+        experience: any[];
+        fieldType: 'start' | 'end';
+        currentCompany?: string;
+        currentStartDate?: string;
+    };
+}) {
+    const [suggestions, setSuggestions] = useState<DateSuggestion[]>(initialSuggestions);
+    const [aiLoading, setAiLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchAI = async () => {
+            setAiLoading(true);
+            const aiSuggestions = await getAIWorkDateSuggestions(aiContext);
+            if (aiSuggestions && aiSuggestions.length > 0) {
+                setSuggestions(aiSuggestions);
+            }
+            setAiLoading(false);
+        };
+        fetchAI();
+    }, [aiContext.fieldType, aiContext.currentCompany]);
+
+    return (
+        <div className="space-y-4">
+            <SmartDateInput
+                value={value}
+                onChange={onChange}
+                onSubmit={onSubmit}
+                minYear={1980}
+                maxYear={new Date().getFullYear()}
+                label={fieldType === 'start' ? 'تاريخ بدء العمل' : 'تاريخ انتهاء العمل'}
+                dayOptional
+            />
+            {fieldType === 'end' && (
+                <button
+                    type="button"
+                    onClick={() => onChange('حتى الآن')}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all ${value === 'حتى الآن'
+                        ? 'bg-primary text-white shadow-md'
+                        : 'bg-primary/10 text-primary border-2 border-primary/30 hover:bg-primary/20'
+                        }`}
+                >
+                    🔄 حتى الآن (لا أزال أعمل هنا)
+                </button>
+            )}
+            <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-gray-500 font-medium">
+                    اقتراحات {aiLoading ? '(جاري التحليل...)' : ''}:
+                </span>
+                {suggestions.filter(s => s.date !== 'حتى الآن' || fieldType !== 'end').map((s, i) => (
                     <button
                         key={i}
                         type="button"
@@ -1296,6 +1462,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     🤔 لا أعلم (سيتم اقتراح مسمى وظيفي مناسب لاحقاً)
                                 </button>
                             )}
+                            {/* اقتراحات AI حية أثناء الكتابة — للمسمى الوظيفي المستهدف */}
+                            {currentQuestion.field === 'targetJobTitle' && (
+                                <LiveJobTitleSuggestions
+                                    query={response}
+                                    onSelect={(v) => setResponse(v)}
+                                />
+                            )}
                             {/* AI Suggestions */}
                             {AI_SUGGEST_FIELDS[currentQuestion.field] && (
                                 <AISuggestButton
@@ -1439,7 +1612,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
 
                     {currentQuestion.type === 'email' && (
                         <div className="space-y-4" dir="ltr">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                 <input
                                     type="email"
                                     value={emailUsername}
@@ -1466,7 +1639,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                     inputMode="email"
                                     autoCapitalize="none"
                                     autoCorrect="off"
-                                    autoComplete="username"
+                                    autoComplete="off"
                                     enterKeyHint="next"
                                     style={{ fontSize: '16px' }}
                                     onKeyDown={(e) => {
@@ -1476,8 +1649,13 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         }
                                     }}
                                 />
-                                <span className="text-2xl font-bold text-primary">@</span>
-                                <select
+                                <div className="flex items-center gap-2 sm:hidden">
+                                    <span className="text-2xl font-bold text-primary">(@)</span>
+                                    <span className="text-sm text-gray-400">اختر المزود:</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="hidden sm:block text-2xl font-bold text-primary">@</span>
+                                    <select
                                     value={emailDomain}
                                     onChange={(e) => {
                                         setEmailDomain(e.target.value);
@@ -1495,6 +1673,7 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                                         <option value={emailDomain}>{emailDomain}</option>
                                     )}
                                 </select>
+                                </div>
                             </div>
                             {emailUsername && (
                                 <div className="text-center py-3 bg-primary/5 rounded-xl">
@@ -1562,12 +1741,12 @@ export default function QuestionnaireStep({ data, onNext, onUpdate, onBack }: St
                             exp?.startDate
                         );
                         return (
-                            <DateInputWithAI
+                            <WorkDateAIWrapper
                                 suggestions={dateSuggestions}
                                 value={response}
                                 onChange={setResponse}
                                 onSubmit={handleAnswer}
-                                placeholder={currentQuestion.dateType === 'start' ? 'مثال: 2020/01' : 'مثال: 2023/06'}
+                                fieldType={currentQuestion.dateType || 'start'}
                                 aiContext={{
                                     birthDate: data.personal.birthDate,
                                     education: data.education,
